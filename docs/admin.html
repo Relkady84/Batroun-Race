@@ -336,7 +336,8 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
 import {
-  getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged
+  getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult,
+  signOut, onAuthStateChanged, browserLocalPersistence, setPersistence
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
 import {
   getFirestore, collection, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc,
@@ -395,10 +396,22 @@ function escapeHtml(s) {
 }
 
 // ===== Auth =====
+// Use redirect (not popup) — works in Edge/Safari with tracking prevention,
+// and on mobile where popups get blocked.
+setPersistence(auth, browserLocalPersistence).catch(e => console.warn("Persistence:", e));
+
+// Handle the return from a redirect sign-in. The user object is picked up
+// by onAuthStateChanged automatically; we only care about errors here.
+getRedirectResult(auth).catch(e => {
+  if (e && e.code && e.code !== "auth/no-auth-event") {
+    $("#signInError").textContent = e.message || "Sign-in failed.";
+  }
+});
+
 $("#signInBtn").addEventListener("click", async () => {
   $("#signInError").textContent = "";
   try {
-    await signInWithPopup(auth, new GoogleAuthProvider());
+    await signInWithRedirect(auth, new GoogleAuthProvider());
   } catch (e) {
     $("#signInError").textContent = e.message || "Sign-in failed.";
   }
