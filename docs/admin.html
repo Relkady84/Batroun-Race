@@ -1,0 +1,933 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin — Batroun Race</title>
+<style>
+  :root{
+    --bg1:#0a1628; --bg2:#11243d;
+    --card:#0f1e35; --line:rgba(255,255,255,.12);
+    --ink:#eaf1fb; --muted:#9fb1c8;
+    --accent:#27cbbb; --accent2:#56a8ff;
+    --danger:#ff6b6b; --warn:#ffa726; --ok:#27cbbb;
+    --ring:0 0 0 3px rgba(39,203,187,.25);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{font-family:-apple-system,Segoe UI,Roboto,Inter,Helvetica,Arial,sans-serif;
+       color:var(--ink);background:linear-gradient(180deg,var(--bg1),var(--bg2));min-height:100vh}
+  a{color:var(--accent2)}
+  button{font:inherit;cursor:pointer}
+  input,select,textarea{
+    width:100%;padding:10px 12px;border-radius:10px;
+    border:1px solid var(--line);background:rgba(4,14,28,.6);color:var(--ink);outline:none;
+    font:inherit
+  }
+  input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:var(--ring)}
+  input[type="checkbox"]{width:18px;height:18px;accent-color:var(--accent);cursor:pointer}
+  input[type="color"]{width:60px;height:40px;padding:2px;cursor:pointer}
+  label{display:block;font-size:.85rem;color:var(--muted);margin:8px 0 4px;font-weight:600}
+
+  /* Login */
+  .login-wrap{min-height:100vh;display:grid;place-items:center;padding:24px}
+  .login-card{max-width:420px;width:100%;background:var(--card);border:1px solid var(--line);
+              border-radius:18px;padding:28px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+  .login-card h1{margin:0 0 8px;font-size:1.5rem}
+  .login-card p{color:var(--muted);margin:0 0 22px}
+  .google-btn{display:inline-flex;align-items:center;gap:10px;background:#fff;color:#222;
+              border:none;border-radius:10px;padding:12px 18px;font-weight:700}
+  .google-btn:hover{background:#f5f5f5}
+  .err{color:var(--danger);margin-top:12px;font-size:.9rem;min-height:1.2em}
+
+  /* App shell */
+  header.bar{position:sticky;top:0;z-index:5;display:flex;justify-content:space-between;align-items:center;
+             padding:12px 20px;background:rgba(10,22,40,.92);backdrop-filter:blur(8px);
+             border-bottom:1px solid var(--line)}
+  header.bar .brand{font-weight:900;font-size:1.1rem}
+  header.bar .brand span{color:var(--accent)}
+  header.bar .user{display:flex;align-items:center;gap:12px;font-size:.9rem;color:var(--muted)}
+  .signout{background:transparent;color:var(--ink);border:1px solid var(--line);
+           border-radius:8px;padding:6px 12px;font-size:.85rem}
+  .signout:hover{border-color:var(--danger);color:var(--danger)}
+
+  nav.tabs{display:flex;gap:4px;padding:8px 20px;background:rgba(0,0,0,.18);border-bottom:1px solid var(--line);
+           overflow-x:auto}
+  nav.tabs button{background:transparent;color:var(--muted);border:none;
+                  padding:10px 16px;border-radius:8px;font-weight:600;white-space:nowrap}
+  nav.tabs button:hover{color:var(--ink);background:rgba(255,255,255,.04)}
+  nav.tabs button.active{color:var(--accent);background:rgba(39,203,187,.12)}
+
+  main{padding:20px;max-width:1400px;margin:0 auto}
+  section.tab{display:none}
+  section.tab.active{display:block}
+
+  /* Common */
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;
+        padding:18px;margin-bottom:16px;box-shadow:0 10px 30px rgba(0,0,0,.3)}
+  .card h2{margin:0 0 12px;font-size:1.1rem}
+  .row{display:grid;gap:12px}
+  .row.two{grid-template-columns:1fr 1fr}
+  .row.three{grid-template-columns:1fr 1fr 1fr}
+  .row.four{grid-template-columns:repeat(4,1fr)}
+  @media (max-width:700px){.row.two,.row.three,.row.four{grid-template-columns:1fr}}
+
+  .btn{background:linear-gradient(180deg,var(--accent),#1ba99c);color:#001a17;
+       border:none;border-radius:10px;padding:10px 16px;font-weight:800}
+  .btn:hover{filter:brightness(1.08)}
+  .btn.sec{background:transparent;color:var(--ink);border:1px solid var(--line)}
+  .btn.sec:hover{border-color:var(--accent);color:var(--accent)}
+  .btn.danger{background:transparent;color:var(--danger);border:1px solid var(--danger)}
+  .btn.danger:hover{background:rgba(255,107,107,.1)}
+  .btn.tiny{padding:6px 10px;font-size:.82rem}
+
+  .muted{color:var(--muted)}
+  .pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:.75rem;font-weight:700;
+        text-transform:uppercase;letter-spacing:.05em}
+  .pill.pending{background:rgba(255,167,38,.15);color:var(--warn)}
+  .pill.paid   {background:rgba(39,203,187,.18);color:var(--accent)}
+  .pill.free   {background:rgba(86,168,255,.18);color:var(--accent2)}
+  .pill.refunded{background:rgba(255,107,107,.15);color:var(--danger)}
+
+  /* Stats */
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
+  .stat .label{font-size:.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+  .stat .value{font-size:1.6rem;font-weight:900;margin-top:4px}
+  .stat .value.accent{color:var(--accent)}
+
+  /* Table */
+  .table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px}
+  table{width:100%;border-collapse:collapse;min-width:900px}
+  th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--line);font-size:.9rem;
+        white-space:nowrap}
+  th{background:rgba(0,0,0,.25);color:var(--muted);font-weight:700;text-transform:uppercase;
+     letter-spacing:.05em;font-size:.72rem}
+  tr:hover td{background:rgba(255,255,255,.03)}
+  td.actions{display:flex;gap:6px}
+
+  /* Filters */
+  .filters{display:grid;grid-template-columns:1fr 180px 180px 180px;gap:10px;margin-bottom:14px}
+  @media (max-width:800px){.filters{grid-template-columns:1fr}}
+
+  /* Modal */
+  .modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:100;
+            place-items:center;padding:20px}
+  .modal-bg.open{display:grid}
+  .modal{max-width:560px;width:100%;max-height:90vh;overflow-y:auto;background:var(--card);
+         border:1px solid var(--line);border-radius:16px;padding:22px;
+         box-shadow:0 30px 80px rgba(0,0,0,.6)}
+  .modal h3{margin:0 0 14px;font-size:1.15rem}
+  .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:18px}
+  .kv{display:grid;grid-template-columns:140px 1fr;gap:6px 14px;font-size:.9rem}
+  .kv .k{color:var(--muted);font-weight:600}
+  .kv .v{word-break:break-word}
+
+  /* Capacity bar */
+  .cap-bar{height:6px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden;margin-top:6px}
+  .cap-bar > span{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+  .cap-bar.warn > span{background:var(--warn)}
+  .cap-bar.full > span{background:var(--danger)}
+
+  .empty{padding:40px 20px;text-align:center;color:var(--muted)}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+         background:var(--card);border:1px solid var(--accent);color:var(--ink);
+         padding:12px 20px;border-radius:10px;z-index:200;box-shadow:0 20px 50px rgba(0,0,0,.5);
+         opacity:0;transition:opacity .25s,transform .25s;pointer-events:none}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(-6px)}
+  .toast.err{border-color:var(--danger)}
+</style>
+</head>
+<body>
+
+<!-- ====== Login screen ====== -->
+<div id="loginScreen" class="login-wrap">
+  <div class="login-card">
+    <h1>🏃 Batroun Race <span style="color:var(--accent)">Admin</span></h1>
+    <p>Sign in with your authorized Google account.</p>
+    <button id="signInBtn" class="google-btn">
+      <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
+        <path d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84c-.21 1.13-.85 2.08-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z" fill="#4285F4"/>
+        <path d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.83.87-3.04.87-2.34 0-4.32-1.58-5.03-3.71H.96v2.33A8.997 8.997 0 0 0 9 18z" fill="#34A853"/>
+        <path d="M3.97 10.72A5.42 5.42 0 0 1 3.68 9c0-.6.1-1.18.29-1.72V4.95H.96A8.997 8.997 0 0 0 0 9c0 1.45.35 2.83.96 4.05l3.01-2.33z" fill="#FBBC05"/>
+        <path d="M9 3.58c1.32 0 2.51.46 3.44 1.35l2.58-2.58C13.46.89 11.42 0 9 0A8.997 8.997 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z" fill="#EA4335"/>
+      </svg>
+      Sign in with Google
+    </button>
+    <div id="signInError" class="err"></div>
+  </div>
+</div>
+
+<!-- ====== Admin app ====== -->
+<div id="adminApp" hidden>
+  <header class="bar">
+    <div class="brand">🏃 Batroun Race <span>Admin</span></div>
+    <div class="user">
+      <span id="userEmail"></span>
+      <button id="signOutBtn" class="signout">Sign out</button>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button data-tab="registrations" class="active">Registrations</button>
+    <button data-tab="categories">Categories</button>
+    <button data-tab="formFields">Form fields</button>
+    <button data-tab="theme">Theme &amp; copy</button>
+    <button data-tab="competition">Competition</button>
+  </nav>
+
+  <main>
+
+    <!-- ============ Registrations ============ -->
+    <section id="tab-registrations" class="tab active">
+      <div class="stats" id="statsGrid"></div>
+
+      <div class="card">
+        <div class="filters">
+          <input type="search" id="searchInput" placeholder="Search name, email, phone, reference…">
+          <select id="filterCategory"><option value="">All categories</option></select>
+          <select id="filterStatus">
+            <option value="">All statuses</option>
+            <option value="pending">Pending</option>
+            <option value="paid">Paid</option>
+            <option value="free">Free</option>
+            <option value="refunded">Refunded</option>
+          </select>
+          <button id="exportCsvBtn" class="btn sec">Export CSV</button>
+        </div>
+
+        <div class="table-wrap">
+          <table id="regTable">
+            <thead><tr>
+              <th>Ref</th><th>Name</th><th>Category</th><th>Wave</th>
+              <th>Price</th><th>Status</th><th>Bib</th><th>Date</th><th></th>
+            </tr></thead>
+            <tbody><tr><td colspan="9" class="empty">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ Categories ============ -->
+    <section id="tab-categories" class="tab">
+      <div class="card">
+        <h2>Add new category</h2>
+        <div class="row two">
+          <div><label>ID (no spaces, e.g. <code>10k</code>)</label><input id="catNewId"></div>
+          <div><label>Name</label><input id="catNewName" placeholder="10 KM Race"></div>
+        </div>
+        <div class="row four">
+          <div><label>Distance (km)</label><input id="catNewDistance" type="number" step="0.1"></div>
+          <div><label>Age limit (min)</label><input id="catNewAge" type="number"></div>
+          <div><label>Timed?</label>
+            <select id="catNewTimed"><option value="true">Yes</option><option value="false">No</option></select>
+          </div>
+          <div><label>Capacity (blank = no limit)</label><input id="catNewCap" type="number"></div>
+        </div>
+        <div class="row three">
+          <div><label>Wave 1 price (USD)</label><input id="catNewW1" type="number"></div>
+          <div><label>Wave 2 price (USD)</label><input id="catNewW2" type="number"></div>
+          <div><label>Wave 3 price (USD)</label><input id="catNewW3" type="number"></div>
+        </div>
+        <div style="margin-top:12px"><button id="catAddBtn" class="btn">Add category</button></div>
+      </div>
+
+      <div id="catList"></div>
+    </section>
+
+    <!-- ============ Form fields ============ -->
+    <section id="tab-formFields" class="tab">
+      <div class="card">
+        <h2>Add custom field</h2>
+        <p class="muted" style="margin:0 0 10px">These fields appear on the public registration form, below the built-in fields.</p>
+        <div class="row two">
+          <div><label>Field key (no spaces, e.g. <code>tshirtColor</code>)</label><input id="ffKey"></div>
+          <div><label>Label (what users see)</label><input id="ffLabel" placeholder="T-shirt color"></div>
+        </div>
+        <div class="row three">
+          <div><label>Type</label>
+            <select id="ffType">
+              <option value="text">Text</option>
+              <option value="number">Number</option>
+              <option value="textarea">Long text</option>
+              <option value="checkbox">Checkbox</option>
+              <option value="select">Dropdown</option>
+            </select>
+          </div>
+          <div><label>Required?</label>
+            <select id="ffReq"><option value="false">Optional</option><option value="true">Required</option></select>
+          </div>
+          <div><label>Options (dropdown only, comma-separated)</label><input id="ffOpts" placeholder="Red,Blue,Black"></div>
+        </div>
+        <div style="margin-top:12px"><button id="ffAddBtn" class="btn">Add field</button></div>
+      </div>
+
+      <div class="card">
+        <h2>Current custom fields</h2>
+        <div id="ffList"><div class="empty">No custom fields yet.</div></div>
+      </div>
+    </section>
+
+    <!-- ============ Theme ============ -->
+    <section id="tab-theme" class="tab">
+      <div class="card">
+        <h2>Colors</h2>
+        <p class="muted" style="margin:0 0 12px">These set the look of the public registration page. Hex format.</p>
+        <div class="row three">
+          <div><label>Accent (primary)</label><input id="thAccent" type="color"></div>
+          <div><label>Accent 2 (secondary)</label><input id="thAccent2" type="color"></div>
+          <div><label>Text color</label><input id="thInk" type="color"></div>
+        </div>
+        <div class="row two">
+          <div><label>Background — gradient top</label><input id="thBg1" type="color"></div>
+          <div><label>Background — gradient bottom</label><input id="thBg2" type="color"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Background image (optional)</h2>
+        <p class="muted" style="margin:0 0 8px">Paste a public image URL. Leave blank for the gradient.</p>
+        <input id="thBgImage" type="url" placeholder="https://...">
+      </div>
+
+      <div class="card">
+        <h2>Copy</h2>
+        <div><label>Page heading</label><input id="thHeading" placeholder="Register for Batroun Race"></div>
+        <div><label>Subtitle (under the heading)</label><input id="thSubtitle" placeholder="Coastal course • pro timing • …"></div>
+      </div>
+
+      <div><button id="themeSaveBtn" class="btn">Save theme &amp; copy</button></div>
+    </section>
+
+    <!-- ============ Competition ============ -->
+    <section id="tab-competition" class="tab">
+      <div class="card">
+        <h2>Event info</h2>
+        <div class="row two">
+          <div><label>Name</label><input id="cpName" placeholder="Batroun Race 2026"></div>
+          <div><label>Year</label><input id="cpYear" type="number"></div>
+        </div>
+        <div class="row three">
+          <div><label>Registration opens</label><input id="cpOpens" type="datetime-local"></div>
+          <div><label>Registration closes</label><input id="cpCloses" type="datetime-local"></div>
+          <div><label>Race day</label><input id="cpRaceDay" type="date"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Waves (pricing periods)</h2>
+        <p class="muted" style="margin:0 0 10px">Each wave ends at a date. Wave 3 should end on registration close.</p>
+        <div id="wavesEditor"></div>
+      </div>
+
+      <div><button id="competitionSaveBtn" class="btn">Save event info</button></div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ====== Modals ====== -->
+<div class="modal-bg" id="modalBg">
+  <div class="modal" id="modal"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
+import {
+  getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
+import {
+  getFirestore, collection, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc,
+  onSnapshot, query, orderBy, serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyChNfEHu5FhaNIe1Y7_Q_SaVSXmfHcfUQA",
+  authDomain: "batroun-race.firebaseapp.com",
+  projectId: "batroun-race",
+  storageBucket: "batroun-race.firebasestorage.app",
+  messagingSenderId: "175612171118",
+  appId: "1:175612171118:web:96fc6e09ec599758f9277f",
+  measurementId: "G-Z3FQ9B2QJZ"
+};
+
+const ALLOWED_EMAILS = ["raedelkady@gmail.com", "nizarelkady@gmail.com"];
+const COMPETITION_ID = "batroun-race-2026";
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+// State
+let regs = [];
+let cats = [];
+let formFields = [];
+
+// ===== Helpers =====
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+
+function toast(msg, err = false) {
+  const t = $("#toast");
+  t.textContent = msg;
+  t.classList.toggle("err", err);
+  t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 2400);
+}
+
+function openModal(html) {
+  $("#modal").innerHTML = html;
+  $("#modalBg").classList.add("open");
+}
+function closeModal() { $("#modalBg").classList.remove("open"); }
+$("#modalBg").addEventListener("click", e => { if (e.target.id === "modalBg") closeModal(); });
+
+function fmtDate(ts) {
+  if (!ts) return "—";
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  return d.toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" });
+}
+function fmtMoney(n) { return n === 0 ? "Free" : "$" + n; }
+function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+// ===== Auth =====
+$("#signInBtn").addEventListener("click", async () => {
+  $("#signInError").textContent = "";
+  try {
+    await signInWithPopup(auth, new GoogleAuthProvider());
+  } catch (e) {
+    $("#signInError").textContent = e.message || "Sign-in failed.";
+  }
+});
+
+$("#signOutBtn").addEventListener("click", () => signOut(auth));
+
+onAuthStateChanged(auth, user => {
+  if (!user) { showLogin(); return; }
+  if (!ALLOWED_EMAILS.includes(user.email)) {
+    $("#signInError").textContent = `Access denied: ${user.email} is not on the admin allowlist.`;
+    signOut(auth);
+    return;
+  }
+  showApp(user);
+});
+
+function showLogin() {
+  $("#loginScreen").style.display = "grid";
+  $("#adminApp").hidden = true;
+}
+function showApp(user) {
+  $("#loginScreen").style.display = "none";
+  $("#adminApp").hidden = false;
+  $("#userEmail").textContent = user.email;
+  startListeners();
+}
+
+// ===== Tabs =====
+$$('nav.tabs button').forEach(btn => {
+  btn.addEventListener("click", () => {
+    $$('nav.tabs button').forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    $$('section.tab').forEach(s => s.classList.remove("active"));
+    $("#tab-" + btn.dataset.tab).classList.add("active");
+  });
+});
+
+// ===== Listeners =====
+let listenersStarted = false;
+function startListeners() {
+  if (listenersStarted) return;
+  listenersStarted = true;
+
+  // Registrations
+  onSnapshot(
+    query(collection(db, "competitions", COMPETITION_ID, "registrations"),
+          orderBy("registeredAt", "desc")),
+    snap => {
+      regs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      renderStats(); renderRegTable();
+    },
+    err => toast("Registrations listener: " + err.message, true)
+  );
+
+  // Categories
+  onSnapshot(
+    collection(db, "competitions", COMPETITION_ID, "categories"),
+    snap => {
+      cats = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      renderCategoryList(); renderCategoryFilter();
+    },
+    err => toast("Categories listener: " + err.message, true)
+  );
+
+  // Form fields config doc
+  onSnapshot(
+    doc(db, "competitions", COMPETITION_ID, "config", "form"),
+    snap => {
+      formFields = snap.exists() ? (snap.data().fields || []) : [];
+      renderFormFields();
+    },
+    err => toast("Form-fields listener: " + err.message, true)
+  );
+
+  // Theme config doc
+  onSnapshot(
+    doc(db, "competitions", COMPETITION_ID, "config", "theme"),
+    snap => loadThemeIntoEditor(snap.exists() ? snap.data() : {}),
+    err => toast("Theme listener: " + err.message, true)
+  );
+
+  // Competition doc
+  onSnapshot(
+    doc(db, "competitions", COMPETITION_ID),
+    snap => loadCompetitionIntoEditor(snap.exists() ? snap.data() : {}),
+    err => toast("Competition listener: " + err.message, true)
+  );
+}
+
+// ===== Registrations: stats =====
+function renderStats() {
+  const total = regs.length;
+  const paid = regs.filter(r => r.paymentStatus === "paid").length;
+  const pending = regs.filter(r => r.paymentStatus === "pending").length;
+  const free = regs.filter(r => r.paymentStatus === "free").length;
+  const revenue = regs
+    .filter(r => r.paymentStatus === "paid")
+    .reduce((sum, r) => sum + (r.priceUSD || 0), 0);
+
+  $("#statsGrid").innerHTML = `
+    <div class="stat"><div class="label">Total registrations</div><div class="value">${total}</div></div>
+    <div class="stat"><div class="label">Paid</div><div class="value accent">${paid}</div></div>
+    <div class="stat"><div class="label">Pending</div><div class="value" style="color:var(--warn)">${pending}</div></div>
+    <div class="stat"><div class="label">Free entries</div><div class="value" style="color:var(--accent2)">${free}</div></div>
+    <div class="stat"><div class="label">Revenue collected</div><div class="value accent">$${revenue}</div></div>
+  `;
+}
+
+// ===== Registrations: filter + table =====
+$("#searchInput").addEventListener("input", renderRegTable);
+$("#filterCategory").addEventListener("change", renderRegTable);
+$("#filterStatus").addEventListener("change", renderRegTable);
+
+function renderCategoryFilter() {
+  const sel = $("#filterCategory");
+  const current = sel.value;
+  sel.innerHTML = '<option value="">All categories</option>' +
+    cats.map(c => `<option value="${c.id}">${escapeHtml(c.name || c.id)}</option>`).join("");
+  sel.value = current;
+}
+
+function filteredRegs() {
+  const q = $("#searchInput").value.trim().toLowerCase();
+  const cat = $("#filterCategory").value;
+  const status = $("#filterStatus").value;
+  return regs.filter(r => {
+    if (cat && r.categoryId !== cat) return false;
+    if (status && r.paymentStatus !== status) return false;
+    if (q) {
+      const hay = [r.firstName, r.lastName, r.email, r.phone, r.whishReference]
+        .map(x => (x||"").toLowerCase()).join(" ");
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function renderRegTable() {
+  const rows = filteredRegs();
+  const tbody = $("#regTable tbody");
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="9" class="empty">No registrations match.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td><code>${escapeHtml(r.whishReference || "—")}</code></td>
+      <td>${escapeHtml(r.firstName)} ${escapeHtml(r.lastName)}</td>
+      <td>${escapeHtml(r.categoryName || r.categoryId || "—")}</td>
+      <td>${escapeHtml(r.waveAtRegistration || "—")}</td>
+      <td>${fmtMoney(r.priceUSD || 0)}</td>
+      <td><span class="pill ${r.paymentStatus}">${r.paymentStatus}</span></td>
+      <td>${r.bibNumber ?? "—"}</td>
+      <td>${fmtDate(r.registeredAt)}</td>
+      <td class="actions">
+        <button class="btn tiny sec" data-act="view" data-id="${r.id}">View</button>
+        ${r.paymentStatus === "pending"
+          ? `<button class="btn tiny" data-act="pay" data-id="${r.id}">Confirm pay</button>` : ""}
+      </td>
+    </tr>
+  `).join("");
+
+  tbody.querySelectorAll('button[data-act]').forEach(b => {
+    b.addEventListener("click", () => {
+      const r = regs.find(x => x.id === b.dataset.id);
+      if (!r) return;
+      if (b.dataset.act === "view") openRegDetails(r);
+      if (b.dataset.act === "pay") openConfirmPay(r);
+    });
+  });
+}
+
+function openRegDetails(r) {
+  const k = (label, val) => `<div class="k">${label}</div><div class="v">${escapeHtml(val ?? "—")}</div>`;
+  const customRows = formFields
+    .map(f => k(f.label, r.custom?.[f.key]))
+    .join("");
+  openModal(`
+    <h3>${escapeHtml(r.firstName)} ${escapeHtml(r.lastName)}</h3>
+    <div class="kv">
+      ${k("Reference", r.whishReference)}
+      ${k("Email", r.email)}
+      ${k("Phone", r.phone)}
+      ${k("DOB", r.dob)}
+      ${k("Gender", r.gender)}
+      ${k("Nationality", r.nationality)}
+      ${k("City", r.city)}
+      ${k("Category", r.categoryName)}
+      ${k("Wave", r.waveAtRegistration)}
+      ${k("Price", fmtMoney(r.priceUSD || 0))}
+      ${k("Status", r.paymentStatus)}
+      ${k("Bib", r.bibNumber)}
+      ${k("T-shirt", r.tshirtSize)}
+      ${k("Club", r.club)}
+      ${k("Medical notes", r.medicalNotes)}
+      ${k("Emergency contact", `${r.emergencyContactName || ""} — ${r.emergencyContactPhone || ""}`)}
+      ${k("Newsletter", r.consents?.newsletter ? "Yes" : "No")}
+      ${k("Registered at", fmtDate(r.registeredAt))}
+      ${customRows}
+    </div>
+    <div class="modal-actions">
+      <button class="btn sec" onclick="document.getElementById('modalBg').classList.remove('open')">Close</button>
+    </div>
+  `);
+}
+
+function openConfirmPay(r) {
+  openModal(`
+    <h3>Confirm payment — ${escapeHtml(r.firstName)} ${escapeHtml(r.lastName)}</h3>
+    <p class="muted">Reference: <code>${escapeHtml(r.whishReference)}</code> · Amount: ${fmtMoney(r.priceUSD || 0)}</p>
+    <label>Bib number</label>
+    <input id="bibInput" type="number" min="1" placeholder="e.g. 142">
+    <div class="modal-actions">
+      <button class="btn sec" id="cancelPay">Cancel</button>
+      <button class="btn" id="okPay">Mark as paid</button>
+    </div>
+  `);
+  $("#cancelPay").onclick = closeModal;
+  $("#okPay").onclick = async () => {
+    const bib = parseInt($("#bibInput").value, 10);
+    if (!bib) { toast("Enter a bib number", true); return; }
+    try {
+      await updateDoc(
+        doc(db, "competitions", COMPETITION_ID, "registrations", r.id),
+        { paymentStatus: "paid", bibNumber: bib, paidAt: serverTimestamp() }
+      );
+      closeModal();
+      toast("Payment confirmed");
+    } catch (e) { toast(e.message, true); }
+  };
+  setTimeout(() => $("#bibInput").focus(), 50);
+}
+
+// ===== CSV export =====
+$("#exportCsvBtn").addEventListener("click", () => {
+  const rows = filteredRegs();
+  if (!rows.length) { toast("Nothing to export", true); return; }
+  const headers = ["reference","firstName","lastName","email","phone","dob","gender",
+                   "nationality","city","category","wave","price","status","bibNumber",
+                   "tshirt","club","medicalNotes","emergencyName","emergencyPhone",
+                   "registeredAt","paidAt"];
+  const csv = [headers.join(",")].concat(rows.map(r => [
+    r.whishReference, r.firstName, r.lastName, r.email, r.phone, r.dob, r.gender,
+    r.nationality, r.city, r.categoryName, r.waveAtRegistration, r.priceUSD,
+    r.paymentStatus, r.bibNumber, r.tshirtSize, r.club, r.medicalNotes,
+    r.emergencyContactName, r.emergencyContactPhone,
+    r.registeredAt ? fmtDate(r.registeredAt) : "",
+    r.paidAt ? fmtDate(r.paidAt) : ""
+  ].map(csvCell).join(","))).join("\n");
+
+  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `batroun-race-registrations-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+function csvCell(v) {
+  if (v == null) return "";
+  const s = String(v).replace(/"/g, '""');
+  return /[",\n]/.test(s) ? `"${s}"` : s;
+}
+
+// ===== Categories =====
+function renderCategoryList() {
+  const list = $("#catList");
+  if (!cats.length) { list.innerHTML = `<div class="card empty">No categories yet. Add your first one above.</div>`; return; }
+  list.innerHTML = cats.map(c => {
+    const cap = c.capacity;
+    const reg = c.registeredCount || 0;
+    const pct = cap ? Math.min(100, (reg / cap) * 100) : 0;
+    const barCls = cap && reg >= cap ? "full" : cap && pct >= 80 ? "warn" : "";
+    return `
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:start;gap:12px;flex-wrap:wrap">
+          <div style="flex:1;min-width:240px">
+            <h2 style="margin:0">${escapeHtml(c.name || c.id)} <span class="muted" style="font-weight:400">#${escapeHtml(c.id)}</span></h2>
+            <div class="muted" style="margin-top:4px">
+              ${c.distanceKm ?? "?"} km · ${c.timed ? "Timed" : "Untimed"} · age ${c.ageLimit ?? "none"}+
+            </div>
+            <div style="margin-top:8px;font-size:.9rem">
+              <strong>Capacity:</strong> ${cap ? `${reg} / ${cap}` : `${reg} (no limit)`}
+              ${cap ? `<div class="cap-bar ${barCls}"><span style="width:${pct}%"></span></div>` : ""}
+            </div>
+          </div>
+          <div style="display:flex;gap:6px">
+            <button class="btn tiny sec" data-act="edit" data-id="${c.id}">Edit</button>
+            <button class="btn tiny danger" data-act="del" data-id="${c.id}">Delete</button>
+          </div>
+        </div>
+      </div>`;
+  }).join("");
+
+  list.querySelectorAll('button[data-act]').forEach(b => {
+    b.addEventListener("click", () => {
+      const c = cats.find(x => x.id === b.dataset.id);
+      if (b.dataset.act === "edit") openEditCategory(c);
+      if (b.dataset.act === "del") deleteCategory(c);
+    });
+  });
+}
+
+$("#catAddBtn").addEventListener("click", async () => {
+  const id = $("#catNewId").value.trim();
+  const name = $("#catNewName").value.trim();
+  if (!id || !name) { toast("ID and Name are required", true); return; }
+  try {
+    await setDoc(doc(db, "competitions", COMPETITION_ID, "categories", id), {
+      name,
+      distanceKm: parseFloat($("#catNewDistance").value) || null,
+      ageLimit: parseInt($("#catNewAge").value, 10) || null,
+      timed: $("#catNewTimed").value === "true",
+      capacity: parseInt($("#catNewCap").value, 10) || null,
+      registeredCount: 0,
+      prices: {
+        wave1: parseFloat($("#catNewW1").value) || 0,
+        wave2: parseFloat($("#catNewW2").value) || 0,
+        wave3: parseFloat($("#catNewW3").value) || 0
+      }
+    });
+    ["catNewId","catNewName","catNewDistance","catNewAge","catNewCap","catNewW1","catNewW2","catNewW3"]
+      .forEach(id => $("#"+id).value = "");
+    toast("Category added");
+  } catch (e) { toast(e.message, true); }
+});
+
+function openEditCategory(c) {
+  openModal(`
+    <h3>Edit category: ${escapeHtml(c.name || c.id)}</h3>
+    <label>Name</label><input id="ec_name" value="${escapeHtml(c.name || "")}">
+    <div class="row four" style="margin-top:8px">
+      <div><label>Distance (km)</label><input id="ec_dist" type="number" step="0.1" value="${c.distanceKm ?? ""}"></div>
+      <div><label>Age limit</label><input id="ec_age" type="number" value="${c.ageLimit ?? ""}"></div>
+      <div><label>Timed?</label>
+        <select id="ec_timed"><option value="true" ${c.timed?"selected":""}>Yes</option><option value="false" ${!c.timed?"selected":""}>No</option></select>
+      </div>
+      <div><label>Capacity</label><input id="ec_cap" type="number" value="${c.capacity ?? ""}"></div>
+    </div>
+    <div class="row three" style="margin-top:8px">
+      <div><label>Wave 1 ($)</label><input id="ec_w1" type="number" value="${c.prices?.wave1 ?? 0}"></div>
+      <div><label>Wave 2 ($)</label><input id="ec_w2" type="number" value="${c.prices?.wave2 ?? 0}"></div>
+      <div><label>Wave 3 ($)</label><input id="ec_w3" type="number" value="${c.prices?.wave3 ?? 0}"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn sec" id="ec_cancel">Cancel</button>
+      <button class="btn" id="ec_save">Save</button>
+    </div>
+  `);
+  $("#ec_cancel").onclick = closeModal;
+  $("#ec_save").onclick = async () => {
+    try {
+      await updateDoc(doc(db, "competitions", COMPETITION_ID, "categories", c.id), {
+        name: $("#ec_name").value.trim(),
+        distanceKm: parseFloat($("#ec_dist").value) || null,
+        ageLimit: parseInt($("#ec_age").value, 10) || null,
+        timed: $("#ec_timed").value === "true",
+        capacity: parseInt($("#ec_cap").value, 10) || null,
+        prices: {
+          wave1: parseFloat($("#ec_w1").value) || 0,
+          wave2: parseFloat($("#ec_w2").value) || 0,
+          wave3: parseFloat($("#ec_w3").value) || 0
+        }
+      });
+      closeModal();
+      toast("Category updated");
+    } catch (e) { toast(e.message, true); }
+  };
+}
+
+async function deleteCategory(c) {
+  const used = regs.some(r => r.categoryId === c.id);
+  if (used) {
+    if (!confirm(`Category "${c.name}" has existing registrations. Delete anyway? (Registration records will keep the old category name.)`)) return;
+  } else {
+    if (!confirm(`Delete category "${c.name}"?`)) return;
+  }
+  try {
+    await deleteDoc(doc(db, "competitions", COMPETITION_ID, "categories", c.id));
+    toast("Category deleted");
+  } catch (e) { toast(e.message, true); }
+}
+
+// ===== Form fields =====
+function renderFormFields() {
+  const list = $("#ffList");
+  if (!formFields.length) { list.innerHTML = `<div class="empty">No custom fields yet.</div>`; return; }
+  list.innerHTML = formFields.map((f, i) => `
+    <div class="card" style="margin:0 0 10px;padding:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+        <div>
+          <strong>${escapeHtml(f.label)}</strong>
+          <span class="muted"> · ${escapeHtml(f.type)}${f.required?" · required":""}</span>
+          <div class="muted" style="font-size:.85rem">key: <code>${escapeHtml(f.key)}</code>${f.options?` · options: ${escapeHtml(f.options.join(", "))}`:""}</div>
+        </div>
+        <button class="btn tiny danger" data-i="${i}">Remove</button>
+      </div>
+    </div>
+  `).join("");
+  list.querySelectorAll('button[data-i]').forEach(b => {
+    b.addEventListener("click", () => removeFormField(parseInt(b.dataset.i, 10)));
+  });
+}
+
+$("#ffAddBtn").addEventListener("click", async () => {
+  const key = $("#ffKey").value.trim();
+  const label = $("#ffLabel").value.trim();
+  const type = $("#ffType").value;
+  const required = $("#ffReq").value === "true";
+  const opts = $("#ffOpts").value.split(",").map(s => s.trim()).filter(Boolean);
+  if (!key || !label) { toast("Key and label required", true); return; }
+  if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(key)) { toast("Key: letters/digits/underscore only, must start with letter", true); return; }
+  if (formFields.some(f => f.key === key)) { toast("That key is already used", true); return; }
+  if (type === "select" && opts.length === 0) { toast("Dropdowns need at least one option", true); return; }
+
+  const newField = { key, label, type, required };
+  if (type === "select") newField.options = opts;
+
+  try {
+    await setDoc(
+      doc(db, "competitions", COMPETITION_ID, "config", "form"),
+      { fields: [...formFields, newField] },
+      { merge: true }
+    );
+    ["ffKey","ffLabel","ffOpts"].forEach(id => $("#"+id).value = "");
+    toast("Field added");
+  } catch (e) { toast(e.message, true); }
+});
+
+async function removeFormField(i) {
+  if (!confirm(`Remove field "${formFields[i].label}"?`)) return;
+  const next = formFields.slice();
+  next.splice(i, 1);
+  try {
+    await setDoc(
+      doc(db, "competitions", COMPETITION_ID, "config", "form"),
+      { fields: next },
+      { merge: true }
+    );
+    toast("Field removed");
+  } catch (e) { toast(e.message, true); }
+}
+
+// ===== Theme =====
+function loadThemeIntoEditor(t) {
+  $("#thAccent").value   = t.accent   || "#27cbbb";
+  $("#thAccent2").value  = t.accent2  || "#56a8ff";
+  $("#thInk").value      = t.ink      || "#eaf1fb";
+  $("#thBg1").value      = t.bg1      || "#0a1628";
+  $("#thBg2").value      = t.bg2      || "#11243d";
+  $("#thBgImage").value  = t.bgImage  || "";
+  $("#thHeading").value  = t.heading  || "";
+  $("#thSubtitle").value = t.subtitle || "";
+}
+
+$("#themeSaveBtn").addEventListener("click", async () => {
+  try {
+    await setDoc(
+      doc(db, "competitions", COMPETITION_ID, "config", "theme"),
+      {
+        accent:   $("#thAccent").value,
+        accent2:  $("#thAccent2").value,
+        ink:      $("#thInk").value,
+        bg1:      $("#thBg1").value,
+        bg2:      $("#thBg2").value,
+        bgImage:  $("#thBgImage").value.trim() || null,
+        heading:  $("#thHeading").value.trim() || null,
+        subtitle: $("#thSubtitle").value.trim() || null,
+        updatedAt: serverTimestamp()
+      },
+      { merge: true }
+    );
+    toast("Theme saved");
+  } catch (e) { toast(e.message, true); }
+});
+
+// ===== Competition =====
+function loadCompetitionIntoEditor(c) {
+  $("#cpName").value = c.name || "";
+  $("#cpYear").value = c.year || "";
+  $("#cpOpens").value  = tsToLocal(c.registrationOpens);
+  $("#cpCloses").value = tsToLocal(c.registrationCloses);
+  $("#cpRaceDay").value = c.raceDay ? c.raceDay.slice(0,10) : "";
+
+  const waves = c.waves || [
+    { id:"wave1", label:"Wave 1 — Early bird", endsAt:null },
+    { id:"wave2", label:"Wave 2 — Standard",   endsAt:null },
+    { id:"wave3", label:"Wave 3 — Late",       endsAt:null }
+  ];
+  $("#wavesEditor").innerHTML = waves.map((w, i) => `
+    <div class="row three" style="margin-bottom:8px">
+      <div><label>Wave ${i+1} ID</label><input class="w-id" value="${escapeHtml(w.id)}"></div>
+      <div><label>Label</label><input class="w-label" value="${escapeHtml(w.label)}"></div>
+      <div><label>Ends at</label><input class="w-ends" type="datetime-local" value="${tsToLocal(w.endsAt)}"></div>
+    </div>
+  `).join("");
+}
+
+function tsToLocal(ts) {
+  if (!ts) return "";
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  if (isNaN(d.getTime())) return "";
+  const pad = n => String(n).padStart(2,"0");
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+$("#competitionSaveBtn").addEventListener("click", async () => {
+  const waveIds   = [...$$('#wavesEditor .w-id')].map(x => x.value.trim());
+  const waveLabel = [...$$('#wavesEditor .w-label')].map(x => x.value.trim());
+  const waveEnds  = [...$$('#wavesEditor .w-ends')].map(x => x.value);
+  const waves = waveIds.map((id, i) => ({
+    id, label: waveLabel[i],
+    endsAt: waveEnds[i] ? new Date(waveEnds[i]) : null
+  }));
+
+  try {
+    await setDoc(doc(db, "competitions", COMPETITION_ID), {
+      name: $("#cpName").value.trim(),
+      year: parseInt($("#cpYear").value, 10) || null,
+      registrationOpens:  $("#cpOpens").value  ? new Date($("#cpOpens").value)  : null,
+      registrationCloses: $("#cpCloses").value ? new Date($("#cpCloses").value) : null,
+      raceDay: $("#cpRaceDay").value || null,
+      waves
+    }, { merge: true });
+    toast("Event info saved");
+  } catch (e) { toast(e.message, true); }
+});
+
+</script>
+</body>
+</html>
