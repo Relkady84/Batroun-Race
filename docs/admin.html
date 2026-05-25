@@ -403,20 +403,42 @@ function escapeHtml(s) {
 // and on mobile where popups get blocked.
 setPersistence(auth, browserLocalPersistence).catch(e => console.warn("Persistence:", e));
 
-// Handle the return from a redirect sign-in. The user object is picked up
-// by onAuthStateChanged automatically; we only care about errors here.
-getRedirectResult(auth).catch(e => {
-  if (e && e.code && e.code !== "auth/no-auth-event") {
-    $("#signInError").textContent = e.message || "Sign-in failed.";
-  }
-});
+// Handle the return from a redirect sign-in. Log everything verbosely
+// so we can see exactly what Firebase received.
+console.log("[auth] calling getRedirectResult…");
+getRedirectResult(auth)
+  .then(result => {
+    console.log("[auth] getRedirectResult resolved:", result);
+    if (result === null) {
+      // null = no pending redirect (e.g. first page load with no sign-in in progress).
+      // If we were JUST redirected back, that's a problem.
+      const wasRedirecting = sessionStorage.getItem("admin_redirecting") === "1";
+      if (wasRedirecting) {
+        sessionStorage.removeItem("admin_redirecting");
+        $("#signInError").innerHTML =
+          "Sign-in returned <strong>no result</strong>. This usually means a browser extension, third-party cookie block, or tracking-prevention setting is blocking Firebase from storing the auth token.<br><br>" +
+          "Try: open this page in an <strong>InPrivate window</strong> with extensions disabled and sign in there.";
+      }
+    } else {
+      sessionStorage.removeItem("admin_redirecting");
+    }
+  })
+  .catch(e => {
+    console.error("[auth] getRedirectResult error:", e);
+    sessionStorage.removeItem("admin_redirecting");
+    $("#signInError").textContent = `Sign-in error (${e.code || "unknown"}): ${e.message || e}`;
+  });
 
 $("#signInBtn").addEventListener("click", async () => {
   $("#signInError").textContent = "";
+  console.log("[auth] starting signInWithRedirect…");
+  sessionStorage.setItem("admin_redirecting", "1");
   try {
     await signInWithRedirect(auth, new GoogleAuthProvider());
   } catch (e) {
-    $("#signInError").textContent = e.message || "Sign-in failed.";
+    console.error("[auth] signInWithRedirect threw:", e);
+    sessionStorage.removeItem("admin_redirecting");
+    $("#signInError").textContent = `Sign-in error (${e.code || "unknown"}): ${e.message || e}`;
   }
 });
 
