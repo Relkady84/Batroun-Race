@@ -300,6 +300,9 @@
         <h2>Copy</h2>
         <div><label>Page heading</label><input id="thHeading" placeholder="Register for Batroun Race"></div>
         <div><label>Subtitle (under the heading)</label><input id="thSubtitle" placeholder="Coastal course • pro timing • …"></div>
+        <div><label>Top banner text (centered banner near the top — leave blank to hide)</label>
+          <textarea id="thBanner" rows="2" placeholder="e.g. Early bird ends June 30 — register now!"></textarea>
+        </div>
       </div>
 
       <div><button id="themeSaveBtn" class="btn">Save theme &amp; copy</button></div>
@@ -948,6 +951,7 @@ function loadThemeIntoEditor(t) {
   $("#thBgImage").value  = t.bgImage  || "";
   $("#thHeading").value  = t.heading  || "";
   $("#thSubtitle").value = t.subtitle || "";
+  $("#thBanner").value   = t.bannerText || "";
 }
 
 $("#themeSaveBtn").addEventListener("click", async () => {
@@ -961,9 +965,10 @@ $("#themeSaveBtn").addEventListener("click", async () => {
         bg1:      $("#thBg1").value,
         bg2:      $("#thBg2").value,
         bgImage:  $("#thBgImage").value.trim() || null,
-        heading:  $("#thHeading").value.trim() || null,
-        subtitle: $("#thSubtitle").value.trim() || null,
-        updatedAt: serverTimestamp()
+        heading:    $("#thHeading").value.trim() || null,
+        subtitle:   $("#thSubtitle").value.trim() || null,
+        bannerText: $("#thBanner").value.trim() || null,
+        updatedAt:  serverTimestamp()
       },
       { merge: true }
     );
