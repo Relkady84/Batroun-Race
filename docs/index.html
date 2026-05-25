@@ -105,9 +105,8 @@
     <h1 id="reg-heading">Register for Batroun Race</h1>
     <p class="muted" id="reg-subtitle">Coastal course • pro timing • hydration every 2–3 km • finisher medals</p>
 
-    <div class="wave-banner" id="waveBanner">
-      <span><strong>Loading…</strong></span>
-      <span class="pill" id="wavePill">—</span>
+    <div class="wave-banner" id="waveBanner" style="display:none">
+      <span></span><span class="pill" id="wavePill"></span>
     </div>
   </div>
 
@@ -326,34 +325,30 @@ const db = getFirestore(app);
 const COMPETITION_ID = "batroun-race-2026";
 let RACE_DAY = "2026-11-22";
 
-let WAVES = [
-  { id: "wave1", label: "Wave 1 — Early bird", endsAt: "2026-09-01T23:59:59" },
-  { id: "wave2", label: "Wave 2 — Standard",   endsAt: "2026-11-10T23:59:59" },
-  { id: "wave3", label: "Wave 3 — Late",       endsAt: "2026-11-20T23:59:59" }
-];
-
 let INCLUDES = [
   "Race Registration", "BIB & Tag", "Finisher T-shirt",
   "Finisher Medal", "Goody Bag", "Finish Time Certificate", "LAF Fees"
 ];
 
+// Single price per category — no waves.
 let CATEGORIES = {
-  marathon:      { name: "Marathon 42.195 KM", timed: true,  ageLimit: 18, prices: { wave1: 40, wave2: 50, wave3: 65 } },
-  halfMarathon:  { name: "Half Marathon 21.1 KM", timed: true,  ageLimit: 17, prices: { wave1: 30, wave2: 40, wave3: 50 } },
-  "10k":         { name: "10 KM Race", timed: true,  ageLimit: 12, prices: { wave1: 25, wave2: 30, wave3: 35 } },
-  "5k":          { name: "5 KM Race",  timed: false, ageLimit: 0,  prices: { wave1: 22, wave2: 22, wave3: 22 } },
-  para:          { name: "Para Athlete Race", timed: true,  ageLimit: 15, prices: { wave1: 0,  wave2: 0,  wave3: 0  } }
+  marathon:      { name: "Marathon 42.195 KM",    timed: true,  ageLimit: 18, price: 40 },
+  halfMarathon:  { name: "Half Marathon 21.1 KM", timed: true,  ageLimit: 17, price: 30 },
+  "10k":         { name: "10 KM Race",            timed: true,  ageLimit: 12, price: 25 },
+  "5k":          { name: "5 KM Race",             timed: false, ageLimit: 0,  price: 22 },
+  para:          { name: "Para Athlete Race",     timed: true,  ageLimit: 15, price: 0  }
 };
 
-// Will be populated from Firestore /config/form
 let CUSTOM_FIELDS = [];
+let REGISTRATION_CLOSES = null;          // Date — when registration closes
+const DEFAULT_BG_IMAGE = "https://www.batrounrace.com/cdn/shop/files/IMG-20250707-WA0052.jpg?v=1759771908&width=3840";
 
 // ============================================================
-// Wave logic
+// Registration period
 // ============================================================
-function getCurrentWave(now = new Date()) {
-  for (const w of WAVES) if (now <= new Date(w.endsAt)) return w;
-  return null;
+function registrationIsOpen(now = new Date()) {
+  if (!REGISTRATION_CLOSES) return true; // no close date set = always open
+  return now <= REGISTRATION_CLOSES;
 }
 
 function ageOnRaceDay(dobStr) {
@@ -373,33 +368,25 @@ function generateRef() {
 }
 
 // ============================================================
-// UI: wave banner — re-rendered whenever WAVES changes
+// UI: registration banner (hidden when closed)
 // ============================================================
 const banner = document.getElementById("waveBanner");
 const pill = document.getElementById("wavePill");
 const closedBanner = document.getElementById("closedBanner");
 const form = document.getElementById("regForm");
 
-let currentWave = getCurrentWave();
-
-function renderWaveBanner() {
-  currentWave = getCurrentWave();
-  if (!currentWave) {
+function renderRegistrationBanner() {
+  if (!registrationIsOpen()) {
     banner.style.display = "none";
     closedBanner.style.display = "block";
     form.style.display = "none";
     return;
   }
-  banner.style.display = "";
+  banner.style.display = "none"; // no wave banner anymore — keep element for compat
   closedBanner.style.display = "none";
   form.style.display = "";
-  const ends = new Date(currentWave.endsAt).toLocaleDateString("en-GB",
-    { day: "numeric", month: "short", year: "numeric" });
-  banner.querySelector("span").innerHTML =
-    `<strong>${currentWave.label}</strong> · prices rise after ${ends}`;
-  pill.textContent = currentWave.id.toUpperCase();
 }
-renderWaveBanner();
+renderRegistrationBanner();
 
 function populateCategorySelect() {
   const sel = document.getElementById("category");
@@ -407,13 +394,10 @@ function populateCategorySelect() {
   sel.innerHTML = '<option value="">Select…</option>' +
     Object.entries(CATEGORIES).map(([id, c]) => {
       const ageStr = c.ageLimit > 0 ? ` (${c.ageLimit}+)` : "";
-      const isFree = Object.values(c.prices).every(p => p === 0);
-      const freeStr = isFree ? " — FREE" : "";
+      const freeStr = (c.price === 0) ? " — FREE" : "";
       return `<option value="${id}">${c.name}${ageStr}${freeStr}</option>`;
     }).join("");
-  // restore selection if still valid
   if (current && CATEGORIES[current]) sel.value = current;
-  // trigger price refresh
   sel.dispatchEvent(new Event("change"));
 }
 
@@ -430,31 +414,17 @@ const includesEl = document.getElementById("includes");
 
 catSelect.addEventListener("change", () => {
   const cat = CATEGORIES[catSelect.value];
-  if (!cat || !currentWave) { priceCard.classList.remove("show"); return; }
+  if (!cat) { priceCard.classList.remove("show"); return; }
 
-  const price = cat.prices[currentWave.id];
+  const price = cat.price ?? 0;
   priceBig.innerHTML = price === 0
-    ? `Free <span class="free-badge">Para</span>`
+    ? `Free <span class="free-badge">${cat.name.toLowerCase().includes("para") ? "Para" : "Free"}</span>`
     : `$${price} USD`;
-  priceLabel.textContent = `Current price · ${currentWave.label}`;
+  priceLabel.textContent = `Registration fee`;
   priceMeta.innerHTML = cat.timed
     ? `Timed race · Age ${cat.ageLimit}+ on race day`
     : `Untimed · All ages`;
-
-  // Price ladder (show wave progression if prices differ)
-  const uniquePrices = new Set(WAVES.map(w => cat.prices[w.id]));
-  if (uniquePrices.size > 1) {
-    priceLadder.innerHTML = WAVES.map(w => {
-      const isCurrent = w.id === currentWave.id;
-      const ends = new Date(w.endsAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-      return `<div class="price-line ${isCurrent ? "current" : ""}">
-        <span>${w.label} (till ${ends})</span>
-        <span>${cat.prices[w.id] === 0 ? "Free" : "$" + cat.prices[w.id]}</span>
-      </div>`;
-    }).join("");
-  } else {
-    priceLadder.innerHTML = `<div class="price-line current"><span>Flat rate — all waves</span><span>${price === 0 ? "Free" : "$" + price}</span></div>`;
-  }
+  priceLadder.innerHTML = "";
 
   includesEl.innerHTML = `<li style="font-weight:700;color:var(--ink);list-style:none;padding-left:0">Registration includes:</li>` +
     INCLUDES.map(i => `<li>${i}</li>`).join("");
@@ -582,22 +552,29 @@ function collectCustomValues() {
 // Theme + copy (from Firestore /config/theme)
 // ============================================================
 function applyTheme(t) {
-  if (!t) return;
+  t = t || {};
   const root = document.documentElement.style;
   if (t.accent)   root.setProperty("--accent", t.accent);
   if (t.accent2)  root.setProperty("--accent2", t.accent2);
   if (t.ink)      root.setProperty("--ink", t.ink);
   if (t.bg1)      root.setProperty("--bg1", t.bg1);
   if (t.bg2)      root.setProperty("--bg2", t.bg2);
-  if (t.bgImage)  {
-    root.setProperty("--bg-image", `url("${t.bgImage}")`);
+
+  // Default to the Batroun Race photo if no bgImage is explicitly set in Firestore.
+  // An explicit empty string ("") means "no background image" — respect that.
+  const bg = (t.bgImage === "" ? null : (t.bgImage || DEFAULT_BG_IMAGE));
+  if (bg) {
+    root.setProperty("--bg-image", `url("${bg}")`);
     document.body.classList.add("has-bg-image");
   } else {
     document.body.classList.remove("has-bg-image");
   }
+
   if (t.heading)  document.getElementById("reg-heading").textContent = t.heading;
   if (t.subtitle) document.getElementById("reg-subtitle").textContent = t.subtitle;
 }
+// Apply the default background image immediately, before Firestore loads.
+applyTheme({});
 
 // ============================================================
 // Load competition + categories + theme + custom fields from Firestore
@@ -605,17 +582,14 @@ function applyTheme(t) {
 // ============================================================
 async function loadFromFirestore() {
   try {
-    // Competition doc: name, dates, waves
+    // Competition doc: dates
     const compRef = doc(db, "competitions", COMPETITION_ID);
     const compSnap = await getDoc(compRef);
     if (compSnap.exists()) {
       const c = compSnap.data();
-      if (Array.isArray(c.waves) && c.waves.length) {
-        WAVES = c.waves.map(w => ({
-          id: w.id,
-          label: w.label,
-          endsAt: w.endsAt?.toDate ? w.endsAt.toDate().toISOString() : w.endsAt
-        }));
+      if (c.registrationCloses) {
+        REGISTRATION_CLOSES = c.registrationCloses?.toDate
+          ? c.registrationCloses.toDate() : new Date(c.registrationCloses);
       }
       if (c.raceDay) {
         RACE_DAY = typeof c.raceDay === "string" ? c.raceDay.slice(0,10)
@@ -623,7 +597,7 @@ async function loadFromFirestore() {
       }
     }
 
-    // Categories collection
+    // Categories collection — supports new schema (cat.price) and legacy (cat.prices.wave1)
     const catSnap = await getDocs(collection(db, "competitions", COMPETITION_ID, "categories"));
     if (!catSnap.empty) {
       CATEGORIES = {};
@@ -636,16 +610,14 @@ async function loadFromFirestore() {
           distance: x.distanceKm || null,
           capacity: x.capacity || null,
           registeredCount: x.registeredCount || 0,
-          prices: x.prices || { wave1:0, wave2:0, wave3:0 }
+          price: (typeof x.price === "number") ? x.price : (x.prices?.wave1 ?? 0)
         };
       });
     }
 
-    // Theme config
     const themeSnap = await getDoc(doc(db, "competitions", COMPETITION_ID, "config", "theme"));
     if (themeSnap.exists()) applyTheme(themeSnap.data());
 
-    // Custom form fields
     const formSnap = await getDoc(doc(db, "competitions", COMPETITION_ID, "config", "form"));
     if (formSnap.exists() && Array.isArray(formSnap.data().fields)) {
       CUSTOM_FIELDS = formSnap.data().fields;
@@ -654,8 +626,7 @@ async function loadFromFirestore() {
     console.warn("Firestore load failed, using fallback constants:", err);
   }
 
-  // Re-render with whatever we ended up with
-  renderWaveBanner();
+  renderRegistrationBanner();
   populateCategorySelect();
   renderCustomFields();
 }
@@ -706,7 +677,7 @@ form.addEventListener("submit", async (e) => {
     return;
   }
 
-  const price = cat.prices[currentWave.id];
+  const price = cat.price ?? 0;
   const ref = generateRef();
 
   const payload = {
@@ -732,7 +703,6 @@ form.addEventListener("submit", async (e) => {
       dataUsage: !!data.dataConsent,
       newsletter: !!data.newsletter
     },
-    waveAtRegistration: currentWave.id,
     priceUSD: price,
     whishReference: ref,
     paymentStatus: price === 0 ? "free" : "pending",

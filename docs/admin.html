@@ -202,7 +202,7 @@
         <div class="table-wrap">
           <table id="regTable">
             <thead><tr>
-              <th>Ref</th><th>Name</th><th>Category</th><th>Wave</th>
+              <th>Ref</th><th>Name</th><th>Category</th>
               <th>Price</th><th>Status</th><th>Bib</th><th>Date</th><th></th>
             </tr></thead>
             <tbody><tr><td colspan="9" class="empty">Loading…</td></tr></tbody>
@@ -227,12 +227,15 @@
           </div>
           <div><label>Capacity (blank = no limit)</label><input id="catNewCap" type="number"></div>
         </div>
-        <div class="row three">
-          <div><label>Wave 1 price (USD)</label><input id="catNewW1" type="number"></div>
-          <div><label>Wave 2 price (USD)</label><input id="catNewW2" type="number"></div>
-          <div><label>Wave 3 price (USD)</label><input id="catNewW3" type="number"></div>
+        <div class="row two">
+          <div><label>Price (USD)</label><input id="catNewPrice" type="number" placeholder="e.g. 25 — use 0 for free"></div>
+          <div style="display:flex;align-items:flex-end"><button id="catAddBtn" class="btn" style="width:100%">Add category</button></div>
         </div>
-        <div style="margin-top:12px"><button id="catAddBtn" class="btn">Add category</button></div>
+      </div>
+
+      <div id="catEmpty" class="card" style="display:none;text-align:center">
+        <p class="muted" style="margin:0 0 12px">No categories yet. Add your own above, or seed the 5 defaults from Race.docx (you can edit or delete them after).</p>
+        <button id="seedCatsBtn" class="btn sec">Seed default categories</button>
       </div>
 
       <div id="catList"></div>
@@ -315,12 +318,6 @@
           <div><label>Registration closes</label><input id="cpCloses" type="datetime-local"></div>
           <div><label>Race day</label><input id="cpRaceDay" type="date"></div>
         </div>
-      </div>
-
-      <div class="card">
-        <h2>Waves (pricing periods)</h2>
-        <p class="muted" style="margin:0 0 10px">Each wave ends at a date. Wave 3 should end on registration close.</p>
-        <div id="wavesEditor"></div>
       </div>
 
       <div><button id="competitionSaveBtn" class="btn">Save event info</button></div>
@@ -625,7 +622,6 @@ function renderRegTable() {
       <td><code>${escapeHtml(r.whishReference || "—")}</code></td>
       <td>${escapeHtml(r.firstName)} ${escapeHtml(r.lastName)}</td>
       <td>${escapeHtml(r.categoryName || r.categoryId || "—")}</td>
-      <td>${escapeHtml(r.waveAtRegistration || "—")}</td>
       <td>${fmtMoney(r.priceUSD || 0)}</td>
       <td><span class="pill ${r.paymentStatus}">${r.paymentStatus}</span></td>
       <td>${r.bibNumber ?? "—"}</td>
@@ -664,7 +660,6 @@ function openRegDetails(r) {
       ${k("Nationality", r.nationality)}
       ${k("City", r.city)}
       ${k("Category", r.categoryName)}
-      ${k("Wave", r.waveAtRegistration)}
       ${k("Price", fmtMoney(r.priceUSD || 0))}
       ${k("Status", r.paymentStatus)}
       ${k("Bib", r.bibNumber)}
@@ -714,12 +709,12 @@ $("#exportCsvBtn").addEventListener("click", () => {
   const rows = filteredRegs();
   if (!rows.length) { toast("Nothing to export", true); return; }
   const headers = ["reference","firstName","lastName","email","phone","dob","gender",
-                   "nationality","city","category","wave","price","status","bibNumber",
+                   "nationality","city","category","price","status","bibNumber",
                    "tshirt","club","medicalNotes","emergencyName","emergencyPhone",
                    "registeredAt","paidAt"];
   const csv = [headers.join(",")].concat(rows.map(r => [
     r.whishReference, r.firstName, r.lastName, r.email, r.phone, r.dob, r.gender,
-    r.nationality, r.city, r.categoryName, r.waveAtRegistration, r.priceUSD,
+    r.nationality, r.city, r.categoryName, r.priceUSD,
     r.paymentStatus, r.bibNumber, r.tshirtSize, r.club, r.medicalNotes,
     r.emergencyContactName, r.emergencyContactPhone,
     r.registeredAt ? fmtDate(r.registeredAt) : "",
@@ -743,7 +738,13 @@ function csvCell(v) {
 // ===== Categories =====
 function renderCategoryList() {
   const list = $("#catList");
-  if (!cats.length) { list.innerHTML = `<div class="card empty">No categories yet. Add your first one above.</div>`; return; }
+  const emptyCard = $("#catEmpty");
+  if (!cats.length) {
+    list.innerHTML = "";
+    if (emptyCard) emptyCard.style.display = "";
+    return;
+  }
+  if (emptyCard) emptyCard.style.display = "none";
   list.innerHTML = cats.map(c => {
     const cap = c.capacity;
     const reg = c.registeredCount || 0;
@@ -755,7 +756,7 @@ function renderCategoryList() {
           <div style="flex:1;min-width:240px">
             <h2 style="margin:0">${escapeHtml(c.name || c.id)} <span class="muted" style="font-weight:400">#${escapeHtml(c.id)}</span></h2>
             <div class="muted" style="margin-top:4px">
-              ${c.distanceKm ?? "?"} km · ${c.timed ? "Timed" : "Untimed"} · age ${c.ageLimit ?? "none"}+
+              ${c.distanceKm ?? "?"} km · ${c.timed ? "Timed" : "Untimed"} · age ${c.ageLimit ?? "none"}+ · ${(typeof c.price === "number") ? (c.price === 0 ? "Free" : "$" + c.price) : "$" + (c.prices?.wave1 ?? 0)}
             </div>
             <div style="margin-top:8px;font-size:.9rem">
               <strong>Capacity:</strong> ${cap ? `${reg} / ${cap}` : `${reg} (no limit)`}
@@ -791,15 +792,38 @@ $("#catAddBtn").addEventListener("click", async () => {
       timed: $("#catNewTimed").value === "true",
       capacity: parseInt($("#catNewCap").value, 10) || null,
       registeredCount: 0,
-      prices: {
-        wave1: parseFloat($("#catNewW1").value) || 0,
-        wave2: parseFloat($("#catNewW2").value) || 0,
-        wave3: parseFloat($("#catNewW3").value) || 0
-      }
+      price: parseFloat($("#catNewPrice").value) || 0
     });
-    ["catNewId","catNewName","catNewDistance","catNewAge","catNewCap","catNewW1","catNewW2","catNewW3"]
+    ["catNewId","catNewName","catNewDistance","catNewAge","catNewCap","catNewPrice"]
       .forEach(id => $("#"+id).value = "");
     toast("Category added");
+  } catch (e) { toast(e.message, true); }
+});
+
+// ===== Seed defaults =====
+const DEFAULT_CATEGORIES = [
+  { id: "marathon",     name: "Marathon 42.195 KM",    distanceKm: 42.195, ageLimit: 18, timed: true,  capacity: null, price: 40 },
+  { id: "halfMarathon", name: "Half Marathon 21.1 KM", distanceKm: 21.1,   ageLimit: 17, timed: true,  capacity: null, price: 30 },
+  { id: "10k",          name: "10 KM Race",            distanceKm: 10,     ageLimit: 12, timed: true,  capacity: null, price: 25 },
+  { id: "5k",           name: "5 KM Race",             distanceKm: 5,      ageLimit: 0,  timed: false, capacity: null, price: 22 },
+  { id: "para",         name: "Para Athlete Race",     distanceKm: null,   ageLimit: 15, timed: true,  capacity: null, price: 0  }
+];
+
+$("#seedCatsBtn").addEventListener("click", async () => {
+  if (!confirm("Seed the 5 default categories from Race.docx into Firestore? You can edit or delete them after.")) return;
+  try {
+    for (const c of DEFAULT_CATEGORIES) {
+      await setDoc(doc(db, "competitions", COMPETITION_ID, "categories", c.id), {
+        name: c.name,
+        distanceKm: c.distanceKm,
+        ageLimit: c.ageLimit,
+        timed: c.timed,
+        capacity: c.capacity,
+        registeredCount: 0,
+        price: c.price
+      });
+    }
+    toast("5 default categories added");
   } catch (e) { toast(e.message, true); }
 });
 
@@ -815,10 +839,9 @@ function openEditCategory(c) {
       </div>
       <div><label>Capacity</label><input id="ec_cap" type="number" value="${c.capacity ?? ""}"></div>
     </div>
-    <div class="row three" style="margin-top:8px">
-      <div><label>Wave 1 ($)</label><input id="ec_w1" type="number" value="${c.prices?.wave1 ?? 0}"></div>
-      <div><label>Wave 2 ($)</label><input id="ec_w2" type="number" value="${c.prices?.wave2 ?? 0}"></div>
-      <div><label>Wave 3 ($)</label><input id="ec_w3" type="number" value="${c.prices?.wave3 ?? 0}"></div>
+    <div style="margin-top:8px">
+      <label>Price (USD)</label>
+      <input id="ec_price" type="number" value="${(typeof c.price === 'number') ? c.price : (c.prices?.wave1 ?? 0)}">
     </div>
     <div class="modal-actions">
       <button class="btn sec" id="ec_cancel">Cancel</button>
@@ -834,11 +857,7 @@ function openEditCategory(c) {
         ageLimit: parseInt($("#ec_age").value, 10) || null,
         timed: $("#ec_timed").value === "true",
         capacity: parseInt($("#ec_cap").value, 10) || null,
-        prices: {
-          wave1: parseFloat($("#ec_w1").value) || 0,
-          wave2: parseFloat($("#ec_w2").value) || 0,
-          wave3: parseFloat($("#ec_w3").value) || 0
-        }
+        price: parseFloat($("#ec_price").value) || 0
       });
       closeModal();
       toast("Category updated");
@@ -960,18 +979,6 @@ function loadCompetitionIntoEditor(c) {
   $("#cpCloses").value = tsToLocal(c.registrationCloses);
   $("#cpRaceDay").value = c.raceDay ? c.raceDay.slice(0,10) : "";
 
-  const waves = c.waves || [
-    { id:"wave1", label:"Wave 1 — Early bird", endsAt:null },
-    { id:"wave2", label:"Wave 2 — Standard",   endsAt:null },
-    { id:"wave3", label:"Wave 3 — Late",       endsAt:null }
-  ];
-  $("#wavesEditor").innerHTML = waves.map((w, i) => `
-    <div class="row three" style="margin-bottom:8px">
-      <div><label>Wave ${i+1} ID</label><input class="w-id" value="${escapeHtml(w.id)}"></div>
-      <div><label>Label</label><input class="w-label" value="${escapeHtml(w.label)}"></div>
-      <div><label>Ends at</label><input class="w-ends" type="datetime-local" value="${tsToLocal(w.endsAt)}"></div>
-    </div>
-  `).join("");
 }
 
 function tsToLocal(ts) {
@@ -983,22 +990,13 @@ function tsToLocal(ts) {
 }
 
 $("#competitionSaveBtn").addEventListener("click", async () => {
-  const waveIds   = [...$$('#wavesEditor .w-id')].map(x => x.value.trim());
-  const waveLabel = [...$$('#wavesEditor .w-label')].map(x => x.value.trim());
-  const waveEnds  = [...$$('#wavesEditor .w-ends')].map(x => x.value);
-  const waves = waveIds.map((id, i) => ({
-    id, label: waveLabel[i],
-    endsAt: waveEnds[i] ? new Date(waveEnds[i]) : null
-  }));
-
   try {
     await setDoc(doc(db, "competitions", COMPETITION_ID), {
       name: $("#cpName").value.trim(),
       year: parseInt($("#cpYear").value, 10) || null,
       registrationOpens:  $("#cpOpens").value  ? new Date($("#cpOpens").value)  : null,
       registrationCloses: $("#cpCloses").value ? new Date($("#cpCloses").value) : null,
-      raceDay: $("#cpRaceDay").value || null,
-      waves
+      raceDay: $("#cpRaceDay").value || null
     }, { merge: true });
     toast("Event info saved");
   } catch (e) { toast(e.message, true); }
