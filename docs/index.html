@@ -42,7 +42,10 @@
   @media(min-width:720px){.two{grid-template-columns:1fr 1fr}}
 
   .help{color:#bcd3ea;font-size:.85rem;margin-top:4px}
-  .err{color:var(--err);font-size:.85rem;margin-top:4px;display:none}
+  .err{color:var(--err);font-size:.88rem;margin-top:4px;display:none;font-weight:700}
+  .err::before{content:"⚠ "}
+  .err.show{display:block}
+  .field-invalid{border-color:var(--err)!important;box-shadow:0 0 0 2px rgba(255,107,107,.18)!important}
 
   .btn{display:block;width:100%;margin:12px 0 96px;padding:16px;border-radius:12px;
     border:1px solid rgba(61,214,198,.45);
@@ -424,15 +427,86 @@ catSelect.addEventListener("change", () => {
 });
 
 // ============================================================
+// Inline required-field validation
+// ============================================================
+function getErrEl(el) {
+  // For checkboxes inside a <label class="inline">, the err sits after the label.
+  const anchor = el.type === "checkbox" ? el.closest("label.inline") : el;
+  if (!anchor) return null;
+  let next = anchor.nextElementSibling;
+  while (next && (next.classList.contains("help"))) next = next.nextElementSibling;
+  return next && next.classList.contains("err") ? next : null;
+}
+
+function setFieldError(el, msg) {
+  const errEl = getErrEl(el);
+  if (errEl) {
+    errEl.textContent = msg;
+    errEl.classList.toggle("show", !!msg);
+  }
+  el.classList.toggle("field-invalid", !!msg);
+}
+
+function initFieldErrors() {
+  document.querySelectorAll("[required]").forEach(el => {
+    // Skip if an err element is already adjacent
+    if (getErrEl(el)) return;
+    const anchor = el.type === "checkbox" ? el.closest("label.inline") : el;
+    if (!anchor || !anchor.parentNode) return;
+    const div = document.createElement("div");
+    div.className = "err";
+    anchor.parentNode.insertBefore(div, anchor.nextSibling);
+  });
+  // Clear the error on the field as soon as the user fixes it
+  document.querySelectorAll("[required]").forEach(el => {
+    const evt = (el.type === "checkbox" || el.tagName === "SELECT") ? "change" : "input";
+    el.addEventListener(evt, () => setFieldError(el, ""));
+  });
+}
+initFieldErrors();
+
+function validateRequiredFields() {
+  let firstBad = null;
+  document.querySelectorAll("[required]").forEach(el => {
+    let msg = "";
+    if (el.type === "checkbox") {
+      if (!el.checked) msg = "Please check this box to continue.";
+    } else {
+      const v = (el.value || "").trim();
+      if (!v) {
+        msg = "This field is required.";
+      } else if (el.type === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) {
+        msg = "Please enter a valid email address.";
+      } else if (el.pattern && !(new RegExp("^(?:" + el.pattern + ")$").test(v))) {
+        msg = "Please enter a valid value (check the format).";
+      }
+    }
+    setFieldError(el, msg);
+    if (msg && !firstBad) firstBad = el;
+  });
+  if (firstBad) {
+    firstBad.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (firstBad.type !== "checkbox") {
+      try { firstBad.focus({ preventScroll: true }); } catch (_) {}
+    }
+  }
+  return !firstBad;
+}
+
+// ============================================================
 // Submit
 // ============================================================
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
   const btn = document.getElementById("submitBtn");
-  btn.disabled = true;
 
   // Honeypot check
   if (document.getElementById("hp").value) return;
+
+  // Inline validation BEFORE anything else
+  if (!validateRequiredFields()) return;
+
+  btn.disabled = true;
 
   // Pull values
   const data = Object.fromEntries(new FormData(form).entries());
@@ -500,7 +574,10 @@ form.addEventListener("submit", async (e) => {
     showConfirmation(ref, price, cat);
   } catch (err) {
     console.error(err);
-    alert("Sorry, something went wrong. Please try again or contact batrounrace@gmail.com");
+    const msg = err?.code === "permission-denied"
+      ? "Your registration was rejected by our server. Please make sure all required fields and consent boxes are filled correctly, then try again."
+      : "Sorry, something went wrong submitting your registration. Please try again or contact batrounrace@gmail.com" + (err?.message ? ("\n\nDetails: " + err.message) : "");
+    alert(msg);
     btn.disabled = false;
   }
 });
