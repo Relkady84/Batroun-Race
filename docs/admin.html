@@ -339,7 +339,7 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
 import {
-  getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult,
+  getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult,
   signOut, onAuthStateChanged, browserLocalPersistence, setPersistence
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
 import {
@@ -429,18 +429,47 @@ getRedirectResult(auth)
     $("#signInError").textContent = `Sign-in error (${e.code || "unknown"}): ${e.message || e}`;
   });
 
-$("#signInBtn").addEventListener("click", async () => {
+async function trySignIn() {
   $("#signInError").textContent = "";
-  console.log("[auth] starting signInWithRedirect…");
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: "select_account" });
+
+  // Try popup first — keeps everything in one origin and survives
+  // tracking-prevention better than the redirect flow on Edge.
+  console.log("[auth] starting signInWithPopup…");
+  try {
+    const result = await signInWithPopup(auth, provider);
+    console.log("[auth] popup signed in:", result.user.email);
+    return;
+  } catch (e) {
+    console.warn("[auth] popup failed:", e.code, e.message);
+    // If the popup itself was blocked, fall back to redirect.
+    const fallbackCodes = [
+      "auth/popup-blocked",
+      "auth/operation-not-supported-in-this-environment",
+      "auth/web-storage-unsupported"
+    ];
+    if (!fallbackCodes.includes(e.code)) {
+      // The user closed it, or some other error. Show it.
+      if (e.code === "auth/popup-closed-by-user" || e.code === "auth/cancelled-popup-request") return;
+      $("#signInError").textContent = `Sign-in error (${e.code || "unknown"}): ${e.message || e}`;
+      return;
+    }
+  }
+
+  // Fallback: redirect
+  console.log("[auth] falling back to signInWithRedirect…");
   sessionStorage.setItem("admin_redirecting", "1");
   try {
-    await signInWithRedirect(auth, new GoogleAuthProvider());
+    await signInWithRedirect(auth, provider);
   } catch (e) {
     console.error("[auth] signInWithRedirect threw:", e);
     sessionStorage.removeItem("admin_redirecting");
     $("#signInError").textContent = `Sign-in error (${e.code || "unknown"}): ${e.message || e}`;
   }
-});
+}
+
+$("#signInBtn").addEventListener("click", trySignIn);
 
 $("#signOutBtn").addEventListener("click", () => signOut(auth));
 
