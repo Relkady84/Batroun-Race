@@ -27,11 +27,12 @@
   label{display:block;margin:8px 0 6px;font-weight:700}
   .inline{display:flex;gap:10px;align-items:flex-start}
 
-  input,select,textarea{
+  input:not([type="checkbox"]):not([type="radio"]),select,textarea{
     width:100%;min-height:50px;padding:12px 14px;border-radius:12px;
     border:1px solid rgba(255,255,255,.22);background:rgba(4,14,28,.6);color:#fff;outline:none;
     -webkit-appearance:none;appearance:none;font:inherit
   }
+  input[type="checkbox"]{width:20px;height:20px;accent-color:var(--accent);cursor:pointer;flex:0 0 auto}
   textarea{min-height:auto}
   input::placeholder,textarea::placeholder{color:#a8b6c7}
   input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:var(--ring)}
