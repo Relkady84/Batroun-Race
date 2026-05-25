@@ -32,14 +32,18 @@ service cloud.firestore {
     }
 
     function registrationOpen(competitionId) {
-      // Allow registration if:
+      // Allow registration when:
       //   - the competition doc doesn't exist yet, OR
-      //   - registrationCloses is missing/null (admin saved without a close date), OR
-      //   - we're still before registrationCloses.
+      //   - we are inside the [registrationOpens, registrationCloses) window.
+      // Either bound being null means "no limit on that side".
       let compPath = /databases/$(database)/documents/competitions/$(competitionId);
+      let opens  = get(compPath).data.get('registrationOpens',  null);
+      let closes = get(compPath).data.get('registrationCloses', null);
       return !exists(compPath)
-          || get(compPath).data.get('registrationCloses', null) == null
-          || request.time < get(compPath).data.registrationCloses;
+          || (
+              (opens  == null || request.time >= opens)
+           && (closes == null || request.time <  closes)
+          );
     }
 
     // --- Routes ---

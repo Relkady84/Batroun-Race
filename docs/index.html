@@ -520,15 +520,20 @@ let CATEGORIES = {
 };
 
 let CUSTOM_FIELDS = [];
-let REGISTRATION_CLOSES = null;          // Date — when registration closes
+let REGISTRATION_OPENS  = null;          // Date — when registration becomes available
+let REGISTRATION_CLOSES = null;          // Date — when registration shuts
 const DEFAULT_BG_IMAGE = "https://www.batrounrace.com/cdn/shop/files/IMG-20250707-WA0052.jpg?v=1759771908&width=3840";
 
 // ============================================================
 // Registration period
 // ============================================================
-function registrationIsOpen(now = new Date()) {
-  if (!REGISTRATION_CLOSES) return true; // no close date set = always open
-  return now <= REGISTRATION_CLOSES;
+function registrationStatus(now = new Date()) {
+  if (REGISTRATION_OPENS  && now <  REGISTRATION_OPENS)  return "before";
+  if (REGISTRATION_CLOSES && now >= REGISTRATION_CLOSES) return "after";
+  return "open";
+}
+function fmtDate(d) {
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
 }
 
 function ageOnRaceDay(dobStr) {
@@ -554,13 +559,21 @@ const closedBanner = document.getElementById("closedBanner");
 const form = document.getElementById("regForm");
 
 function renderRegistrationBanner() {
-  if (!registrationIsOpen()) {
-    closedBanner.style.display = "block";
-    form.style.display = "none";
+  const status = registrationStatus();
+  if (status === "open") {
+    closedBanner.style.display = "none";
+    form.style.display = "";
     return;
   }
-  closedBanner.style.display = "none";
-  form.style.display = "";
+  form.style.display = "none";
+  closedBanner.style.display = "block";
+  if (status === "before") {
+    closedBanner.innerHTML =
+      `Registration opens on <strong>${fmtDate(REGISTRATION_OPENS)}</strong>. Come back then to sign up.`;
+  } else {
+    closedBanner.textContent =
+      "Registration for Batroun Race 2026 is now closed. See you next year!";
+  }
 }
 renderRegistrationBanner();
 
@@ -775,6 +788,10 @@ async function loadFromFirestore() {
     const compSnap = await getDoc(compRef);
     if (compSnap.exists()) {
       const c = compSnap.data();
+      if (c.registrationOpens) {
+        REGISTRATION_OPENS = c.registrationOpens?.toDate
+          ? c.registrationOpens.toDate() : new Date(c.registrationOpens);
+      }
       if (c.registrationCloses) {
         REGISTRATION_CLOSES = c.registrationCloses?.toDate
           ? c.registrationCloses.toDate() : new Date(c.registrationCloses);
