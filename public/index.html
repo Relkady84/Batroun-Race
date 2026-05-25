@@ -1,0 +1,543 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta content="width=device-width,initial-scale=1" name="viewport">
+<title>Register — Batroun Race 2026</title>
+<style>
+  :root{
+    --bg:#08172b;--ink:#ecf6ff;--muted:#9fb2c8;--line:rgba(255,255,255,.16);
+    --accent:#3dd6c6;--accent2:#21b3a7;--ring:0 0 0 3px rgba(61,214,198,.28);
+    --warn:#ffb74d;--err:#ff6b6b;--ok:#7cf0c0;
+    --card:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.03));
+  }
+  html,body{margin:0;background:linear-gradient(180deg,#08172b,#0d2140);color:var(--ink);
+    font:16px/1.55 system-ui,-apple-system,Segoe UI,Roboto;-webkit-text-size-adjust:100%}
+  *{box-sizing:border-box;max-width:100%}
+  html,body{overflow-x:hidden}
+
+  .wrap{max-width:780px;margin:0 auto;padding:14px}
+  .hero{text-align:center;padding:10px 6px 12px}
+  h1{margin:.25rem 0;font-weight:900;letter-spacing:.2px;font-size:clamp(26px,7vw,40px)}
+  .muted{color:var(--muted);font-size:.95rem}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;
+    box-shadow:0 14px 36px rgba(0,0,0,.42);padding:14px;margin:12px 0}
+  .title{margin:0 0 8px;font-weight:900}
+  label{display:block;margin:8px 0 6px;font-weight:700}
+  .inline{display:flex;gap:10px;align-items:flex-start}
+
+  input,select,textarea{
+    width:100%;min-height:50px;padding:12px 14px;border-radius:12px;
+    border:1px solid rgba(255,255,255,.22);background:rgba(4,14,28,.6);color:#fff;outline:none;
+    -webkit-appearance:none;appearance:none;font:inherit
+  }
+  textarea{min-height:auto}
+  input::placeholder,textarea::placeholder{color:#a8b6c7}
+  input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:var(--ring)}
+
+  .row{display:grid;gap:10px}
+  .two{grid-template-columns:1fr}
+  @media(min-width:720px){.two{grid-template-columns:1fr 1fr}}
+
+  .help{color:#bcd3ea;font-size:.85rem;margin-top:4px}
+  .err{color:var(--err);font-size:.85rem;margin-top:4px;display:none}
+
+  .btn{display:block;width:100%;margin:12px 0 96px;padding:16px;border-radius:12px;
+    border:1px solid rgba(61,214,198,.45);
+    background:linear-gradient(180deg,var(--accent),var(--accent2));color:#062028;font-weight:900;
+    box-shadow:0 14px 36px rgba(61,214,198,.26);cursor:pointer;font-size:1.05rem}
+  .btn:disabled{opacity:.6;cursor:not-allowed}
+
+  /* Wave banner */
+  .wave-banner{display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding:10px 14px;border-radius:12px;background:rgba(61,214,198,.10);
+    border:1px solid rgba(61,214,198,.35);margin:6px 0 4px;font-size:.92rem}
+  .wave-banner .pill{background:var(--accent);color:#062028;padding:3px 10px;border-radius:999px;
+    font-weight:900;font-size:.82rem;letter-spacing:.3px}
+
+  /* Price preview */
+  .price-card{display:none}
+  .price-card.show{display:block}
+  .price-big{font-size:2rem;font-weight:900;color:var(--accent);margin:4px 0}
+  .price-line{display:flex;justify-content:space-between;padding:4px 0;font-size:.92rem;
+    color:var(--muted);border-bottom:1px dashed rgba(255,255,255,.08)}
+  .price-line:last-child{border:0}
+  .price-line.current{color:var(--ink);font-weight:700}
+  .includes{margin:8px 0 0;padding:0;list-style:none;font-size:.88rem;color:#cfe4f5}
+  .includes li{padding:3px 0;padding-left:18px;position:relative}
+  .includes li::before{content:"✓";position:absolute;left:0;color:var(--accent);font-weight:900}
+
+  /* Confirmation panel */
+  .confirm{display:none}
+  .confirm.show{display:block}
+  .reference{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:1.8rem;
+    font-weight:900;letter-spacing:2px;color:var(--accent);text-align:center;
+    padding:14px;background:rgba(0,0,0,.25);border-radius:12px;border:1px dashed rgba(61,214,198,.5);
+    margin:10px 0;user-select:all}
+  .qr-box{text-align:center;padding:14px;background:#fff;border-radius:12px;margin:10px 0;
+    color:#062028}
+  .step{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.08)}
+  .step:last-child{border:0}
+  .step-num{flex:0 0 28px;height:28px;background:var(--accent);color:#062028;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;font-weight:900;font-size:.85rem}
+  .step-body{flex:1}
+  .step-title{font-weight:700;margin-bottom:2px}
+  .step-desc{color:var(--muted);font-size:.9rem}
+
+  .free-badge{display:inline-block;background:var(--ok);color:#062028;padding:3px 10px;
+    border-radius:999px;font-weight:900;font-size:.82rem;margin-left:6px}
+
+  .closed-banner{background:rgba(255,107,107,.12);border:1px solid rgba(255,107,107,.4);
+    color:#ffd9d9;padding:14px;border-radius:12px;text-align:center;font-weight:700}
+</style>
+</head>
+<body>
+<section aria-labelledby="reg-heading">
+
+  <div class="wrap hero">
+    <h1 id="reg-heading">Register for Batroun Race</h1>
+    <p class="muted">Coastal course • pro timing • hydration every 2–3 km • finisher medals</p>
+
+    <div class="wave-banner" id="waveBanner">
+      <span><strong>Loading…</strong></span>
+      <span class="pill" id="wavePill">—</span>
+    </div>
+  </div>
+
+  <div class="wrap">
+
+    <!-- Registration closed view -->
+    <div class="closed-banner" id="closedBanner" style="display:none">
+      Registration for Batroun Race 2026 is now closed. See you next year!
+    </div>
+
+    <!-- Main form -->
+    <form id="regForm" novalidate>
+
+      <!-- Race selection -->
+      <div class="card">
+        <h3 class="title">Choose your race</h3>
+        <div class="row">
+          <label for="category">Distance / Category *</label>
+          <select id="category" name="category" required>
+            <option value="">Select…</option>
+            <option value="marathon">Marathon — 42.195 KM (18+)</option>
+            <option value="halfMarathon">Half Marathon — 21.1 KM (17+)</option>
+            <option value="10k">10 KM Race (12+)</option>
+            <option value="5k">5 KM Race (all ages)</option>
+            <option value="para">Para Athlete Race (15+) — FREE</option>
+          </select>
+          <div class="err" id="categoryErr"></div>
+        </div>
+
+        <div class="card price-card" id="priceCard" style="margin:14px 0 0">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap">
+            <div>
+              <div class="muted" id="priceLabel">Current price</div>
+              <div class="price-big" id="priceBig">—</div>
+            </div>
+            <div style="text-align:right;font-size:.85rem;color:var(--muted)" id="priceMeta"></div>
+          </div>
+          <div id="priceLadder" style="margin-top:10px"></div>
+          <ul class="includes" id="includes"></ul>
+        </div>
+      </div>
+
+      <!-- Personal -->
+      <div class="card">
+        <h3 class="title">Your details</h3>
+        <div class="row two">
+          <div>
+            <label for="first">First name *</label>
+            <input id="first" name="first" placeholder="Aya" required autocomplete="given-name">
+          </div>
+          <div>
+            <label for="last">Last name *</label>
+            <input id="last" name="last" placeholder="Haddad" required autocomplete="family-name">
+          </div>
+        </div>
+        <div class="row two">
+          <div>
+            <label for="email">Email *</label>
+            <input id="email" name="email" placeholder="you@example.com" required
+                   inputmode="email" autocomplete="email" type="email">
+          </div>
+          <div>
+            <label for="phone">Mobile (WhatsApp) *</label>
+            <input id="phone" name="phone" placeholder="+961 3 123 456" required
+                   inputmode="tel" pattern="^[+]?[\d\s()-]{7,}$">
+            <div class="help">Use +961… or local format.</div>
+          </div>
+        </div>
+        <div class="row two">
+          <div>
+            <label for="dob">Date of birth *</label>
+            <input id="dob" name="dob" required type="date">
+            <div class="err" id="dobErr"></div>
+          </div>
+          <div>
+            <label for="gender">Gender *</label>
+            <select id="gender" name="gender" required>
+              <option value="">Select…</option>
+              <option>Female</option>
+              <option>Male</option>
+              <option>Non-binary</option>
+              <option>Prefer not to say</option>
+            </select>
+          </div>
+        </div>
+        <div class="row two">
+          <div>
+            <label for="nationality">Nationality</label>
+            <input id="nationality" name="nationality" placeholder="Lebanese">
+          </div>
+          <div>
+            <label for="city">City</label>
+            <input id="city" name="city" placeholder="Batroun">
+          </div>
+        </div>
+      </div>
+
+      <!-- Race extras -->
+      <div class="card">
+        <h3 class="title">Race extras</h3>
+        <div class="row two">
+          <div>
+            <label for="shirt">T-shirt size *</label>
+            <select id="shirt" name="shirt" required>
+              <option value="">Select…</option>
+              <option>XS</option><option>S</option><option>M</option>
+              <option>L</option><option>XL</option><option>XXL</option>
+            </select>
+          </div>
+          <div>
+            <label for="club">Club / Team</label>
+            <input id="club" name="club" placeholder="Batroun Runners">
+          </div>
+        </div>
+        <div class="row">
+          <label for="note">Medical / notes</label>
+          <textarea id="note" name="note" rows="3" placeholder="Allergies, conditions, medication…"></textarea>
+        </div>
+      </div>
+
+      <!-- Safety -->
+      <div class="card">
+        <h3 class="title">Safety &amp; consent</h3>
+        <div class="row two">
+          <div>
+            <label for="emgName">Emergency contact *</label>
+            <input id="emgName" name="emgName" placeholder="Full name" required>
+          </div>
+          <div>
+            <label for="emgPhone">Emergency phone *</label>
+            <input id="emgPhone" name="emgPhone" placeholder="+961 …" required
+                   inputmode="tel" pattern="^[+]?[\d\s()-]{7,}$">
+          </div>
+        </div>
+        <div class="row">
+          <label class="inline">
+            <input type="checkbox" name="waiver" required
+              style="width:auto;min-height:auto;accent-color:#27cbbb;margin-top:5px">
+            <span>I agree to the event waiver and I'm medically fit. *</span>
+          </label>
+          <label class="inline">
+            <input type="checkbox" name="dataConsent" required
+              style="width:auto;min-height:auto;accent-color:#27cbbb;margin-top:5px">
+            <span>I consent to my data being used for registration. *</span>
+          </label>
+          <label class="inline">
+            <input type="checkbox" name="newsletter"
+              style="width:auto;min-height:auto;accent-color:#27cbbb;margin-top:5px">
+            <span>Email me race updates.</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Honeypot -->
+      <div aria-hidden="true" style="position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden">
+        <label for="hp">Leave empty</label>
+        <input id="hp" name="hp" autocomplete="off">
+      </div>
+
+      <button type="submit" class="btn" id="submitBtn">Register</button>
+    </form>
+
+    <!-- Confirmation -->
+    <div class="confirm" id="confirmPanel">
+      <div class="card">
+        <h3 class="title" style="color:var(--accent)">✓ Registration received</h3>
+        <p>Your spot is reserved <strong>pending payment</strong>. Save this reference — you'll need it.</p>
+        <div class="reference" id="refCode">—</div>
+
+        <div id="paymentBlock">
+          <h4 style="margin:14px 0 4px">Pay via Whish Money</h4>
+          <p class="muted" style="margin:0">Total due: <strong style="color:var(--ink);font-size:1.1rem" id="amountDue">—</strong></p>
+
+          <div class="qr-box">
+            <div style="font-size:.85rem;margin-bottom:6px">Scan with Whish app to pay</div>
+            <div style="height:180px;background:#eee;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#555;font-size:.85rem">
+              [Whish QR placeholder — replace with school's QR image]
+            </div>
+            <div style="font-size:.85rem;margin-top:8px">or send to <strong>+961 XX XXX XXX</strong></div>
+          </div>
+
+          <div style="margin-top:12px">
+            <div class="step"><div class="step-num">1</div><div class="step-body">
+              <div class="step-title">Open Whish Money</div>
+              <div class="step-desc">Scan QR or pay to the number above.</div>
+            </div></div>
+            <div class="step"><div class="step-num">2</div><div class="step-body">
+              <div class="step-title">Add your reference</div>
+              <div class="step-desc">In the note/memo field, write your reference code exactly.</div>
+            </div></div>
+            <div class="step"><div class="step-num">3</div><div class="step-body">
+              <div class="step-title">Wait for confirmation</div>
+              <div class="step-desc">We'll WhatsApp you within 24h with your bib number once payment is verified.</div>
+            </div></div>
+          </div>
+        </div>
+
+        <div id="freeBlock" style="display:none">
+          <p>This category is <strong>free of charge</strong>. We'll WhatsApp you within 24h with your bib number and event details.</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- Firebase SDK -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
+import { getFirestore, collection, addDoc, serverTimestamp, runTransaction, doc }
+  from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+
+// ============================================================
+// CONFIG — replace with your Firebase project config
+// ============================================================
+const firebaseConfig = {
+  apiKey: "REPLACE_ME",
+  authDomain: "REPLACE_ME.firebaseapp.com",
+  projectId: "REPLACE_ME",
+  storageBucket: "REPLACE_ME.appspot.com",
+  messagingSenderId: "REPLACE_ME",
+  appId: "REPLACE_ME"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// ============================================================
+// Event data — single source of truth (from Race.docx)
+// ============================================================
+const COMPETITION_ID = "batroun-race-2026";
+const RACE_DAY = "2026-11-22"; // assumed; adjust if needed
+
+const WAVES = [
+  { id: "wave1", label: "Wave 1 — Early bird", endsAt: "2026-09-01T23:59:59" },
+  { id: "wave2", label: "Wave 2 — Standard",   endsAt: "2026-11-10T23:59:59" },
+  { id: "wave3", label: "Wave 3 — Late",       endsAt: "2026-11-20T23:59:59" }
+];
+
+const INCLUDES = [
+  "Race Registration", "BIB & Tag", "Finisher T-shirt",
+  "Finisher Medal", "Goody Bag", "Finish Time Certificate", "LAF Fees"
+];
+
+const CATEGORIES = {
+  marathon:      { name: "Marathon 42.195 KM", timed: true,  ageLimit: 18, prices: { wave1: 40, wave2: 50, wave3: 65 } },
+  halfMarathon:  { name: "Half Marathon 21.1 KM", timed: true,  ageLimit: 17, prices: { wave1: 30, wave2: 40, wave3: 50 } },
+  "10k":         { name: "10 KM Race", timed: true,  ageLimit: 12, prices: { wave1: 25, wave2: 30, wave3: 35 } },
+  "5k":          { name: "5 KM Race",  timed: false, ageLimit: 0,  prices: { wave1: 22, wave2: 22, wave3: 22 } },
+  para:          { name: "Para Athlete Race", timed: true,  ageLimit: 15, prices: { wave1: 0,  wave2: 0,  wave3: 0  } }
+};
+
+// ============================================================
+// Wave logic
+// ============================================================
+function getCurrentWave(now = new Date()) {
+  for (const w of WAVES) if (now <= new Date(w.endsAt)) return w;
+  return null;
+}
+
+function ageOnRaceDay(dobStr) {
+  if (!dobStr) return null;
+  const dob = new Date(dobStr), race = new Date(RACE_DAY);
+  let age = race.getFullYear() - dob.getFullYear();
+  const m = race.getMonth() - dob.getMonth();
+  if (m < 0 || (m === 0 && race.getDate() < dob.getDate())) age--;
+  return age;
+}
+
+function generateRef() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no confusing 0/O/1/I
+  let s = "";
+  for (let i = 0; i < 4; i++) s += chars[Math.floor(Math.random() * chars.length)];
+  return `BTN-2026-${s}`;
+}
+
+// ============================================================
+// UI: wave banner
+// ============================================================
+const currentWave = getCurrentWave();
+const banner = document.getElementById("waveBanner");
+const pill = document.getElementById("wavePill");
+const closedBanner = document.getElementById("closedBanner");
+const form = document.getElementById("regForm");
+
+if (!currentWave) {
+  banner.style.display = "none";
+  closedBanner.style.display = "block";
+  form.style.display = "none";
+} else {
+  const ends = new Date(currentWave.endsAt).toLocaleDateString("en-GB",
+    { day: "numeric", month: "short", year: "numeric" });
+  banner.querySelector("span").innerHTML =
+    `<strong>${currentWave.label}</strong> · prices rise after ${ends}`;
+  pill.textContent = currentWave.id.toUpperCase();
+}
+
+// ============================================================
+// UI: price preview when category changes
+// ============================================================
+const catSelect = document.getElementById("category");
+const priceCard = document.getElementById("priceCard");
+const priceBig = document.getElementById("priceBig");
+const priceLabel = document.getElementById("priceLabel");
+const priceMeta = document.getElementById("priceMeta");
+const priceLadder = document.getElementById("priceLadder");
+const includesEl = document.getElementById("includes");
+
+catSelect.addEventListener("change", () => {
+  const cat = CATEGORIES[catSelect.value];
+  if (!cat || !currentWave) { priceCard.classList.remove("show"); return; }
+
+  const price = cat.prices[currentWave.id];
+  priceBig.innerHTML = price === 0
+    ? `Free <span class="free-badge">Para</span>`
+    : `$${price} USD`;
+  priceLabel.textContent = `Current price · ${currentWave.label}`;
+  priceMeta.innerHTML = cat.timed
+    ? `Timed race · Age ${cat.ageLimit}+ on race day`
+    : `Untimed · All ages`;
+
+  // Price ladder (show wave progression if prices differ)
+  const uniquePrices = new Set(WAVES.map(w => cat.prices[w.id]));
+  if (uniquePrices.size > 1) {
+    priceLadder.innerHTML = WAVES.map(w => {
+      const isCurrent = w.id === currentWave.id;
+      const ends = new Date(w.endsAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+      return `<div class="price-line ${isCurrent ? "current" : ""}">
+        <span>${w.label} (till ${ends})</span>
+        <span>${cat.prices[w.id] === 0 ? "Free" : "$" + cat.prices[w.id]}</span>
+      </div>`;
+    }).join("");
+  } else {
+    priceLadder.innerHTML = `<div class="price-line current"><span>Flat rate — all waves</span><span>${price === 0 ? "Free" : "$" + price}</span></div>`;
+  }
+
+  includesEl.innerHTML = `<li style="font-weight:700;color:var(--ink);list-style:none;padding-left:0">Registration includes:</li>` +
+    INCLUDES.map(i => `<li>${i}</li>`).join("");
+
+  priceCard.classList.add("show");
+});
+
+// ============================================================
+// Submit
+// ============================================================
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById("submitBtn");
+  btn.disabled = true;
+
+  // Honeypot check
+  if (document.getElementById("hp").value) return;
+
+  // Pull values
+  const data = Object.fromEntries(new FormData(form).entries());
+  const cat = CATEGORIES[data.category];
+
+  // Validate age
+  if (cat && cat.ageLimit > 0) {
+    const age = ageOnRaceDay(data.dob);
+    if (age === null || age < cat.ageLimit) {
+      document.getElementById("dobErr").textContent =
+        `Minimum age for ${cat.name} is ${cat.ageLimit} on race day. Your age on race day: ${age ?? "—"}.`;
+      document.getElementById("dobErr").style.display = "block";
+      btn.disabled = false;
+      return;
+    }
+  }
+  document.getElementById("dobErr").style.display = "none";
+
+  // Validate required category
+  if (!cat) {
+    document.getElementById("categoryErr").textContent = "Please choose a race.";
+    document.getElementById("categoryErr").style.display = "block";
+    btn.disabled = false;
+    return;
+  }
+
+  const price = cat.prices[currentWave.id];
+  const ref = generateRef();
+
+  const payload = {
+    competitionId: COMPETITION_ID,
+    firstName: data.first?.trim(),
+    lastName: data.last?.trim(),
+    email: data.email?.trim().toLowerCase(),
+    phone: data.phone?.trim(),
+    dob: data.dob,
+    ageOnRaceDay: ageOnRaceDay(data.dob),
+    gender: data.gender,
+    nationality: data.nationality?.trim() || null,
+    city: data.city?.trim() || null,
+    categoryId: data.category,
+    categoryName: cat.name,
+    tshirtSize: data.shirt,
+    club: data.club?.trim() || null,
+    medicalNotes: data.note?.trim() || null,
+    emergencyContactName: data.emgName?.trim(),
+    emergencyContactPhone: data.emgPhone?.trim(),
+    consents: {
+      waiver: !!data.waiver,
+      dataUsage: !!data.dataConsent,
+      newsletter: !!data.newsletter
+    },
+    waveAtRegistration: currentWave.id,
+    priceUSD: price,
+    whishReference: ref,
+    paymentStatus: price === 0 ? "free" : "pending",
+    paymentMethod: price === 0 ? "free" : "whish",
+    bibNumber: null,
+    registeredAt: serverTimestamp(),
+    paidAt: null
+  };
+
+  try {
+    await addDoc(collection(db, "competitions", COMPETITION_ID, "registrations"), payload);
+    showConfirmation(ref, price, cat);
+  } catch (err) {
+    console.error(err);
+    alert("Sorry, something went wrong. Please try again or contact batrounrace@gmail.com");
+    btn.disabled = false;
+  }
+});
+
+function showConfirmation(ref, price, cat) {
+  form.style.display = "none";
+  document.getElementById("confirmPanel").classList.add("show");
+  document.getElementById("refCode").textContent = ref;
+  document.getElementById("amountDue").textContent = price === 0 ? "Free" : `$${price} USD`;
+
+  if (price === 0) {
+    document.getElementById("paymentBlock").style.display = "none";
+    document.getElementById("freeBlock").style.display = "block";
+  }
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+</script>
+</body>
+</html>
