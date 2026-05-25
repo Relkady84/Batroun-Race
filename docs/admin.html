@@ -1076,13 +1076,28 @@ $("#themeSaveBtn").addEventListener("click", async () => {
 });
 
 // ===== Competition =====
+let competitionDirty = false;
+
+function markCompetitionDirty() { competitionDirty = true; }
+["cpName","cpYear","cpOpens","cpCloses","cpRaceDay"].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener("input", markCompetitionDirty);
+});
+
 function loadCompetitionIntoEditor(c) {
+  if (competitionDirty) {
+    console.log("[competition] skipping reload — user is editing (dirty)");
+    return;
+  }
+  console.log("[competition] loading into editor:", {
+    name: c.name, year: c.year,
+    opens: c.registrationOpens, closes: c.registrationCloses, raceDay: c.raceDay
+  });
   $("#cpName").value = c.name || "";
   $("#cpYear").value = c.year || "";
   $("#cpOpens").value  = tsToLocal(c.registrationOpens);
   $("#cpCloses").value = tsToLocal(c.registrationCloses);
   $("#cpRaceDay").value = c.raceDay ? c.raceDay.slice(0,10) : "";
-
 }
 
 function tsToLocal(ts) {
