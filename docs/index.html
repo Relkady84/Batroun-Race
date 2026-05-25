@@ -269,35 +269,12 @@
     <div class="confirm" id="confirmPanel">
       <div class="card">
         <h3 class="title" style="color:var(--accent)">✓ Registration received</h3>
-        <p>Your spot is reserved <strong>pending payment</strong>. Save this reference — you'll need it.</p>
+        <p>Your spot is reserved. Save this confirmation code — you'll need it when we contact you.</p>
         <div class="reference" id="refCode">—</div>
 
         <div id="paymentBlock">
-          <h4 style="margin:14px 0 4px">Pay via Whish Money</h4>
-          <p class="muted" style="margin:0">Total due: <strong style="color:var(--ink);font-size:1.1rem" id="amountDue">—</strong></p>
-
-          <div class="qr-box">
-            <div style="font-size:.85rem;margin-bottom:6px">Scan with Whish app to pay</div>
-            <div style="height:180px;background:#eee;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#555;font-size:.85rem">
-              [Whish QR placeholder — replace with school's QR image]
-            </div>
-            <div style="font-size:.85rem;margin-top:8px">or send to <strong>+961 XX XXX XXX</strong></div>
-          </div>
-
-          <div style="margin-top:12px">
-            <div class="step"><div class="step-num">1</div><div class="step-body">
-              <div class="step-title">Open Whish Money</div>
-              <div class="step-desc">Scan QR or pay to the number above.</div>
-            </div></div>
-            <div class="step"><div class="step-num">2</div><div class="step-body">
-              <div class="step-title">Add your reference</div>
-              <div class="step-desc">In the note/memo field, write your reference code exactly.</div>
-            </div></div>
-            <div class="step"><div class="step-num">3</div><div class="step-body">
-              <div class="step-title">Wait for confirmation</div>
-              <div class="step-desc">We'll WhatsApp you within 24h with your bib number once payment is verified.</div>
-            </div></div>
-          </div>
+          <p class="muted" style="margin:14px 0 0">Total due: <strong style="color:var(--ink);font-size:1.1rem" id="amountDue">—</strong></p>
+          <p style="margin-top:10px">We'll contact you via WhatsApp within 24h to arrange payment and confirm your bib number.</p>
         </div>
 
         <div id="freeBlock" style="display:none">
@@ -512,7 +489,7 @@ form.addEventListener("submit", async (e) => {
     priceUSD: price,
     whishReference: ref,
     paymentStatus: price === 0 ? "free" : "pending",
-    paymentMethod: price === 0 ? "free" : "whish",
+    paymentMethod: price === 0 ? "free" : "manual",
     bibNumber: null,
     registeredAt: serverTimestamp(),
     paidAt: null
