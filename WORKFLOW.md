@@ -6,7 +6,7 @@ Sequential build phases. Each phase has a goal, acceptance criteria, and a **rea
 
 ## Phase 1 — Public registration page ✅ DONE
 
-Shipped in `public/index.html`. Wave-aware pricing, age validation, Whish reference, Firestore write, confirmation panel.
+Shipped in `docs/index.html`. Wave-aware pricing, age validation, Whish reference, Firestore write, confirmation panel.
 
 **Still TODO in this phase:**
 - Replace `firebaseConfig` placeholder with real values (see Phase 0 setup below)
@@ -24,10 +24,10 @@ Get Firebase project + GitHub repo wired up.
 2. Enable **Firestore** (start in production mode, rules come in Phase 2)
 3. Enable **Authentication** → add Microsoft provider (you'll need Azure tenant ID — same as Café Molière setup probably)
 4. From Project Settings → General → "Your apps" → add a Web app → copy the `firebaseConfig` object
-5. Paste into `public/index.html` (replace the `REPLACE_ME` block)
+5. Paste into `docs/index.html` (replace the `REPLACE_ME` block)
 6. Create GitHub repo `batroun-race` (public)
-7. Enable GitHub Pages: Settings → Pages → Deploy from `main` branch, `/public` folder
-8. Drop the school's Whish QR code as `public/assets/whish-qr.png`
+7. Enable GitHub Pages: Settings → Pages → Deploy from `main` branch, `/docs` folder (GitHub Pages only supports root or `/docs` — that's why we use `docs/` instead of `public/`)
+8. Drop the school's Whish QR code as `docs/assets/whish-qr.png`
 9. Commit and push everything
 
 ### Acceptance
@@ -68,7 +68,7 @@ Create `firestore.rules` with the following requirements:
 
 5. Nobody can delete registrations (audit trail).
 
-Then update `public/index.html` to use a Firestore TRANSACTION instead of plain addDoc:
+Then update `docs/index.html` to use a Firestore TRANSACTION instead of plain addDoc:
 - Read /categories/{categoryId} doc
 - Check registeredCount < capacity (if capacity is set)
 - Create the registration doc
@@ -117,7 +117,7 @@ Document in the script how to run it:
   Provide service account key path
   node scripts/seed-competition.js
 
-Then refactor `public/index.html` to fetch competition + categories from 
+Then refactor `docs/index.html` to fetch competition + categories from 
 Firestore on page load instead of using the hardcoded CATEGORIES/WAVES 
 constants. Keep the constants as a fallback if Firestore is unreachable.
 ```
@@ -139,7 +139,7 @@ Private dashboard for school staff to manage registrations, confirm payments, as
 ```
 Read CLAUDE.md.
 
-Build `public/admin.html` — admin dashboard for Batroun Race registrations.
+Build `docs/admin.html` — admin dashboard for Batroun Race registrations.
 
 Auth:
 - Microsoft sign-in via Firebase Auth (signInWithRedirect)

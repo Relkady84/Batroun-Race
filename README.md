@@ -5,9 +5,9 @@ Annual running competition registration system. Public registration page + admin
 ## Quick start
 
 1. **Set up Firebase**: see `WORKFLOW.md` → Phase 0
-2. **Configure**: replace `firebaseConfig` placeholder in `public/index.html`
+2. **Configure**: replace `firebaseConfig` placeholder in `docs/index.html`
 3. **Seed the database**: run `scripts/seed-competition.js` (after Phase 3)
-4. **Deploy**: push to `main`, GitHub Pages serves `/public`
+4. **Deploy**: push to `main`, GitHub Pages serves `/docs`
 
 ## Stack
 

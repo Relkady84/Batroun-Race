@@ -11,7 +11,7 @@ A registration system for the **Batroun Race** annual running competition in Leb
 - **Frontend**: vanilla HTML + CSS + JavaScript (no framework, no build step)
 - **Database**: Firebase Firestore
 - **Auth (admin only)**: Microsoft Azure / Office 365 via Firebase Auth, restricted to school domain
-- **Hosting**: GitHub Pages (deploy from `main` branch, `/public` folder)
+- **Hosting**: GitHub Pages (deploy from `main` branch, `/docs` folder — GitHub Pages only supports root or `/docs`)
 - **Payment**: Whish Money — static QR + manual admin reconciliation (no API integration yet)
 
 Public registration requires **no auth** — riders shouldn't need accounts.
@@ -26,7 +26,7 @@ batroun-race/
 ├── firestore.rules        (Firestore security rules)
 ├── firebase.json          (Firebase deploy config)
 ├── .firebaserc            (Firebase project link)
-└── public/
+└── docs/                  (served by GitHub Pages — name required by Pages, contents are the public site)
     ├── index.html         (public registration page — DONE)
     ├── admin.html         (admin dashboard — TODO)
     └── assets/
@@ -117,7 +117,7 @@ Race Registration · BIB & Tag · Finisher T-shirt · Finisher Medal · Goody Ba
 
 ```bash
 # Quick static server (no Firebase needed for layout testing)
-cd public && python3 -m http.server 8000
+cd docs && python3 -m http.server 8000
 
 # For full Firestore testing:
 firebase emulators:start --only firestore,auth
@@ -126,7 +126,7 @@ firebase emulators:start --only firestore,auth
 
 ## How to deploy
 
-GitHub Pages serves from `/public` on `main`. Just push.
+GitHub Pages serves from `/docs` on `main`. Just push.
 
 ```bash
 git add . && git commit -m "..." && git push
@@ -136,7 +136,7 @@ GitHub Pages updates within 1–2 minutes. Hard reload to bypass cache.
 
 ## Status — what's done
 
-- [x] Phase 1: Public registration page (`public/index.html`)
+- [x] Phase 1: Public registration page (`docs/index.html`)
   - Wave detection, live price display, age validation, Whish reference generation, Firestore write, confirmation panel
 
 ## Status — what's next
