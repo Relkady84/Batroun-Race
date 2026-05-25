@@ -1094,16 +1094,35 @@ function tsToLocal(ts) {
 }
 
 $("#competitionSaveBtn").addEventListener("click", async () => {
+  const opensRaw  = $("#cpOpens").value;
+  const closesRaw = $("#cpCloses").value;
+  const opens  = opensRaw  ? new Date(opensRaw)  : null;
+  const closes = closesRaw ? new Date(closesRaw) : null;
+
+  const payload = {
+    name: $("#cpName").value.trim(),
+    year: parseInt($("#cpYear").value, 10) || null,
+    registrationOpens:  opens,
+    registrationCloses: closes,
+    raceDay: $("#cpRaceDay").value || null
+  };
+
+  console.log("[competition] saving:", {
+    opensRaw, closesRaw,
+    opensParsed: opens ? opens.toISOString() : null,
+    closesParsed: closes ? closes.toISOString() : null,
+    raceDay: payload.raceDay,
+    name: payload.name, year: payload.year
+  });
+
   try {
-    await setDoc(doc(db, "competitions", COMPETITION_ID), {
-      name: $("#cpName").value.trim(),
-      year: parseInt($("#cpYear").value, 10) || null,
-      registrationOpens:  $("#cpOpens").value  ? new Date($("#cpOpens").value)  : null,
-      registrationCloses: $("#cpCloses").value ? new Date($("#cpCloses").value) : null,
-      raceDay: $("#cpRaceDay").value || null
-    }, { merge: true });
+    await setDoc(doc(db, "competitions", COMPETITION_ID), payload, { merge: true });
+    console.log("[competition] write OK");
     toast("Event info saved");
-  } catch (e) { toast(e.message, true); }
+  } catch (e) {
+    console.error("[competition] write failed:", e);
+    toast(e.message, true);
+  }
 });
 
 </script>
