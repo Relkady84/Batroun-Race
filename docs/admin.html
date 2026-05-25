@@ -292,8 +292,21 @@
 
       <div class="card">
         <h2>Background image (optional)</h2>
-        <p class="muted" style="margin:0 0 8px">Paste a public image URL. Leave blank for the gradient.</p>
+        <p class="muted" style="margin:0 0 8px">Upload an image from your device, or paste a public URL. Leave blank for plain gradient.</p>
+
+        <label>Upload from your device (max 5 MB, JPG / PNG / WebP)</label>
+        <input id="thBgFile" type="file" accept="image/*">
+        <div id="thBgProgress" class="muted" style="font-size:.85rem;margin-top:6px;min-height:1.2em"></div>
+
+        <label style="margin-top:14px">Or paste a URL</label>
         <input id="thBgImage" type="url" placeholder="https://...">
+
+        <div id="thBgPreview" style="margin-top:10px;display:none">
+          <div class="muted" style="font-size:.8rem;margin-bottom:4px">Current background:</div>
+          <img id="thBgPreviewImg" alt="Background preview"
+               style="max-width:100%;max-height:140px;border-radius:8px;border:1px solid var(--line)">
+          <button id="thBgClearBtn" class="btn tiny sec" style="margin-top:8px">Clear background</button>
+        </div>
       </div>
 
       <div class="card">
@@ -346,6 +359,9 @@ import {
   getFirestore, collection, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc,
   onSnapshot, query, orderBy, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import {
+  getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL, deleteObject
+} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-storage.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyChNfEHu5FhaNIe1Y7_Q_SaVSXmfHcfUQA",
@@ -363,6 +379,7 @@ const COMPETITION_ID = "batroun-race-2026";
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+const storage = getStorage(app);
 
 // State
 let regs = [];
@@ -952,7 +969,79 @@ function loadThemeIntoEditor(t) {
   $("#thHeading").value  = t.heading  || "";
   $("#thSubtitle").value = t.subtitle || "";
   $("#thBanner").value   = t.bannerText || "";
+  updateBgPreview(t.bgImage);
 }
+
+function updateBgPreview(url) {
+  const wrap = $("#thBgPreview");
+  const img = $("#thBgPreviewImg");
+  if (url) {
+    img.src = url;
+    wrap.style.display = "";
+  } else {
+    img.removeAttribute("src");
+    wrap.style.display = "none";
+  }
+}
+// Reflect manual URL edits in the preview
+$("#thBgImage").addEventListener("input", () => updateBgPreview($("#thBgImage").value.trim()));
+
+// ===== Upload background image to Firebase Storage =====
+$("#thBgFile").addEventListener("change", async (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  if (!file.type.startsWith("image/")) {
+    toast("Pick an image file (JPG / PNG / WebP)", true);
+    e.target.value = "";
+    return;
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    toast("Image must be under 5 MB", true);
+    e.target.value = "";
+    return;
+  }
+
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const path = `themes/bg/${Date.now()}_${safeName}`;
+  const ref = storageRef(storage, path);
+  const task = uploadBytesResumable(ref, file, { contentType: file.type });
+
+  const progressEl = $("#thBgProgress");
+  progressEl.textContent = "Uploading… 0%";
+
+  task.on("state_changed",
+    snap => {
+      const pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
+      progressEl.textContent = `Uploading… ${pct}%`;
+    },
+    err => {
+      console.error("Upload failed:", err);
+      progressEl.textContent = "Upload failed: " + err.message;
+      toast(err.message, true);
+    },
+    async () => {
+      try {
+        const url = await getDownloadURL(task.snapshot.ref);
+        $("#thBgImage").value = url;
+        updateBgPreview(url);
+        progressEl.textContent = "Uploaded ✓ — click 'Save theme & copy' to apply";
+        toast("Image uploaded — remember to save");
+      } catch (err) {
+        progressEl.textContent = "Could not read uploaded URL: " + err.message;
+        toast(err.message, true);
+      }
+      e.target.value = "";
+    }
+  );
+});
+
+$("#thBgClearBtn").addEventListener("click", () => {
+  if (!confirm("Clear the background image? (You'll still need to click 'Save theme & copy' to apply.)")) return;
+  $("#thBgImage").value = "";
+  $("#thBgFile").value = "";
+  $("#thBgProgress").textContent = "Background cleared — click Save to apply.";
+  updateBgPreview(null);
+});
 
 $("#themeSaveBtn").addEventListener("click", async () => {
   try {
