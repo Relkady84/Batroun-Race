@@ -294,7 +294,7 @@
         <h2>Background image (optional)</h2>
         <p class="muted" style="margin:0 0 8px">Upload an image from your device, or paste a public URL. Leave blank for plain gradient.</p>
 
-        <label>Upload from your device (max 5 MB, JPG / PNG / WebP)</label>
+        <label>Upload from your device (auto-resized to fit, JPG / PNG / WebP)</label>
         <input id="thBgFile" type="file" accept="image/*">
         <div id="thBgProgress" class="muted" style="font-size:.85rem;margin-top:6px;min-height:1.2em"></div>
 
@@ -359,9 +359,6 @@ import {
   getFirestore, collection, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc,
   onSnapshot, query, orderBy, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
-import {
-  getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL, deleteObject
-} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-storage.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyChNfEHu5FhaNIe1Y7_Q_SaVSXmfHcfUQA",
@@ -379,7 +376,6 @@ const COMPETITION_ID = "batroun-race-2026";
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const storage = getStorage(app);
 
 // State
 let regs = [];
@@ -986,7 +982,37 @@ function updateBgPreview(url) {
 // Reflect manual URL edits in the preview
 $("#thBgImage").addEventListener("input", () => updateBgPreview($("#thBgImage").value.trim()));
 
-// ===== Upload background image to Firebase Storage =====
+// ===== Compress image client-side and store as base64 in Firestore =====
+// (Free-plan-friendly alternative to Firebase Storage.)
+function compressImageToDataURL(file, maxW = 1600, maxH = 1200, quality = 0.82) {
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onerror = () => reject(new Error("Could not read file"));
+    fr.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("Not a valid image"));
+      img.onload = () => {
+        const scale = Math.min(1, maxW / img.width, maxH / img.height);
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+        // Try JPEG first; if still too big, drop quality.
+        let q = quality;
+        let dataUrl = canvas.toDataURL("image/jpeg", q);
+        while (dataUrl.length > 800 * 1024 && q > 0.4) {
+          q -= 0.1;
+          dataUrl = canvas.toDataURL("image/jpeg", q);
+        }
+        resolve(dataUrl);
+      };
+      img.src = fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+
 $("#thBgFile").addEventListener("change", async (e) => {
   const file = e.target.files?.[0];
   if (!file) return;
@@ -995,44 +1021,28 @@ $("#thBgFile").addEventListener("change", async (e) => {
     e.target.value = "";
     return;
   }
-  if (file.size > 5 * 1024 * 1024) {
-    toast("Image must be under 5 MB", true);
-    e.target.value = "";
-    return;
-  }
-
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-  const path = `themes/bg/${Date.now()}_${safeName}`;
-  const ref = storageRef(storage, path);
-  const task = uploadBytesResumable(ref, file, { contentType: file.type });
 
   const progressEl = $("#thBgProgress");
-  progressEl.textContent = "Uploading… 0%";
-
-  task.on("state_changed",
-    snap => {
-      const pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
-      progressEl.textContent = `Uploading… ${pct}%`;
-    },
-    err => {
-      console.error("Upload failed:", err);
-      progressEl.textContent = "Upload failed: " + err.message;
-      toast(err.message, true);
-    },
-    async () => {
-      try {
-        const url = await getDownloadURL(task.snapshot.ref);
-        $("#thBgImage").value = url;
-        updateBgPreview(url);
-        progressEl.textContent = "Uploaded ✓ — click 'Save theme & copy' to apply";
-        toast("Image uploaded — remember to save");
-      } catch (err) {
-        progressEl.textContent = "Could not read uploaded URL: " + err.message;
-        toast(err.message, true);
-      }
+  progressEl.textContent = "Compressing image…";
+  try {
+    const dataUrl = await compressImageToDataURL(file);
+    const approxKB = Math.round(dataUrl.length / 1024);
+    if (dataUrl.length > 900 * 1024) {
+      progressEl.textContent = `Image still too large after compression (~${approxKB} KB). Try a smaller photo.`;
+      toast("Image too large", true);
       e.target.value = "";
+      return;
     }
-  );
+    $("#thBgImage").value = dataUrl;
+    updateBgPreview(dataUrl);
+    progressEl.textContent = `Image ready (~${approxKB} KB) — click 'Save theme & copy' to apply.`;
+    toast("Image ready — remember to save");
+  } catch (err) {
+    console.error(err);
+    progressEl.textContent = "Failed to process image: " + err.message;
+    toast(err.message, true);
+  }
+  e.target.value = "";
 });
 
 $("#thBgClearBtn").addEventListener("click", () => {
