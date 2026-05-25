@@ -14,7 +14,11 @@
   }
   html,body{margin:0;background:linear-gradient(180deg,var(--bg1),var(--bg2));color:var(--ink);
     font:16px/1.55 system-ui,-apple-system,Segoe UI,Roboto;-webkit-text-size-adjust:100%}
-  body.has-bg-image{background:var(--bg-image) center/cover fixed no-repeat,linear-gradient(180deg,var(--bg1),var(--bg2))}
+  body.has-bg-image{
+    background:
+      linear-gradient(180deg, rgba(8,23,43,.88), rgba(13,33,64,.94)),
+      var(--bg-image) center/cover fixed no-repeat
+  }
   *{box-sizing:border-box;max-width:100%}
   html,body{overflow-x:hidden}
 
