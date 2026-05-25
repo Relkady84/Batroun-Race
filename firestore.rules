@@ -32,12 +32,13 @@ service cloud.firestore {
     }
 
     function registrationOpen(competitionId) {
-      // If the competition doc exists and has a registrationCloses timestamp,
-      // require now < registrationCloses. If no doc/field, allow (so the
-      // page works before Phase 3 seeds the competition doc).
+      // Allow registration if:
+      //   - the competition doc doesn't exist yet, OR
+      //   - registrationCloses is missing/null (admin saved without a close date), OR
+      //   - we're still before registrationCloses.
       let compPath = /databases/$(database)/documents/competitions/$(competitionId);
       return !exists(compPath)
-          || !('registrationCloses' in get(compPath).data.keys())
+          || get(compPath).data.get('registrationCloses', null) == null
           || request.time < get(compPath).data.registrationCloses;
     }
 
