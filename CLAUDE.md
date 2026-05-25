@@ -10,9 +10,9 @@ A registration system for the **Batroun Race** annual running competition in Leb
 
 - **Frontend**: vanilla HTML + CSS + JavaScript (no framework, no build step)
 - **Database**: Firebase Firestore
-- **Auth (admin only)**: Microsoft Azure / Office 365 via Firebase Auth, restricted to school domain
+- **Auth (admin only)**: Google sign-in via Firebase Auth, restricted to an email allowlist (`raedelkady@gmail.com`, `nizarelkady@gmail.com`). Allowlist lives both in `firestore.rules` and in the admin page client-side check.
 - **Hosting**: GitHub Pages (deploy from `main` branch, `/docs` folder — GitHub Pages only supports root or `/docs`)
-- **Payment**: Whish Money — static QR + manual admin reconciliation (no API integration yet)
+- **Payment**: Fully off-platform — collected manually by admin (no QR, no provider integration on the registration page). `paymentMethod` on registrations is `"manual"` (or `"free"` for Para Athletes).
 
 Public registration requires **no auth** — riders shouldn't need accounts.
 

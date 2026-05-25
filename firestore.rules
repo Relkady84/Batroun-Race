@@ -1,0 +1,75 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- Helpers ---
+
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email in [
+          'raedelkady@gmail.com',
+          'nizarelkady@gmail.com'
+        ];
+    }
+
+    function isValidNewRegistration() {
+      let d = request.resource.data;
+      return d.firstName is string && d.firstName.size() > 0 && d.firstName.size() < 100
+        && d.lastName  is string && d.lastName.size()  > 0 && d.lastName.size()  < 100
+        && d.email     is string && d.email.size()     < 200
+        && d.phone     is string && d.phone.size()     > 0
+        && d.categoryId is string
+        && d.whishReference is string
+        // payment fields locked on create
+        && (d.paymentStatus == 'pending' || d.paymentStatus == 'free')
+        && (!('bibNumber' in d.keys()) || d.bibNumber == null)
+        && (!('paidAt' in d.keys())    || d.paidAt    == null)
+        // consents required
+        && d.consents.waiver    == true
+        && d.consents.dataUsage == true;
+    }
+
+    function registrationOpen(competitionId) {
+      // If the competition doc exists and has a registrationCloses timestamp,
+      // require now < registrationCloses. If no doc/field, allow (so the
+      // page works before Phase 3 seeds the competition doc).
+      let comp = get(/databases/$(database)/documents/competitions/$(competitionId));
+      return !('registrationCloses' in comp.data.keys())
+          || request.time < comp.data.registrationCloses;
+    }
+
+    // --- Routes ---
+
+    match /competitions/{competitionId} {
+      allow read:  if true;
+      allow write: if isAdmin();
+
+      // Categories: public read (page needs them), admin write
+      match /categories/{categoryId} {
+        allow read:  if true;
+        allow write: if isAdmin();
+      }
+
+      // Theme / form-schema / arbitrary config docs: public read, admin write
+      match /config/{configId} {
+        allow read:  if true;
+        allow write: if isAdmin();
+      }
+
+      // Registrations: nobody reads except admin; public can CREATE only.
+      match /registrations/{regId} {
+        allow read:   if isAdmin();
+        allow create: if isValidNewRegistration() && registrationOpen(competitionId);
+        allow update: if isAdmin();
+        allow delete: if false; // audit trail — never delete
+      }
+    }
+
+    // Everything else: deny by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
