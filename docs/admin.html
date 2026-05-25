@@ -1118,6 +1118,7 @@ $("#competitionSaveBtn").addEventListener("click", async () => {
   try {
     await setDoc(doc(db, "competitions", COMPETITION_ID), payload, { merge: true });
     console.log("[competition] write OK");
+    competitionDirty = false; // saved — let subsequent listener fires refresh the inputs
     toast("Event info saved");
   } catch (e) {
     console.error("[competition] write failed:", e);
