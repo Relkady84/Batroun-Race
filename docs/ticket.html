@@ -32,7 +32,9 @@
 
   .qr-wrap{background:#ffffff;padding:14px;border-radius:14px;
            display:inline-block;margin:6px 0 18px}
-  .qr-wrap img{display:block;width:240px;height:240px;max-width:60vw;max-height:60vw}
+  .qr-wrap > div, .qr-wrap canvas, .qr-wrap img{
+    display:block;width:240px!important;height:240px!important;max-width:60vw;max-height:60vw
+  }
 
   .ref{display:inline-block;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
        font-size:1.4rem;font-weight:900;color:var(--accent);letter-spacing:2px;
@@ -56,7 +58,7 @@
     <h1>Race Ticket</h1>
     <p class="sub" id="subName">Show this at pickup</p>
 
-    <div class="qr-wrap"><img id="qr" alt="QR code"></div>
+    <div class="qr-wrap"><div id="qr" aria-label="QR code"></div>
     <div class="ref" id="ref">—</div>
 
     <div class="grid">
@@ -88,9 +90,15 @@ set("cat",  cat);
 set("date", date ? new Date(date).toLocaleDateString("en-GB", { day:"numeric", month:"long", year:"numeric" }) : "");
 
 if (name) document.getElementById("subName").textContent = name + " — show this at pickup";
-
-document.getElementById("qr").src =
-  `https://api.qrserver.com/v1/create-qr-code/?size=400x400&margin=8&data=${encodeURIComponent(ref || "BATROUN-RACE")}`;
+</script>
+<!-- Client-side QR generation: no external API call, no rate limit, no third-party dependency at runtime. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+  new QRCode(document.getElementById("qr"), {
+    text: (new URLSearchParams(location.search)).get("ref") || "BATROUN-RACE",
+    width: 240, height: 240, correctLevel: QRCode.CorrectLevel.M,
+    colorDark: "#000000", colorLight: "#ffffff"
+  });
 </script>
 </body>
 </html>
