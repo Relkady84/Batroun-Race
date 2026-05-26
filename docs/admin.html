@@ -1423,6 +1423,8 @@ function renderConfirmedTab() {
       <td class="actions">
         <button class="btn tiny sec" data-cact="view" data-id="${r.id}">View</button>
         ${r.bibNumber ? `<button class="btn tiny sec" data-cact="wa" data-id="${r.id}" title="Resend WhatsApp ticket">WA</button>` : ""}
+        <button class="btn tiny sec" data-cact="revert" data-id="${r.id}" title="Move back to Registrations as pending">↩ Revert</button>
+        <button class="btn tiny danger" data-cact="del" data-id="${r.id}" title="Delete (soft, undoable for 10s)">Delete</button>
       </td>
     </tr>
   `).join("");
@@ -1430,7 +1432,9 @@ function renderConfirmedTab() {
     b.addEventListener("click", () => {
       const r = regs.find(x => x.id === b.dataset.id);
       if (!r) return;
-      if (b.dataset.cact === "view") openRegDetails(r);
+      if (b.dataset.cact === "view")   openRegDetails(r);
+      if (b.dataset.cact === "del")    return deleteRegistration(r);
+      if (b.dataset.cact === "revert") return revertToPending(r);
       if (b.dataset.cact === "wa")   {
         const waUrl = buildWhatsAppUrl(r);
         if (waUrl) window.open(waUrl, "_blank", "noopener");
@@ -1438,6 +1442,33 @@ function renderConfirmedTab() {
       }
     });
   });
+}
+
+// Undo an approved payment — moves a runner back to Registrations as pending.
+// Use this when payment was confirmed by mistake.
+async function revertToPending(r) {
+  const name = `${r.firstName || ""} ${r.lastName || ""}`.trim() || "(no name)";
+  const msg =
+    `Move ${name} back to Registrations as PENDING?\n\n` +
+    `This clears:\n` +
+    `  • Bib number (currently: ${r.bibNumber ?? "—"})\n` +
+    `  • Payment date\n` +
+    `  • Check-in (if any)\n\n` +
+    `They will re-appear in the Registrations tab as 'pending' so you can reconfirm payment and assign a bib again.`;
+  if (!confirm(msg)) return;
+  try {
+    await updateDoc(doc(db, "competitions", COMPETITION_ID, "registrations", r.id), {
+      paymentStatus: "pending",
+      bibNumber: null,
+      paidAt: null,
+      checkedInAt: null,
+      checkedInBy: null
+    });
+    toast(`${name} moved back to Registrations (pending)`);
+  } catch (e) {
+    console.error(e);
+    toast(e.message || "Revert failed", true);
+  }
 }
 
 // Wire confirmed-tab filters + sort
