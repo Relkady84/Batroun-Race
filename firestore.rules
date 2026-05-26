@@ -77,14 +77,17 @@ service cloud.firestore {
         allow write: if isAdmin();
       }
 
-      // Registrations: admin + viewer can READ, UPDATE (approve payment),
-      // and DELETE (spam cleanup). Only admins control config tabs.
-      // Public can CREATE only.
+      // Registrations:
+      //   - admin + viewer can READ and UPDATE (approve payment, soft-delete)
+      //   - only admin can HARD DELETE (from the Backup tab)
+      //   - public can CREATE only.
+      // Soft-delete = setting deletedAt on the doc; the row is hidden from
+      // the main dashboard but kept for admin backup review.
       match /registrations/{regId} {
         allow read:   if canReadDashboard();
         allow create: if isValidNewRegistration() && registrationOpen(competitionId);
         allow update: if canReadDashboard();
-        allow delete: if canReadDashboard();
+        allow delete: if isAdmin();
       }
     }
 

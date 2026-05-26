@@ -189,6 +189,7 @@
 
   <nav class="tabs">
     <button data-tab="registrations" class="active">Registrations</button>
+    <button data-tab="backup">Backup</button>
     <button data-tab="dashboard">Dashboard</button>
     <button data-tab="categories">Categories</button>
     <button data-tab="formFields">Form fields</button>
@@ -265,6 +266,29 @@
               <th></th>
             </tr></thead>
             <tbody><tr><td colspan="18" class="empty">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ Backup (deleted registrations) ============ -->
+    <section id="tab-backup" class="tab">
+      <div class="card">
+        <h2>Deleted registrations — admin only</h2>
+        <p class="muted" style="margin:0 0 12px">When a viewer or admin deletes a registration, it lands here instead of being permanently removed. Restore to send it back to the main dashboard, or permanently delete to free the phone number for re-registration.</p>
+        <div class="table-wrap">
+          <table id="backupTable">
+            <thead><tr>
+              <th>Deleted at</th>
+              <th>Deleted by</th>
+              <th>Name</th>
+              <th>Phone</th>
+              <th>Category</th>
+              <th>Ref</th>
+              <th>Registered at</th>
+              <th></th>
+            </tr></thead>
+            <tbody><tr><td colspan="8" class="empty">No deleted registrations.</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -495,6 +519,7 @@ const VIEWER_EMAILS = [
 ];
 const ALLOWED_EMAILS = [...ADMIN_EMAILS, ...VIEWER_EMAILS];
 let userRole = "guest"; // 'admin' | 'viewer'
+let currentUserEmail = null;
 const COMPETITION_ID = "batroun-race-2026";
 
 const app = initializeApp(firebaseConfig);
@@ -643,7 +668,8 @@ function showLogin() {
 function showApp(user) {
   $("#loginScreen").style.display = "none";
   $("#adminApp").hidden = false;
-  $("#userEmail").textContent = user.email + (userRole === "viewer" ? " · read-only" : "");
+  currentUserEmail = user.email;
+  $("#userEmail").textContent = user.email + (userRole === "viewer" ? " · staff" : "");
   document.body.classList.toggle("role-viewer", userRole === "viewer");
   applyRoleVisibility();
   applyPrefs();
@@ -690,7 +716,7 @@ function startListeners() {
           orderBy("registeredAt", "desc")),
     snap => {
       regs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      renderStats(); renderRegTable();
+      renderStats(); renderRegTable(); renderBackupTable();
     },
     err => toast("Registrations listener: " + err.message, true)
   );
@@ -967,6 +993,7 @@ function filteredRegs() {
   const pm  = _val("filterPaymentMethod");
 
   return regs.filter(r => {
+    if (r.deletedAt) return false; // main dashboard hides soft-deleted; Backup tab handles them
     if (_activeFilter("category")     && cat && r.categoryId        !== cat) return false;
     if (_activeFilter("subCategory")  && sub && r.subQuestionAnswer !== sub) return false;
     if (_activeFilter("status")       && st  && r.paymentStatus     !== st)  return false;
@@ -1076,23 +1103,94 @@ function openRegDetails(r) {
   `);
 }
 
+// Soft-delete: hide from main dashboard but keep the doc in Firestore so
+// admins can review/restore in the Backup tab.
+function renderBackupTable() {
+  const tbody = $("#backupTable tbody");
+  if (!tbody) return;
+  const deleted = regs
+    .filter(r => r.deletedAt)
+    .sort((a, b) => {
+      const aT = a.deletedAt?.toDate?.()?.getTime?.() || 0;
+      const bT = b.deletedAt?.toDate?.()?.getTime?.() || 0;
+      return bT - aT;
+    });
+  if (!deleted.length) {
+    tbody.innerHTML = `<tr><td colspan="8" class="empty">No deleted registrations.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = deleted.map(r => `
+    <tr style="background:rgba(255,107,107,.05)">
+      <td>${fmtDate(r.deletedAt)}</td>
+      <td>${escapeHtml(r.deletedBy || "—")}</td>
+      <td>${escapeHtml(r.firstName || "")} ${escapeHtml(r.lastName || "")}</td>
+      <td>${escapeHtml(r.phone || "—")}</td>
+      <td>${escapeHtml(r.categoryName || r.categoryId || "—")}</td>
+      <td><code>${escapeHtml(r.whishReference || "—")}</code></td>
+      <td>${fmtDate(r.registeredAt)}</td>
+      <td class="actions">
+        <button class="btn tiny sec" data-bk="view"    data-id="${r.id}">View</button>
+        <button class="btn tiny"     data-bk="restore" data-id="${r.id}">Restore</button>
+        <button class="btn tiny danger" data-bk="purge" data-id="${r.id}">Permanent delete</button>
+      </td>
+    </tr>
+  `).join("");
+  tbody.querySelectorAll('button[data-bk]').forEach(b => {
+    b.addEventListener("click", () => {
+      const r = regs.find(x => x.id === b.dataset.id);
+      if (!r) return;
+      if (b.dataset.bk === "view")    openRegDetails(r);
+      if (b.dataset.bk === "restore") restoreRegistration(r);
+      if (b.dataset.bk === "purge")   purgeRegistration(r);
+    });
+  });
+}
+
 async function deleteRegistration(r) {
   const name = `${r.firstName || ""} ${r.lastName || ""}`.trim() || "(no name)";
   const msg =
-    `Permanently delete this registration?\n\n` +
+    `Delete this registration?\n\n` +
     `  ${name}\n` +
     `  ${r.email  || "—"}\n` +
     `  ${r.phone  || "—"}\n` +
     `  Ref: ${r.whishReference || "—"}\n\n` +
-    `Use this for spam / accidental entries. This CANNOT be undone.`;
+    `It will be hidden from the dashboard and moved to the Backup tab where an admin can restore or permanently delete it.`;
   if (!confirm(msg)) return;
   try {
-    await deleteDoc(doc(db, "competitions", COMPETITION_ID, "registrations", r.id));
-    toast("Registration deleted");
+    await updateDoc(doc(db, "competitions", COMPETITION_ID, "registrations", r.id), {
+      deletedAt: serverTimestamp(),
+      deletedBy: currentUserEmail || "unknown"
+    });
+    toast("Registration moved to Backup");
   } catch (e) {
     console.error(e);
     toast(e.message || "Delete failed", true);
   }
+}
+
+// Admin-only: undo a soft-delete.
+async function restoreRegistration(r) {
+  if (!confirm(`Restore registration for ${r.firstName} ${r.lastName} back to the main dashboard?`)) return;
+  try {
+    await updateDoc(doc(db, "competitions", COMPETITION_ID, "registrations", r.id), {
+      deletedAt: null,
+      deletedBy: null
+    });
+    toast("Registration restored");
+  } catch (e) { toast(e.message || "Restore failed", true); }
+}
+
+// Admin-only: actual hard delete from Firestore. Frees up the phone-based
+// doc ID so that phone can re-register.
+async function purgeRegistration(r) {
+  const name = `${r.firstName || ""} ${r.lastName || ""}`.trim() || "(no name)";
+  if (!confirm(
+    `PERMANENTLY DELETE this registration?\n\n  ${name}\n  ${r.phone || "—"}\n  Ref: ${r.whishReference || "—"}\n\nThis frees the phone number to register again. CANNOT be undone.`
+  )) return;
+  try {
+    await deleteDoc(doc(db, "competitions", COMPETITION_ID, "registrations", r.id));
+    toast("Registration permanently deleted");
+  } catch (e) { toast(e.message || "Delete failed", true); }
 }
 
 function openConfirmPay(r) {
