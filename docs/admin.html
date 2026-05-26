@@ -251,6 +251,11 @@
             <option value="manual">Manual</option>
             <option value="free">Free</option>
           </select>
+          <select data-filter-id="checkedIn" id="filterCheckedIn">
+            <option value="">Any check-in</option>
+            <option value="yes">Checked in</option>
+            <option value="no">Not checked in</option>
+          </select>
           <button id="exportCsvBtn" class="btn sec">Export CSV</button>
           <button id="clearFiltersBtn" class="btn sec">Clear filters</button>
         </div>
@@ -275,9 +280,10 @@
               <th class="sortable col-paymentMethod"     data-sort="paymentMethod">Method</th>
               <th class="sortable col-bibNumber"         data-sort="bibNumber">Bib</th>
               <th class="sortable col-registeredAt"      data-sort="registeredAt">Date</th>
+              <th class="sortable col-checkedInAt"       data-sort="checkedInAt">Checked in</th>
               <th></th>
             </tr></thead>
-            <tbody><tr><td colspan="18" class="empty">Loading…</td></tr></tbody>
+            <tbody><tr><td colspan="19" class="empty">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -858,11 +864,13 @@ function startListeners() {
 
 // ===== Registrations: stats =====
 function renderStats() {
-  const total = regs.length;
-  const paid = regs.filter(r => r.paymentStatus === "paid").length;
-  const pending = regs.filter(r => r.paymentStatus === "pending").length;
-  const free = regs.filter(r => r.paymentStatus === "free").length;
-  const revenue = regs
+  const active = regs.filter(r => !r.deletedAt);
+  const total = active.length;
+  const paid = active.filter(r => r.paymentStatus === "paid").length;
+  const pending = active.filter(r => r.paymentStatus === "pending").length;
+  const free = active.filter(r => r.paymentStatus === "free").length;
+  const checkedIn = active.filter(r => r.checkedInAt).length;
+  const revenue = active
     .filter(r => r.paymentStatus === "paid")
     .reduce((sum, r) => sum + (r.priceUSD || 0), 0);
 
@@ -871,6 +879,7 @@ function renderStats() {
     <div class="stat"><div class="label">Paid</div><div class="value accent">${paid}</div></div>
     <div class="stat"><div class="label">Pending</div><div class="value" style="color:var(--warn)">${pending}</div></div>
     <div class="stat"><div class="label">Free entries</div><div class="value" style="color:var(--accent2)">${free}</div></div>
+    <div class="stat"><div class="label">Checked in</div><div class="value accent">${checkedIn} <span style="font-size:.5em;opacity:.7">/ ${total}</span></div></div>
     <div class="stat"><div class="label">Revenue collected</div><div class="value accent">$${revenue}</div></div>
   `;
 }
@@ -895,7 +904,8 @@ const DASHBOARD_FILTERS = [
   { id:"gender",        label:"Gender" },
   { id:"tshirt",        label:"T-shirt size" },
   { id:"status",        label:"Status" },
-  { id:"paymentMethod", label:"Payment method" }
+  { id:"paymentMethod", label:"Payment method" },
+  { id:"checkedIn",     label:"Check-in status" }
 ];
 const DASHBOARD_COLUMNS = [
   { key:"whishReference",    label:"Reference" },
@@ -914,7 +924,8 @@ const DASHBOARD_COLUMNS = [
   { key:"paymentStatus",     label:"Status" },
   { key:"paymentMethod",     label:"Method" },
   { key:"bibNumber",         label:"Bib" },
-  { key:"registeredAt",      label:"Date" }
+  { key:"registeredAt",      label:"Date" },
+  { key:"checkedInAt",       label:"Checked in" }
 ];
 // Fields available on the hostess scanner result card.
 const SCANNER_FIELDS = [
@@ -941,12 +952,12 @@ let scannerFields = DEFAULT_SCANNER_FIELDS.slice();
 
 const DEFAULT_PREFS = {
   filters: { search:true, firstName:true, lastName:true, ageMin:true, ageMax:true,
-             category:true, subCategory:true, status:true,
+             category:true, subCategory:true, status:true, checkedIn:false,
              email:false, phone:false, city:false, club:false, nationality:false,
              gender:false, tshirt:false, paymentMethod:false },
   columns: { whishReference:true, firstName:true, lastName:true, categoryName:true,
              subQuestionAnswer:true, ageOnRaceDay:true, priceUSD:true,
-             paymentStatus:true, bibNumber:true, registeredAt:true,
+             paymentStatus:true, bibNumber:true, registeredAt:true, checkedInAt:true,
              email:false, phone:false, gender:false, tshirtSize:false,
              club:false, city:false, paymentMethod:false }
 };
@@ -1064,7 +1075,7 @@ $("#prefsResetBtn").addEventListener("click", () => {
 // Wire all filter inputs (visibility handled separately via prefs)
 ["searchInput","filterFirst","filterLast","filterEmail","filterPhone","filterCity","filterClub","filterNat","filterAgeMin","filterAgeMax"]
   .forEach(id => { const el = $("#"+id); if (el) el.addEventListener("input", renderRegTable); });
-["filterCategory","filterSubCategory","filterGender","filterTshirt","filterStatus","filterPaymentMethod"]
+["filterCategory","filterSubCategory","filterGender","filterTshirt","filterStatus","filterPaymentMethod","filterCheckedIn"]
   .forEach(id => { const el = $("#"+id); if (el) el.addEventListener("change", renderRegTable); });
 
 $("#clearFiltersBtn").addEventListener("click", () => {
@@ -1156,6 +1167,7 @@ function filteredRegs() {
   const ts  = _val("filterTshirt");
   const st  = _val("filterStatus");
   const pm  = _val("filterPaymentMethod");
+  const ci  = _val("filterCheckedIn");
 
   return regs.filter(r => {
     if (r.deletedAt) return false; // main dashboard hides soft-deleted; Backup tab handles them
@@ -1165,6 +1177,8 @@ function filteredRegs() {
     if (_activeFilter("gender")       && gen && r.gender            !== gen) return false;
     if (_activeFilter("tshirt")       && ts  && r.tshirtSize        !== ts)  return false;
     if (_activeFilter("paymentMethod")&& pm  && r.paymentMethod     !== pm)  return false;
+    if (_activeFilter("checkedIn")    && ci === "yes" && !r.checkedInAt)     return false;
+    if (_activeFilter("checkedIn")    && ci === "no"  &&  r.checkedInAt)     return false;
     if (_activeFilter("firstName")   && fn && !(r.firstName  || "").toLowerCase().includes(fn)) return false;
     if (_activeFilter("lastName")    && ln && !(r.lastName   || "").toLowerCase().includes(ln)) return false;
     if (_activeFilter("email")       && em && !(r.email      || "").toLowerCase().includes(em)) return false;
@@ -1213,6 +1227,7 @@ function renderRegTable() {
       <td class="col-paymentMethod">${escapeHtml(r.paymentMethod || "—")}</td>
       <td class="col-bibNumber">${r.bibNumber ?? "—"}</td>
       <td class="col-registeredAt">${fmtDate(r.registeredAt)}</td>
+      <td class="col-checkedInAt">${r.checkedInAt ? `<span style="color:var(--accent);font-weight:700">✓ ${fmtDate(r.checkedInAt)}</span>` : "—"}</td>
       <td class="actions">
         <button class="btn tiny sec" data-act="view" data-id="${r.id}">View</button>
         ${r.paymentStatus === "pending"
@@ -1510,14 +1525,16 @@ $("#exportCsvBtn").addEventListener("click", () => {
   const headers = ["reference","firstName","lastName","email","phone","dob","gender",
                    "nationality","city","category","subCategory","price","status","bibNumber",
                    "tshirt","club","medicalNotes","emergencyName","emergencyPhone",
-                   "registeredAt","paidAt"];
+                   "registeredAt","paidAt","checkedInAt","checkedInBy"];
   const csv = [headers.join(",")].concat(rows.map(r => [
     r.whishReference, r.firstName, r.lastName, r.email, r.phone, r.dob, r.gender,
     r.nationality, r.city, r.categoryName, r.subQuestionAnswer, r.priceUSD,
     r.paymentStatus, r.bibNumber, r.tshirtSize, r.club, r.medicalNotes,
     r.emergencyContactName, r.emergencyContactPhone,
     r.registeredAt ? fmtDate(r.registeredAt) : "",
-    r.paidAt ? fmtDate(r.paidAt) : ""
+    r.paidAt ? fmtDate(r.paidAt) : "",
+    r.checkedInAt ? fmtDate(r.checkedInAt) : "",
+    r.checkedInBy || ""
   ].map(csvCell).join(","))).join("\n");
 
   const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
