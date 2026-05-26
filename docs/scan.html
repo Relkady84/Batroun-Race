@@ -113,7 +113,8 @@ import {
   signOut, onAuthStateChanged, browserLocalPersistence, setPersistence
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
 import {
-  getFirestore, collection, query, where, getDocs, doc, updateDoc, serverTimestamp
+  getFirestore, collection, query, where, getDocs, doc, getDoc, updateDoc,
+  onSnapshot, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -131,10 +132,53 @@ const ALLOWED_EMAILS = [
 ];
 const COMPETITION_ID = "batroun-race-2026";
 
+// Fields the admin can choose to display on the result card.
+const SCANNER_FIELD_LABELS = {
+  name:              "Name",
+  bibNumber:         "Bib",
+  categoryName:      "Category",
+  subQuestionAnswer: "Sub-category",
+  whishReference:    "Reference",
+  paymentStatus:     "Payment",
+  ageOnRaceDay:      "Age",
+  gender:            "Gender",
+  tshirtSize:        "T-shirt",
+  club:              "Club",
+  nationality:       "Nationality",
+  city:              "City",
+  email:             "Email",
+  phone:             "Phone",
+  priceUSD:          "Price paid",
+  paymentMethod:     "Payment method",
+  registeredAt:      "Registered"
+};
+const DEFAULT_SCANNER_FIELDS = ["name","bibNumber","categoryName","subQuestionAnswer","whishReference","paymentStatus"];
+let scannerFields = DEFAULT_SCANNER_FIELDS.slice();
+
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 setPersistence(auth, browserLocalPersistence).catch(() => {});
+
+// Watch the admin-defined scanner field config
+onSnapshot(
+  doc(db, "competitions", COMPETITION_ID, "config", "scanner"),
+  snap => {
+    if (snap.exists() && Array.isArray(snap.data().fields) && snap.data().fields.length) {
+      scannerFields = snap.data().fields;
+    } else {
+      scannerFields = DEFAULT_SCANNER_FIELDS.slice();
+    }
+  },
+  () => {}
+);
+
+function fieldValue(r, key) {
+  if (key === "name") return `${r.firstName || ""} ${r.lastName || ""}`.trim();
+  if (key === "registeredAt") return fmtDateTime(r.registeredAt);
+  if (key === "priceUSD") return r.priceUSD ? `$${r.priceUSD}` : "Free";
+  return r[key];
+}
 
 const $ = s => document.querySelector(s);
 let scanner = null;
@@ -254,14 +298,20 @@ function renderResult(r) {
     ? "❌ NOT PAID"
     : (alreadyCheckedIn ? "⚠ ALREADY CHECKED IN" : "✅ PAID");
 
+  const rows = scannerFields.map(key => {
+    const label = SCANNER_FIELD_LABELS[key] || key;
+    let val = fieldValue(r, key);
+    if (val == null || val === "") val = "—";
+    const html = key === "whishReference"
+      ? `<code>${escapeHtml(val)}</code>`
+      : escapeHtml(val);
+    return `<div class="row"><span class="k">${label}</span><span class="v">${html}</span></div>`;
+  }).join("");
+
   $("#result").innerHTML = `
     <div class="result ${cls}">
       <h2>${headline}</h2>
-      <div class="row"><span class="k">Name</span><span class="v">${escapeHtml(r.firstName + " " + r.lastName)}</span></div>
-      <div class="row"><span class="k">Bib</span><span class="v">${r.bibNumber ?? "—"}</span></div>
-      <div class="row"><span class="k">Category</span><span class="v">${escapeHtml(r.categoryName || "")}${r.subQuestionAnswer ? "<br><small>"+escapeHtml(r.subQuestionAnswer)+"</small>" : ""}</span></div>
-      <div class="row"><span class="k">Reference</span><span class="v"><code>${escapeHtml(r.whishReference)}</code></span></div>
-      <div class="row"><span class="k">Payment</span><span class="v">${escapeHtml(r.paymentStatus)}</span></div>
+      ${rows}
       ${alreadyCheckedIn ? `<div class="row"><span class="k">Checked in</span><span class="v">${fmtDateTime(r.checkedInAt)}<br><small>by ${escapeHtml(r.checkedInBy||"")}</small></span></div>` : ""}
       ${isPaid && !alreadyCheckedIn
         ? `<button class="btn" id="checkInBtn">Mark as checked in → hand out bib</button>` : ""}

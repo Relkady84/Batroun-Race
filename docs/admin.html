@@ -331,6 +331,16 @@
           <button id="prefsResetBtn" class="btn sec">Reset to defaults</button>
         </div>
       </div>
+
+      <div class="card">
+        <h2>Race-day scanner — fields shown after a QR scan</h2>
+        <p class="muted" style="margin:0 0 14px">When a hostess scans a runner's QR at <code>scan.html</code>, these are the fields shown in the result card. Saved to Firestore so every hostess sees the same setup.</p>
+        <div id="prefScanner" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:6px"></div>
+        <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
+          <button id="scannerPrefsSaveBtn" class="btn">Save scanner fields</button>
+          <button id="scannerPrefsResetBtn" class="btn sec">Reset to defaults</button>
+        </div>
+      </div>
     </section>
 
     <!-- ============ Categories ============ -->
@@ -906,6 +916,29 @@ const DASHBOARD_COLUMNS = [
   { key:"bibNumber",         label:"Bib" },
   { key:"registeredAt",      label:"Date" }
 ];
+// Fields available on the hostess scanner result card.
+const SCANNER_FIELDS = [
+  { key: "name",              label: "Name" },
+  { key: "bibNumber",         label: "Bib number" },
+  { key: "categoryName",      label: "Category" },
+  { key: "subQuestionAnswer", label: "Sub-category" },
+  { key: "whishReference",    label: "Reference" },
+  { key: "paymentStatus",     label: "Payment status" },
+  { key: "ageOnRaceDay",      label: "Age" },
+  { key: "gender",            label: "Gender" },
+  { key: "tshirtSize",        label: "T-shirt" },
+  { key: "club",              label: "Club" },
+  { key: "nationality",       label: "Nationality" },
+  { key: "city",              label: "City" },
+  { key: "email",             label: "Email" },
+  { key: "phone",             label: "Phone" },
+  { key: "priceUSD",          label: "Price paid" },
+  { key: "paymentMethod",     label: "Payment method" },
+  { key: "registeredAt",      label: "Registration date" }
+];
+const DEFAULT_SCANNER_FIELDS = ["name","bibNumber","categoryName","subQuestionAnswer","whishReference","paymentStatus"];
+let scannerFields = DEFAULT_SCANNER_FIELDS.slice();
+
 const DEFAULT_PREFS = {
   filters: { search:true, firstName:true, lastName:true, ageMin:true, ageMax:true,
              category:true, subCategory:true, status:true,
@@ -960,8 +993,50 @@ function renderPrefsEditor() {
       <span>${c.label}</span>
     </label>
   `).join("");
+
+  const sc = $("#prefScanner");
+  if (sc) sc.innerHTML = SCANNER_FIELDS.map(f => `
+    <label class="inline" style="display:flex;align-items:center;gap:8px;cursor:pointer">
+      <input type="checkbox" data-pref="scanner" data-key="${f.key}" ${scannerFields.includes(f.key) ? "checked" : ""}>
+      <span>${f.label}</span>
+    </label>
+  `).join("");
 }
 renderPrefsEditor();
+
+// Live-subscribe to scanner field config (so admins see it sync if another
+// admin saves in another tab/device).
+onSnapshot(
+  doc(db, "competitions", COMPETITION_ID, "config", "scanner"),
+  snap => {
+    if (snap.exists() && Array.isArray(snap.data().fields)) {
+      scannerFields = snap.data().fields;
+    } else {
+      scannerFields = DEFAULT_SCANNER_FIELDS.slice();
+    }
+    renderPrefsEditor();
+  },
+  err => console.warn("[scanner] config listener:", err.message)
+);
+
+$("#scannerPrefsSaveBtn").addEventListener("click", async () => {
+  const picked = [...document.querySelectorAll('[data-pref="scanner"]')]
+    .filter(cb => cb.checked)
+    .map(cb => cb.dataset.key);
+  try {
+    await setDoc(doc(db, "competitions", COMPETITION_ID, "config", "scanner"),
+                 { fields: picked, updatedAt: serverTimestamp() }, { merge: true });
+    toast("Scanner fields saved");
+  } catch (e) { toast(e.message, true); }
+});
+$("#scannerPrefsResetBtn").addEventListener("click", async () => {
+  if (!confirm("Reset scanner fields to defaults?")) return;
+  try {
+    await setDoc(doc(db, "competitions", COMPETITION_ID, "config", "scanner"),
+                 { fields: DEFAULT_SCANNER_FIELDS, updatedAt: serverTimestamp() }, { merge: true });
+    toast("Scanner fields reset");
+  } catch (e) { toast(e.message, true); }
+});
 
 $("#prefsSaveBtn").addEventListener("click", () => {
   document.querySelectorAll('[data-pref="filter"]').forEach(cb => {
