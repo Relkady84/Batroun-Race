@@ -118,6 +118,14 @@
   .err.show{display:block;animation:errIn .25s cubic-bezier(.2,.7,.2,1) both}
   @keyframes errIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
   .field-invalid{border-color:var(--err)!important;box-shadow:0 0 0 2px rgba(255,107,107,.18)!important}
+  input[readonly]{
+    background:rgba(255,255,255,.04)!important;
+    color:#cad7e8!important;
+    cursor:not-allowed;
+    border-style:dashed!important;
+    font-weight:600
+  }
+  input[readonly]:focus{box-shadow:none!important;border-color:rgba(255,255,255,.22)!important}
 
   /* ============================================================ */
   /* Polish — motion, depth, micro-interactions                   */
@@ -592,18 +600,6 @@ function bracketMatches(label, dobStr) {
   return age !== null && age >= r.min && age <= r.max;
 }
 
-function autoSelectBracket() {
-  const subSel = document.getElementById("subQuestion");
-  if (!subSel) return;
-  if (subSel.value) return; // user already picked something — don't override
-  const dob = document.getElementById("dob").value;
-  if (!dob) return;
-  const cat = CATEGORIES[catSelect.value];
-  const opts = cat?.subQuestion?.options;
-  if (!Array.isArray(opts)) return;
-  const match = opts.find(o => bracketMatches(o, dob));
-  if (match) subSel.value = match;
-}
 
 function ageOnRaceDay(dobStr) {
   if (!dobStr) return null;
@@ -693,20 +689,41 @@ function renderSubQuestion(cat) {
     wrap.innerHTML = "";
     return;
   }
+  const dob = document.getElementById("dob").value;
+  const labelHtml = escHtml(sq.label);
+
+  if (!dob) {
+    wrap.innerHTML = `
+      <label>${labelHtml}</label>
+      <input type="text" id="subQuestion" name="subQuestion" readonly
+             value="" placeholder="Auto-fills once you enter your date of birth above">
+      <div class="help">This is determined from your date of birth — no need to choose.</div>
+    `;
+    return;
+  }
+
+  const match = sq.options.find(o => bracketMatches(o, dob));
+  if (!match) {
+    wrap.innerHTML = `
+      <label>${labelHtml}</label>
+      <input type="text" id="subQuestion" name="subQuestion" readonly value="">
+      <div class="err show" style="margin-top:6px">Your date of birth doesn't fit any age bracket configured for this category. Double-check your DOB above, or contact us if your DOB is correct.</div>
+    `;
+    return;
+  }
+
   wrap.innerHTML = `
-    <label for="subQuestion">${escHtml(sq.label)} *</label>
-    <select id="subQuestion" name="subQuestion" required>
-      <option value="">Select…</option>
-      ${sq.options.map(o => `<option>${escHtml(o)}</option>`).join("")}
-    </select>
-    <div class="help">We'll suggest the bracket that matches your date of birth, but you can change it.</div>
+    <label>${labelHtml}</label>
+    <input type="text" id="subQuestion" name="subQuestion" readonly value="${escHtml(match)}">
+    <div class="help">Auto-filled from your date of birth.</div>
   `;
-  if (typeof initFieldErrors === "function") initFieldErrors();
-  autoSelectBracket();
 }
 
-// Wire DOB change → re-evaluate bracket auto-select
-document.getElementById("dob").addEventListener("change", autoSelectBracket);
+// DOB changes → re-render the sub-question (re-computes the bracket)
+document.getElementById("dob").addEventListener("change", () => {
+  const cat = CATEGORIES[catSelect.value];
+  if (cat?.subQuestion) renderSubQuestion(cat);
+});
 
 catSelect.addEventListener("change", () => {
   const cat = CATEGORIES[catSelect.value];
@@ -985,17 +1002,10 @@ form.addEventListener("submit", async (e) => {
     } else if (cat.ageLimitMax > 0 && age !== null && age > cat.ageLimitMax) {
       ageErr = `Maximum age for ${cat.name} is ${cat.ageLimitMax} on race day. Your age on race day: ${age}.`;
     }
-    // Force the chosen bracket to match DOB
-    if (!ageErr && data.subQuestion && !bracketMatches(data.subQuestion, data.dob)) {
-      const r = parseBracketRange(data.subQuestion);
-      let detail = "";
-      if (r?.type === "age") {
-        detail = ` (this bracket is for ages ${r.min}${r.max >= 200 ? "+" : "–" + r.max}; you'll be ${age} on race day).`;
-      } else if (r?.type === "year") {
-        const by = new Date(data.dob).getFullYear();
-        detail = ` (this bracket is for those born ${r.min}–${r.max}; you entered ${by}).`;
-      }
-      ageErr = `The age category you selected ("${data.subQuestion}") doesn't match your date of birth${detail} Please pick the bracket that matches your DOB.`;
+    // If the category has a sub-question, the auto-fill must have produced a value.
+    // Empty here means user's DOB didn't match any configured bracket.
+    if (!ageErr && cat?.subQuestion?.options?.length && !data.subQuestion) {
+      ageErr = `Your date of birth doesn't fit any age bracket for ${cat.name}. Please verify your DOB or contact us.`;
     }
     if (ageErr) {
       document.getElementById("dobErr").textContent = ageErr;
