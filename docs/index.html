@@ -236,14 +236,26 @@
   /* Top bar with logo (admin-uploadable) */
   .page-top-bar{
     padding:14px 22px 0;
-    display:flex;align-items:center;
+    display:flex;align-items:center;gap:14px;
     position:relative;z-index:3;
   }
   .page-top-bar img{
     height:60px;width:auto;max-width:65vw;
     filter:drop-shadow(0 4px 18px rgba(0,0,0,.45));
   }
-  @media (max-width:600px){ .page-top-bar img{height:48px} .page-top-bar{padding:10px 14px 0} }
+  .page-top-bar #pageLogoText{
+    font-family:'Inter',ui-sans-serif,system-ui;
+    font-weight:900;letter-spacing:-.01em;
+    font-size:clamp(18px,3vw,28px);
+    color:var(--ink);
+    text-shadow:0 2px 16px rgba(0,0,0,.6);
+  }
+  .page-top-bar #pageLogoText:empty{display:none}
+  @media (max-width:600px){
+    .page-top-bar img{height:48px}
+    .page-top-bar #pageLogoText{font-size:16px}
+    .page-top-bar{padding:10px 14px 0;gap:10px}
+  }
 
   /* Top banner (admin-editable) */
   .top-banner{
@@ -301,6 +313,7 @@
 <body>
 <header class="page-top-bar">
   <img id="pageLogoImg" alt="" style="display:none">
+  <span id="pageLogoText"></span>
 </header>
 <section aria-labelledby="reg-heading">
 
@@ -902,19 +915,24 @@ function applyTheme(t) {
   if (t.heading)  document.getElementById("reg-heading").textContent = t.heading;
   if (t.subtitle) document.getElementById("reg-subtitle").textContent = t.subtitle;
   applyTopBanner(t.bannerText);
-  applyLogo(t.logoImage);
+  applyLogo(t.logoImage, t.logoText, t.logoHeight);
 }
 
-function applyLogo(url) {
+function applyLogo(url, text, heightPx) {
   const img = document.getElementById("pageLogoImg");
+  const txt = document.getElementById("pageLogoText");
   if (url) {
     img.src = url;
     img.alt = "Batroun Race";
     img.style.display = "";
+    if (heightPx && heightPx > 0) img.style.height = heightPx + "px";
+    else img.style.removeProperty("height");
   } else {
     img.removeAttribute("src");
     img.style.display = "none";
+    img.style.removeProperty("height");
   }
+  if (txt) txt.textContent = text || "";
 }
 // Apply the default background image immediately, before Firestore loads.
 applyTheme({});

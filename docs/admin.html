@@ -440,6 +440,17 @@ Masters Men-Women 35-39
                style="max-width:200px;max-height:80px;background:rgba(255,255,255,.04);padding:8px;border-radius:8px;border:1px solid var(--line)">
           <button id="thLogoClearBtn" class="btn tiny sec" style="margin-top:8px">Clear logo</button>
         </div>
+
+        <div class="row two" style="margin-top:14px">
+          <div>
+            <label>Text next to logo (optional, public page)</label>
+            <input id="thLogoText" placeholder="e.g. Batroun Race 2026">
+          </div>
+          <div>
+            <label>Logo height (px, 40–200)</label>
+            <input id="thLogoSize" type="number" min="40" max="200" step="2" placeholder="60">
+          </div>
+        </div>
       </div>
 
       <div class="card">
@@ -1673,6 +1684,8 @@ function loadThemeIntoEditor(t) {
   $("#thSubtitle").value = t.subtitle || "";
   $("#thBanner").value   = t.bannerText || "";
   $("#thLogoUrl").value  = t.logoImage || "";
+  $("#thLogoText").value = t.logoText  || "";
+  $("#thLogoSize").value = t.logoHeight || "";
   updateBgPreview(t.bgImage);
   updateLogoPreview(t.logoImage);
   applyAdminLogo(t.logoImage);
@@ -1835,6 +1848,8 @@ $("#themeSaveBtn").addEventListener("click", async () => {
         subtitle:   $("#thSubtitle").value.trim() || null,
         bannerText: $("#thBanner").value.trim() || null,
         logoImage:  $("#thLogoUrl").value.trim() || null,
+        logoText:   $("#thLogoText").value.trim() || null,
+        logoHeight: parseInt($("#thLogoSize").value, 10) || null,
         updatedAt:  serverTimestamp()
       },
       { merge: true }
