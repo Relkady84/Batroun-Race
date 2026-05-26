@@ -177,7 +177,10 @@
 <!-- ====== Admin app ====== -->
 <div id="adminApp" hidden>
   <header class="bar">
-    <div class="brand">🏃 Batroun Race <span>Admin</span></div>
+    <div class="brand">
+      <img id="brandLogoImg" alt="" style="display:none;height:32px;width:auto;margin-right:10px;vertical-align:middle">
+      <span id="brandLogoText">🏃 Batroun Race <span style="color:var(--accent)">Admin</span></span>
+    </div>
     <div class="user">
       <span id="userEmail"></span>
       <button id="signOutBtn" class="signout">Sign out</button>
@@ -382,6 +385,25 @@ Masters Men-Women 35-39
         <div class="row two">
           <div><label>Background — gradient top</label><input id="thBg1" type="color"></div>
           <div><label>Background — gradient bottom</label><input id="thBg2" type="color"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Logo image (optional)</h2>
+        <p class="muted" style="margin:0 0 8px">Shown top-left on both the public page and this admin. Recommended: square PNG/SVG with transparent background.</p>
+
+        <label>Upload from your device</label>
+        <input id="thLogoFile" type="file" accept="image/*">
+        <div id="thLogoProgress" class="muted" style="font-size:.85rem;margin-top:6px;min-height:1.2em"></div>
+
+        <label style="margin-top:14px">Or paste a URL</label>
+        <input id="thLogoUrl" type="url" placeholder="https://...">
+
+        <div id="thLogoPreview" style="margin-top:10px;display:none">
+          <div class="muted" style="font-size:.8rem;margin-bottom:4px">Current logo:</div>
+          <img id="thLogoPreviewImg" alt="Logo preview"
+               style="max-width:200px;max-height:80px;background:rgba(255,255,255,.04);padding:8px;border-radius:8px;border:1px solid var(--line)">
+          <button id="thLogoClearBtn" class="btn tiny sec" style="margin-top:8px">Clear logo</button>
         </div>
       </div>
 
@@ -1365,8 +1387,68 @@ function loadThemeIntoEditor(t) {
   $("#thHeading").value  = t.heading  || "";
   $("#thSubtitle").value = t.subtitle || "";
   $("#thBanner").value   = t.bannerText || "";
+  $("#thLogoUrl").value  = t.logoImage || "";
   updateBgPreview(t.bgImage);
+  updateLogoPreview(t.logoImage);
+  applyAdminLogo(t.logoImage);
 }
+
+function updateLogoPreview(url) {
+  const wrap = $("#thLogoPreview");
+  const img = $("#thLogoPreviewImg");
+  if (url) { img.src = url; wrap.style.display = ""; }
+  else { img.removeAttribute("src"); wrap.style.display = "none"; }
+}
+$("#thLogoUrl").addEventListener("input", () => {
+  const url = $("#thLogoUrl").value.trim();
+  updateLogoPreview(url);
+});
+
+function applyAdminLogo(url) {
+  const img = $("#brandLogoImg");
+  const txt = $("#brandLogoText");
+  if (url) {
+    img.src = url; img.style.display = "";
+    txt.innerHTML = '<span style="color:var(--accent);font-weight:800">Admin</span>';
+  } else {
+    img.style.display = "none";
+    txt.innerHTML = '🏃 Batroun Race <span style="color:var(--accent)">Admin</span>';
+  }
+}
+
+$("#thLogoFile").addEventListener("change", async (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  if (!file.type.startsWith("image/")) {
+    toast("Pick an image file", true); e.target.value = ""; return;
+  }
+  $("#thLogoProgress").textContent = "Compressing logo…";
+  try {
+    const dataUrl = await compressImageToDataURL(file, 600, 600, 0.9);
+    const approxKB = Math.round(dataUrl.length / 1024);
+    if (dataUrl.length > 250 * 1024) {
+      $("#thLogoProgress").textContent = `Logo too large (~${approxKB} KB). Use a smaller image.`;
+      toast("Logo too large", true); e.target.value = ""; return;
+    }
+    $("#thLogoUrl").value = dataUrl;
+    updateLogoPreview(dataUrl);
+    $("#thLogoProgress").textContent = `Logo ready (~${approxKB} KB) — click 'Save theme & copy' to apply.`;
+    toast("Logo ready — remember to save");
+  } catch (err) {
+    console.error(err);
+    $("#thLogoProgress").textContent = "Failed to process logo: " + err.message;
+    toast(err.message, true);
+  }
+  e.target.value = "";
+});
+
+$("#thLogoClearBtn").addEventListener("click", () => {
+  if (!confirm("Clear the logo? (Click 'Save theme & copy' to apply.)")) return;
+  $("#thLogoUrl").value = "";
+  $("#thLogoFile").value = "";
+  $("#thLogoProgress").textContent = "Logo cleared — click Save to apply.";
+  updateLogoPreview(null);
+});
 
 function updateBgPreview(url) {
   const wrap = $("#thBgPreview");
@@ -1467,6 +1549,7 @@ $("#themeSaveBtn").addEventListener("click", async () => {
         heading:    $("#thHeading").value.trim() || null,
         subtitle:   $("#thSubtitle").value.trim() || null,
         bannerText: $("#thBanner").value.trim() || null,
+        logoImage:  $("#thLogoUrl").value.trim() || null,
         updatedAt:  serverTimestamp()
       },
       { merge: true }

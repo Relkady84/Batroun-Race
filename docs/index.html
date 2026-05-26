@@ -225,6 +225,18 @@
     box-shadow:0 14px 36px rgba(61,214,198,.26);cursor:pointer;font-size:1.05rem}
   .btn:disabled{opacity:.6;cursor:not-allowed}
 
+  /* Top bar with logo (admin-uploadable) */
+  .page-top-bar{
+    padding:14px 22px 0;
+    display:flex;align-items:center;
+    position:relative;z-index:3;
+  }
+  .page-top-bar img{
+    height:60px;width:auto;max-width:65vw;
+    filter:drop-shadow(0 4px 18px rgba(0,0,0,.45));
+  }
+  @media (max-width:600px){ .page-top-bar img{height:48px} .page-top-bar{padding:10px 14px 0} }
+
   /* Top banner (admin-editable) */
   .top-banner{
     background:linear-gradient(90deg,var(--accent),var(--accent2));
@@ -279,6 +291,9 @@
 </style>
 </head>
 <body>
+<header class="page-top-bar">
+  <img id="pageLogoImg" alt="" style="display:none">
+</header>
 <section aria-labelledby="reg-heading">
 
   <div class="wrap hero">
@@ -808,6 +823,19 @@ function applyTheme(t) {
   if (t.heading)  document.getElementById("reg-heading").textContent = t.heading;
   if (t.subtitle) document.getElementById("reg-subtitle").textContent = t.subtitle;
   applyTopBanner(t.bannerText);
+  applyLogo(t.logoImage);
+}
+
+function applyLogo(url) {
+  const img = document.getElementById("pageLogoImg");
+  if (url) {
+    img.src = url;
+    img.alt = "Batroun Race";
+    img.style.display = "";
+  } else {
+    img.removeAttribute("src");
+    img.style.display = "none";
+  }
 }
 // Apply the default background image immediately, before Firestore loads.
 applyTheme({});
