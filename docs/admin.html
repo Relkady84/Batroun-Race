@@ -208,6 +208,7 @@
     <button data-tab="formFields">Form fields</button>
     <button data-tab="theme">Theme &amp; copy</button>
     <button data-tab="competition">Competition</button>
+    <button data-tab="settings">Settings</button>
   </nav>
 
   <main>
@@ -559,6 +560,40 @@ Masters Men-Women 35-39
       <div><button id="competitionSaveBtn" class="btn">Save event info</button></div>
     </section>
 
+    <!-- ============ Settings (user access) ============ -->
+    <section id="tab-settings" class="tab">
+      <div class="card">
+        <h2>User access</h2>
+        <p class="muted" style="margin:0 0 14px">
+          Add or remove staff who can sign in. Super admins
+          (<code>raedelkady@gmail.com</code>, <code>nizarelkady@gmail.com</code>)
+          are locked in code and cannot be removed here — that's the safety
+          net against accidental lockout.
+        </p>
+
+        <h3 style="margin:14px 0 6px;font-size:1rem;color:var(--accent)">Admins (full access)</h3>
+        <p class="muted" style="font-size:.85rem;margin:0 0 8px">Same powers as super admins: edit categories/theme, manage users, permanently delete from Backup.</p>
+        <div id="adminList" style="margin-bottom:10px"></div>
+        <div class="row two">
+          <input id="newAdminEmail" type="email" placeholder="email@example.com">
+          <button id="addAdminBtn" class="btn">Add admin</button>
+        </div>
+
+        <h3 style="margin:24px 0 6px;font-size:1rem;color:var(--accent)">Staff / viewers</h3>
+        <p class="muted" style="font-size:.85rem;margin:0 0 8px">Can sign in to Registrations · Confirmed · scan.html. Can approve payments and soft-delete. Cannot edit categories/theme/settings.</p>
+        <div id="viewerList" style="margin-bottom:10px"></div>
+        <div class="row two">
+          <input id="newViewerEmail" type="email" placeholder="email@example.com">
+          <button id="addViewerBtn" class="btn">Add staff</button>
+        </div>
+
+        <p class="muted" style="font-size:.8rem;margin-top:16px">
+          Changes take effect immediately on the server (Firestore rules read
+          this same list). The added user just needs to sign in.
+        </p>
+      </div>
+    </section>
+
   </main>
 </div>
 
@@ -590,15 +625,22 @@ const firebaseConfig = {
   measurementId: "G-Z3FQ9B2QJZ"
 };
 
-const ADMIN_EMAILS  = ["raedelkady@gmail.com", "nizarelkady@gmail.com"];
-const VIEWER_EMAILS = [
-  "mary.bi.mbi@gmail.com",
-  "raedelkady84@gmail.com",
-  "rcasper1184@gmail.com"
-];
-const ALLOWED_EMAILS = [...ADMIN_EMAILS, ...VIEWER_EMAILS];
+// Hardcoded super admins (also in firestore.rules — kept in sync). Cannot be
+// removed via the Settings UI.
+const SUPER_ADMINS = ["raedelkady@gmail.com", "nizarelkady@gmail.com"];
+
+// Dynamic lists, hydrated from /config/access on app start.
+let dynamicAdmins = [];
+let dynamicViewers = [];
+
+function isAdminEmail(email)  { return SUPER_ADMINS.includes(email) || dynamicAdmins.includes(email); }
+function isViewerEmail(email) { return dynamicViewers.includes(email); }
+function isAllowed(email)     { return isAdminEmail(email) || isViewerEmail(email); }
+
 let userRole = "guest"; // 'admin' | 'viewer'
 let currentUserEmail = null;
+let pendingAuthUser = null;   // user object received before access config loaded
+let accessLoaded = false;
 const COMPETITION_ID = "batroun-race-2026";
 
 const app = initializeApp(firebaseConfig);
@@ -780,27 +822,56 @@ $("#signOutBtn").addEventListener("click", () => signOut(auth));
 
 onAuthStateChanged(auth, user => {
   console.log("[auth] onAuthStateChanged user=", user?.email || null);
-  if (!user) { showLogin(); return; }
-  const email = (user.email || "").toLowerCase();
-  if (ADMIN_EMAILS.includes(email))       userRole = "admin";
-  else if (VIEWER_EMAILS.includes(email)) userRole = "viewer";
-  else userRole = "guest";
+  if (!user) { pendingAuthUser = null; showLogin(); return; }
+  pendingAuthUser = user;
+  evaluateAuth();
+});
 
-  if (userRole === "guest") {
-    console.warn("[auth] Rejected — not on allowlist:", user.email);
-    $("#signInError").innerHTML =
-      `Access denied. You signed in as <code style="background:rgba(0,0,0,.25);padding:1px 6px;border-radius:4px">${user.email}</code>, which is not on the allowlist.<br>` +
-      `Sign in with one of: <strong>${ALLOWED_EMAILS.join(", ")}</strong>.`;
-    signOut(auth);
-    return;
-  }
+function evaluateAuth() {
+  if (!pendingAuthUser || !accessLoaded) return;
+  const user = pendingAuthUser;
+  const email = (user.email || "").toLowerCase();
+
   if (!user.emailVerified) {
     $("#signInError").textContent = `Your Google account (${user.email}) isn't verified. Verify your email and try again.`;
     signOut(auth);
     return;
   }
+
+  if (isAdminEmail(email))       userRole = "admin";
+  else if (isViewerEmail(email)) userRole = "viewer";
+  else userRole = "guest";
+
+  if (userRole === "guest") {
+    console.warn("[auth] Rejected — not on allowlist:", email);
+    $("#signInError").innerHTML =
+      `Access denied. You signed in as <code style="background:rgba(0,0,0,.25);padding:1px 6px;border-radius:4px">${email}</code>, which isn't on the staff list.<br>` +
+      `Ask an admin to add you in Settings, then try again.`;
+    signOut(auth);
+    return;
+  }
   showApp(user);
-});
+}
+
+// Subscribe to the access config. Admins manage this list in the
+// Settings tab; other devices/tabs pick up changes in real time.
+onSnapshot(
+  doc(db, "competitions", COMPETITION_ID, "config", "access"),
+  snap => {
+    const data = snap.exists() ? snap.data() : {};
+    dynamicAdmins  = (Array.isArray(data.admins)  ? data.admins  : []).map(e => String(e).toLowerCase());
+    dynamicViewers = (Array.isArray(data.viewers) ? data.viewers : []).map(e => String(e).toLowerCase());
+    accessLoaded = true;
+    renderAccessLists();
+    evaluateAuth();
+  },
+  err => {
+    // Non-fatal — keep hardcoded super admins working
+    console.warn("[access] config listener:", err.message);
+    accessLoaded = true;
+    evaluateAuth();
+  }
+);
 
 function showLogin() {
   $("#loginScreen").style.display = "grid";
@@ -818,20 +889,24 @@ function showApp(user) {
 }
 
 function applyRoleVisibility() {
-  // Viewers see ONLY the Registrations tab.
+  // Viewers see Registrations + Confirmed only.
+  const VIEWER_TABS = ["registrations", "confirmed"];
   document.querySelectorAll('nav.tabs button[data-tab]').forEach(btn => {
-    if (userRole === "viewer" && btn.dataset.tab !== "registrations") {
+    if (userRole === "viewer" && !VIEWER_TABS.includes(btn.dataset.tab)) {
       btn.style.display = "none";
     } else {
       btn.style.display = "";
     }
   });
-  // Force the active tab to registrations for viewers
+  // If viewer is currently on a forbidden tab, push them to Registrations
   if (userRole === "viewer") {
-    document.querySelectorAll('nav.tabs button').forEach(b => b.classList.remove("active"));
-    document.querySelector('nav.tabs button[data-tab="registrations"]').classList.add("active");
-    document.querySelectorAll('section.tab').forEach(s => s.classList.remove("active"));
-    document.getElementById("tab-registrations").classList.add("active");
+    const active = document.querySelector('nav.tabs button.active');
+    if (!active || !VIEWER_TABS.includes(active.dataset.tab)) {
+      document.querySelectorAll('nav.tabs button').forEach(b => b.classList.remove("active"));
+      document.querySelector('nav.tabs button[data-tab="registrations"]').classList.add("active");
+      document.querySelectorAll('section.tab').forEach(s => s.classList.remove("active"));
+      document.getElementById("tab-registrations").classList.add("active");
+    }
   }
 }
 
@@ -1443,6 +1518,73 @@ function renderConfirmedTab() {
     });
   });
 }
+
+// ===== Settings tab — user access management =====
+function renderAccessLists() {
+  const adminBox = document.getElementById("adminList");
+  const viewerBox = document.getElementById("viewerList");
+  if (!adminBox || !viewerBox) return;
+
+  const pill = (email, locked, role) => `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;
+                padding:8px 12px;background:rgba(0,0,0,.18);border:1px solid var(--line);
+                border-radius:8px;margin-bottom:6px">
+      <span style="word-break:break-word">
+        ${escapeHtml(email)}
+        ${locked ? ` <span class="muted" style="font-size:.78rem">(super admin — locked)</span>` : ""}
+      </span>
+      ${locked ? "" : `<button class="btn tiny danger" data-removerole="${role}" data-removeemail="${escapeHtml(email)}">Remove</button>`}
+    </div>
+  `;
+
+  adminBox.innerHTML =
+    SUPER_ADMINS.map(e => pill(e, true, "admin")).join("") +
+    dynamicAdmins.map(e => pill(e, false, "admin")).join("") ||
+    `<div class="muted" style="font-size:.85rem">No additional admins yet.</div>`;
+
+  viewerBox.innerHTML = dynamicViewers.length
+    ? dynamicViewers.map(e => pill(e, false, "viewer")).join("")
+    : `<div class="muted" style="font-size:.85rem">No staff yet.</div>`;
+
+  document.querySelectorAll('[data-removeemail]').forEach(btn => {
+    btn.onclick = () => removeUser(btn.dataset.removerole, btn.dataset.removeemail);
+  });
+}
+
+async function writeAccess(payload) {
+  await setDoc(doc(db, "competitions", COMPETITION_ID, "config", "access"),
+               { ...payload, updatedAt: serverTimestamp(), updatedBy: currentUserEmail || "unknown" },
+               { merge: true });
+}
+
+async function addUser(role) {
+  const inputId = role === "admin" ? "newAdminEmail" : "newViewerEmail";
+  const raw = document.getElementById(inputId).value.trim().toLowerCase();
+  if (!raw) { toast("Enter an email", true); return; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw)) { toast("Not a valid email", true); return; }
+  const list = role === "admin" ? dynamicAdmins : dynamicViewers;
+  if (SUPER_ADMINS.includes(raw)) { toast("Already a super admin", true); return; }
+  if (list.includes(raw)) { toast("Already added", true); return; }
+  try {
+    const next = [...list, raw];
+    await writeAccess(role === "admin" ? { admins: next } : { viewers: next });
+    document.getElementById(inputId).value = "";
+    toast(`${raw} added as ${role}`);
+  } catch (e) { toast(e.message || "Save failed", true); }
+}
+
+async function removeUser(role, email) {
+  if (!confirm(`Remove ${email} from ${role}s?`)) return;
+  const list = role === "admin" ? dynamicAdmins : dynamicViewers;
+  const next = list.filter(x => x !== email);
+  try {
+    await writeAccess(role === "admin" ? { admins: next } : { viewers: next });
+    toast(`${email} removed`);
+  } catch (e) { toast(e.message || "Save failed", true); }
+}
+
+document.getElementById("addAdminBtn")?.addEventListener("click", () => addUser("admin"));
+document.getElementById("addViewerBtn")?.addEventListener("click", () => addUser("viewer"));
 
 // Undo an approved payment — moves a runner back to Registrations as pending.
 // Use this when payment was confirmed by mistake.

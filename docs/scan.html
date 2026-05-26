@@ -126,10 +126,14 @@ const firebaseConfig = {
   appId: "1:175612171118:web:96fc6e09ec599758f9277f",
   measurementId: "G-Z3FQ9B2QJZ"
 };
-const ALLOWED_EMAILS = [
-  "raedelkady@gmail.com", "nizarelkady@gmail.com",
-  "mary.bi.mbi@gmail.com", "raedelkady84@gmail.com", "rcasper1184@gmail.com"
-];
+const SUPER_ADMINS = ["raedelkady@gmail.com", "nizarelkady@gmail.com"];
+let dynamicAdmins = [];
+let dynamicViewers = [];
+function isAllowed(email) {
+  return SUPER_ADMINS.includes(email)
+      || dynamicAdmins.includes(email)
+      || dynamicViewers.includes(email);
+}
 const COMPETITION_ID = "batroun-race-2026";
 
 // Fields the admin can choose to display on the result card.
@@ -199,10 +203,20 @@ $("#signInBtn").addEventListener("click", async () => {
 $("#signOutBtn").addEventListener("click", () => { stopScanner(); signOut(auth); });
 getRedirectResult(auth).catch(() => {});
 
+let pendingAuthUser = null;
+let accessLoaded = false;
+
 onAuthStateChanged(auth, user => {
-  if (!user) return showLogin();
+  if (!user) { pendingAuthUser = null; return showLogin(); }
+  pendingAuthUser = user;
+  evaluateAuth();
+});
+
+function evaluateAuth() {
+  if (!pendingAuthUser || !accessLoaded) return;
+  const user = pendingAuthUser;
   const email = (user.email || "").toLowerCase();
-  if (!ALLOWED_EMAILS.includes(email)) {
+  if (!isAllowed(email)) {
     $("#signInError").innerHTML = `Access denied for <code>${email}</code>.`;
     signOut(auth);
     return;
@@ -210,7 +224,20 @@ onAuthStateChanged(auth, user => {
   $("#userEmail").textContent = user.email;
   $("#signOutBtn").hidden = false;
   showScanner();
-});
+}
+
+// Load access config (admins + viewers added via admin Settings tab)
+onSnapshot(
+  doc(db, "competitions", COMPETITION_ID, "config", "access"),
+  snap => {
+    const data = snap.exists() ? snap.data() : {};
+    dynamicAdmins  = (Array.isArray(data.admins)  ? data.admins  : []).map(e => String(e).toLowerCase());
+    dynamicViewers = (Array.isArray(data.viewers) ? data.viewers : []).map(e => String(e).toLowerCase());
+    accessLoaded = true;
+    evaluateAuth();
+  },
+  () => { accessLoaded = true; evaluateAuth(); }
+);
 
 function showLogin() {
   $("#loginScreen").style.display = "grid";

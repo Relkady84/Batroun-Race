@@ -5,7 +5,9 @@ service cloud.firestore {
 
     // --- Helpers ---
 
-    function isAdmin() {
+    // Hardcoded super admins (cannot be removed via the Settings UI; that
+    // prevents accidental lockout if the access doc gets nuked).
+    function isSuperAdmin() {
       return request.auth != null
         && request.auth.token.email_verified == true
         && request.auth.token.email in [
@@ -14,17 +16,19 @@ service cloud.firestore {
         ];
     }
 
-    // Dashboard operators: can view + approve payments + delete spam
-    // registrations, but cannot edit categories/theme/competition.
-    function isViewer() {
-      return request.auth != null
-        && request.auth.token.email_verified == true
-        && request.auth.token.email in [
-          'mary.bi.mbi@gmail.com',
-          'raedelkady84@gmail.com',
-          'rcasper1184@gmail.com'
-        ];
+    // Dynamic admin/viewer lists, managed via /config/access in the app.
+    function accessDoc() {
+      return get(/databases/$(database)/documents/competitions/batroun-race-2026/config/access).data;
     }
+    function inDynamicList(field) {
+      return exists(/databases/$(database)/documents/competitions/batroun-race-2026/config/access)
+          && request.auth != null
+          && request.auth.token.email_verified == true
+          && request.auth.token.email in accessDoc().get(field, []);
+    }
+
+    function isAdmin()  { return isSuperAdmin() || inDynamicList('admins'); }
+    function isViewer() { return inDynamicList('viewers'); }
     function canReadDashboard() { return isAdmin() || isViewer(); }
 
     function isValidNewRegistration() {
@@ -71,7 +75,13 @@ service cloud.firestore {
         allow write: if isAdmin();
       }
 
-      // Theme / form-schema / arbitrary config docs: public read, admin write
+      // Theme / form-schema / arbitrary config docs: public read, admin write.
+      // EXCEPT /config/access which contains staff emails — that's restricted
+      // to authenticated users (to avoid leaking emails publicly).
+      match /config/access {
+        allow read:  if request.auth != null;
+        allow write: if isAdmin();
+      }
       match /config/{configId} {
         allow read:  if true;
         allow write: if isAdmin();
