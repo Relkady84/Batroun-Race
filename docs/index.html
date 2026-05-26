@@ -512,11 +512,11 @@ let INCLUDES = [
 
 // Single price per category — no waves.
 let CATEGORIES = {
-  marathon:      { name: "Marathon 42.195 KM",    timed: true,  ageLimit: 18, price: 40 },
-  halfMarathon:  { name: "Half Marathon 21.1 KM", timed: true,  ageLimit: 17, price: 30 },
-  "10k":         { name: "10 KM Race",            timed: true,  ageLimit: 12, price: 25 },
-  "5k":          { name: "5 KM Race",             timed: false, ageLimit: 0,  price: 22 },
-  para:          { name: "Para Athlete Race",     timed: true,  ageLimit: 15, price: 0  }
+  marathon:      { name: "Marathon 42.195 KM",    timed: true,  ageLimit: 18, ageLimitMax: null, price: 40 },
+  halfMarathon:  { name: "Half Marathon 21.1 KM", timed: true,  ageLimit: 17, ageLimitMax: null, price: 30 },
+  "10k":         { name: "10 KM Race",            timed: true,  ageLimit: 12, ageLimitMax: null, price: 25 },
+  "5k":          { name: "5 KM Race",             timed: false, ageLimit: 0,  ageLimitMax: null, price: 22 },
+  para:          { name: "Para Athlete Race",     timed: true,  ageLimit: 15, ageLimitMax: null, price: 0  }
 };
 
 let CUSTOM_FIELDS = [];
@@ -534,6 +534,15 @@ function registrationStatus(now = new Date()) {
 }
 function fmtDate(d) {
   return d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+}
+
+function formatAgeRange(min, max) {
+  const hasMin = typeof min === "number" && min > 0;
+  const hasMax = typeof max === "number" && max > 0;
+  if (hasMin && hasMax) return `${min}–${max}`;
+  if (hasMin) return `${min}+`;
+  if (hasMax) return `up to ${max}`;
+  return null; // all ages
 }
 
 function ageOnRaceDay(dobStr) {
@@ -593,7 +602,8 @@ function populateCategorySelect() {
   const current = sel.value;
   sel.innerHTML = '<option value="">Select…</option>' +
     Object.entries(CATEGORIES).map(([id, c]) => {
-      const ageStr = c.ageLimit > 0 ? ` (${c.ageLimit}+)` : "";
+      const range = formatAgeRange(c.ageLimit, c.ageLimitMax);
+      const ageStr = range ? ` (age ${range})` : "";
       const freeStr = (c.price === 0) ? " — FREE" : "";
       return `<option value="${id}">${c.name}${ageStr}${freeStr}</option>`;
     }).join("");
@@ -622,8 +632,8 @@ catSelect.addEventListener("change", () => {
     : `$${price} USD`;
   priceLabel.textContent = `Registration fee`;
   priceMeta.innerHTML = cat.timed
-    ? `Timed race · Age ${cat.ageLimit}+ on race day`
-    : `Untimed · All ages`;
+    ? `Timed race · ${formatAgeRange(cat.ageLimit, cat.ageLimitMax) ? "Age " + formatAgeRange(cat.ageLimit, cat.ageLimitMax) + " on race day" : "All ages"}`
+    : `Untimed · ${formatAgeRange(cat.ageLimit, cat.ageLimitMax) ? "Age " + formatAgeRange(cat.ageLimit, cat.ageLimitMax) : "All ages"}`;
   priceLadder.innerHTML = "";
 
   includesEl.innerHTML = `<li style="font-weight:700;color:var(--ink);list-style:none;padding-left:0">Registration includes:</li>` +
@@ -811,7 +821,8 @@ async function loadFromFirestore() {
         CATEGORIES[d.id] = {
           name: x.name || d.id,
           timed: !!x.timed,
-          ageLimit: x.ageLimit || 0,
+          ageLimit:    x.ageLimit    || 0,
+          ageLimitMax: x.ageLimitMax || 0,
           distance: x.distanceKm || null,
           capacity: x.capacity || null,
           registeredCount: x.registeredCount || 0,
@@ -865,11 +876,16 @@ form.addEventListener("submit", async (e) => {
   const cat = CATEGORIES[data.category];
 
   // Validate age
-  if (cat && cat.ageLimit > 0) {
+  if (cat) {
     const age = ageOnRaceDay(data.dob);
-    if (age === null || age < cat.ageLimit) {
-      document.getElementById("dobErr").textContent =
-        `Minimum age for ${cat.name} is ${cat.ageLimit} on race day. Your age on race day: ${age ?? "—"}.`;
+    let ageErr = null;
+    if (cat.ageLimit > 0 && (age === null || age < cat.ageLimit)) {
+      ageErr = `Minimum age for ${cat.name} is ${cat.ageLimit} on race day. Your age on race day: ${age ?? "—"}.`;
+    } else if (cat.ageLimitMax > 0 && age !== null && age > cat.ageLimitMax) {
+      ageErr = `Maximum age for ${cat.name} is ${cat.ageLimitMax} on race day. Your age on race day: ${age}.`;
+    }
+    if (ageErr) {
+      document.getElementById("dobErr").textContent = ageErr;
       document.getElementById("dobErr").style.display = "block";
       btn.disabled = false;
       btn.classList.remove("loading");
