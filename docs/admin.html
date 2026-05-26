@@ -550,11 +550,16 @@ const $$ = s => document.querySelectorAll(s);
 // undo windows can coexist without colliding.
 function pushToast({ html, classes = "", durationMs = 2400 }) {
   const stack = $("#toastStack");
+  if (!stack) { console.warn("[toast] stack missing — toast skipped"); return null; }
   const t = document.createElement("div");
   t.className = "toast " + classes;
   t.innerHTML = html;
   stack.appendChild(t);
-  requestAnimationFrame(() => t.classList.add("show"));
+  // Force a synchronous reflow so the .show transition reliably triggers
+  // even when this runs right after an async operation.
+  void t.offsetWidth;
+  t.classList.add("show");
+  console.log("[toast] pushed", { classes, durationMs, stacked: stack.children.length });
   const remove = () => {
     t.classList.remove("show");
     setTimeout(() => t.remove(), 250);
@@ -1228,7 +1233,8 @@ async function deleteRegistration(r) {
     `  ${r.phone  || "—"}\n` +
     `  Ref: ${r.whishReference || "—"}\n\n` +
     `It will be moved to the Backup tab. You'll have 10 seconds to undo.`;
-  if (!confirm(warning)) return;
+  console.log("[delete] starting for", r.id, name);
+  if (!confirm(warning)) { console.log("[delete] cancelled in confirm"); return; }
 
   // Soft-delete right away
   try {
@@ -1236,8 +1242,9 @@ async function deleteRegistration(r) {
       deletedAt: serverTimestamp(),
       deletedBy: currentUserEmail || "unknown"
     });
+    console.log("[delete] write ok, pushing undo toast for", r.id);
   } catch (e) {
-    console.error(e);
+    console.error("[delete] write failed", e);
     toast(e.message || "Delete failed", true);
     return;
   }
@@ -1246,7 +1253,6 @@ async function deleteRegistration(r) {
   undoableAction({
     message: `🗑 <strong>${escapeHtml(name)}</strong> deleted — moved to Backup`,
     durationMs: 10000,
-    // onConfirm intentionally empty: the delete already happened, the toast just expires
     onUndo: async () => {
       try {
         await updateDoc(doc(db, "competitions", COMPETITION_ID, "registrations", r.id), {
