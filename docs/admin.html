@@ -1208,26 +1208,47 @@ function renderBackupTable() {
   });
 }
 
-// Soft-delete with a 10-second undo window. The actual updateDoc only
-// fires once the timer expires (or the user starts a different action).
-function deleteRegistration(r) {
+// Warn -> soft-delete immediately -> offer a 10-second Undo window.
+async function deleteRegistration(r) {
   const name = `${r.firstName || ""} ${r.lastName || ""}`.trim() || "(no name)";
+  const warning =
+    `Delete this registration?\n\n` +
+    `  ${name}\n` +
+    `  ${r.email  || "—"}\n` +
+    `  ${r.phone  || "—"}\n` +
+    `  Ref: ${r.whishReference || "—"}\n\n` +
+    `It will be moved to the Backup tab. You'll have 10 seconds to undo.`;
+  if (!confirm(warning)) return;
+
+  // Soft-delete right away
+  try {
+    await updateDoc(doc(db, "competitions", COMPETITION_ID, "registrations", r.id), {
+      deletedAt: serverTimestamp(),
+      deletedBy: currentUserEmail || "unknown"
+    });
+  } catch (e) {
+    console.error(e);
+    toast(e.message || "Delete failed", true);
+    return;
+  }
+
+  // Then show a 10s undo toast that can restore it
   undoableAction({
-    message: `🗑 Deleting <strong>${escapeHtml(name)}</strong> — will move to Backup`,
+    message: `🗑 <strong>${escapeHtml(name)}</strong> deleted — moved to Backup`,
     durationMs: 10000,
-    onConfirm: async () => {
+    // onConfirm intentionally empty: the delete already happened, the toast just expires
+    onUndo: async () => {
       try {
         await updateDoc(doc(db, "competitions", COMPETITION_ID, "registrations", r.id), {
-          deletedAt: serverTimestamp(),
-          deletedBy: currentUserEmail || "unknown"
+          deletedAt: null,
+          deletedBy: null
         });
-        toast(`${name} moved to Backup`);
+        toast(`${name} restored`);
       } catch (e) {
         console.error(e);
-        toast(e.message || "Delete failed", true);
+        toast(e.message || "Restore failed", true);
       }
-    },
-    onUndo: () => toast(`${name} kept — delete cancelled`)
+    }
   });
 }
 
