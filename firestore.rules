@@ -14,12 +14,15 @@ service cloud.firestore {
         ];
     }
 
-    // Read-only viewers (e.g. staff who only need to see registrations).
+    // Dashboard operators: can view + approve payments + delete spam
+    // registrations, but cannot edit categories/theme/competition.
     function isViewer() {
       return request.auth != null
         && request.auth.token.email_verified == true
         && request.auth.token.email in [
-          'mary.bi.mbi@gmail.com'
+          'mary.bi.mbi@gmail.com',
+          'raedelkady84@gmail.com',
+          'rcasper1184@gmail.com'
         ];
     }
     function canReadDashboard() { return isAdmin() || isViewer(); }
@@ -74,12 +77,14 @@ service cloud.firestore {
         allow write: if isAdmin();
       }
 
-      // Registrations: admin + viewer can READ; only admin writes; public can CREATE only.
+      // Registrations: admin + viewer can READ, UPDATE (approve payment),
+      // and DELETE (spam cleanup). Only admins control config tabs.
+      // Public can CREATE only.
       match /registrations/{regId} {
         allow read:   if canReadDashboard();
         allow create: if isValidNewRegistration() && registrationOpen(competitionId);
-        allow update: if isAdmin();
-        allow delete: if false; // audit trail — never delete
+        allow update: if canReadDashboard();
+        allow delete: if canReadDashboard();
       }
     }
 
