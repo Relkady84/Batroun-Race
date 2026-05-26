@@ -201,6 +201,7 @@
 
   <nav class="tabs">
     <button data-tab="registrations" class="active">Registrations</button>
+    <button data-tab="confirmed">Confirmed</button>
     <button data-tab="backup">Backup</button>
     <button data-tab="dashboard">Dashboard</button>
     <button data-tab="categories">Categories</button>
@@ -284,6 +285,40 @@
               <th></th>
             </tr></thead>
             <tbody><tr><td colspan="19" class="empty">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ Confirmed payments ============ -->
+    <section id="tab-confirmed" class="tab">
+      <div class="stats" id="confirmedStats"></div>
+
+      <div class="card">
+        <div class="filters-grid">
+          <input type="search" id="confirmedSearch" placeholder="Search name, ref, phone, email…">
+          <select id="confirmedCategoryFilter"><option value="">All categories</option></select>
+          <select id="confirmedCheckedIn">
+            <option value="">All</option>
+            <option value="no">Not checked in yet</option>
+            <option value="yes">Checked in</option>
+          </select>
+          <button id="confirmedExportBtn" class="btn sec">Export CSV</button>
+        </div>
+
+        <div class="table-wrap">
+          <table id="confirmedTable">
+            <thead><tr>
+              <th class="sortable" data-csort="whishReference">Ref</th>
+              <th class="sortable" data-csort="firstName">Name</th>
+              <th class="sortable" data-csort="categoryName">Category</th>
+              <th class="sortable" data-csort="subQuestionAnswer">Sub-category</th>
+              <th class="sortable" data-csort="bibNumber">Bib</th>
+              <th class="sortable" data-csort="paidAt">Confirmed at</th>
+              <th class="sortable" data-csort="checkedInAt">Checked in</th>
+              <th></th>
+            </tr></thead>
+            <tbody><tr><td colspan="8" class="empty">No confirmed registrations yet.</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -822,7 +857,7 @@ function startListeners() {
           orderBy("registeredAt", "desc")),
     snap => {
       regs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      renderStats(); renderRegTable(); renderBackupTable();
+      renderStats(); renderRegTable(); renderBackupTable(); renderConfirmedTab();
     },
     err => toast("Registrations listener: " + err.message, true)
   );
@@ -1292,6 +1327,153 @@ function openRegDetails(r) {
 
 // Soft-delete: hide from main dashboard but keep the doc in Firestore so
 // admins can review/restore in the Backup tab.
+// ===== Confirmed-payments tab =====
+const confirmedSort = { key: "paidAt", dir: "desc" };
+
+function confirmedSourceRegs() {
+  return regs.filter(r => !r.deletedAt && (r.paymentStatus === "paid" || r.paymentStatus === "free"));
+}
+
+function renderConfirmedStats() {
+  const src = confirmedSourceRegs();
+  const total = src.length;
+  const paid = src.filter(r => r.paymentStatus === "paid").length;
+  const free = src.filter(r => r.paymentStatus === "free").length;
+  const checkedIn = src.filter(r => r.checkedInAt).length;
+  const revenue = src.reduce((s, r) => s + (r.priceUSD || 0), 0);
+  const el = $("#confirmedStats");
+  if (el) el.innerHTML = `
+    <div class="stat"><div class="label">Confirmed registrations</div><div class="value accent">${total}</div></div>
+    <div class="stat"><div class="label">Paid</div><div class="value">${paid}</div></div>
+    <div class="stat"><div class="label">Free</div><div class="value" style="color:var(--accent2)">${free}</div></div>
+    <div class="stat"><div class="label">Checked in</div><div class="value accent">${checkedIn} <span style="font-size:.5em;opacity:.7">/ ${total}</span></div></div>
+    <div class="stat"><div class="label">Revenue</div><div class="value accent">$${revenue}</div></div>
+  `;
+}
+
+function renderConfirmedCategoryFilter() {
+  const sel = $("#confirmedCategoryFilter");
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = '<option value="">All categories</option>' +
+    cats.map(c => `<option value="${c.id}">${escapeHtml(c.name || c.id)}</option>`).join("");
+  sel.value = current;
+}
+
+function confirmedFiltered() {
+  const q = ($("#confirmedSearch")?.value || "").trim().toLowerCase();
+  const cat = $("#confirmedCategoryFilter")?.value || "";
+  const ci  = $("#confirmedCheckedIn")?.value || "";
+  return confirmedSourceRegs().filter(r => {
+    if (cat && r.categoryId !== cat) return false;
+    if (ci === "yes" && !r.checkedInAt) return false;
+    if (ci === "no"  &&  r.checkedInAt) return false;
+    if (q) {
+      const hay = [r.firstName, r.lastName, r.email, r.phone, r.whishReference, r.subQuestionAnswer]
+        .map(x => (x||"").toLowerCase()).join(" ");
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function confirmedSorted(rows) {
+  if (!confirmedSort.key) return rows;
+  const k = confirmedSort.key;
+  const dir = confirmedSort.dir === "asc" ? 1 : -1;
+  return [...rows].sort((a, b) => {
+    let av = a[k], bv = b[k];
+    if (av?.toDate) av = av.toDate().getTime();
+    if (bv?.toDate) bv = bv.toDate().getTime();
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1;
+    if (bv == null) return -1;
+    if (typeof av === "string" && typeof bv === "string")
+      return dir * av.localeCompare(bv, undefined, { sensitivity:"base" });
+    return av < bv ? -dir : av > bv ? dir : 0;
+  });
+}
+
+function renderConfirmedTab() {
+  renderConfirmedStats();
+  renderConfirmedCategoryFilter();
+  const tbody = $("#confirmedTable tbody");
+  if (!tbody) return;
+  const rows = confirmedSorted(confirmedFiltered());
+  // Sort-direction indicators
+  document.querySelectorAll('#confirmedTable th.sortable').forEach(th => {
+    th.classList.remove("sorted-asc","sorted-desc");
+    if (th.dataset.csort === confirmedSort.key) th.classList.add(confirmedSort.dir === "asc" ? "sorted-asc" : "sorted-desc");
+  });
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="8" class="empty">No confirmed registrations match.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td><code>${escapeHtml(r.whishReference || "—")}</code></td>
+      <td>${escapeHtml((r.firstName || "") + " " + (r.lastName || ""))}</td>
+      <td>${escapeHtml(r.categoryName || "—")}</td>
+      <td>${escapeHtml(r.subQuestionAnswer || "—")}</td>
+      <td>${r.bibNumber ?? "—"}</td>
+      <td>${r.paidAt ? fmtDate(r.paidAt) : "—"}</td>
+      <td>${r.checkedInAt
+        ? `<span style="color:var(--accent);font-weight:700">✓ ${fmtDate(r.checkedInAt)}</span>`
+        : `<span style="color:var(--warn)">Not yet</span>`}</td>
+      <td class="actions">
+        <button class="btn tiny sec" data-cact="view" data-id="${r.id}">View</button>
+        ${r.bibNumber ? `<button class="btn tiny sec" data-cact="wa" data-id="${r.id}" title="Resend WhatsApp ticket">WA</button>` : ""}
+      </td>
+    </tr>
+  `).join("");
+  tbody.querySelectorAll('button[data-cact]').forEach(b => {
+    b.addEventListener("click", () => {
+      const r = regs.find(x => x.id === b.dataset.id);
+      if (!r) return;
+      if (b.dataset.cact === "view") openRegDetails(r);
+      if (b.dataset.cact === "wa")   {
+        const waUrl = buildWhatsAppUrl(r);
+        if (waUrl) window.open(waUrl, "_blank", "noopener");
+        else toast("No phone number on record", true);
+      }
+    });
+  });
+}
+
+// Wire confirmed-tab filters + sort
+["confirmedSearch","confirmedCategoryFilter","confirmedCheckedIn"].forEach(id => {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const evt = el.tagName === "INPUT" ? "input" : "change";
+  el.addEventListener(evt, renderConfirmedTab);
+});
+document.querySelectorAll('#confirmedTable thead th.sortable').forEach(th => {
+  th.addEventListener("click", () => {
+    const key = th.dataset.csort;
+    if (confirmedSort.key === key) confirmedSort.dir = confirmedSort.dir === "asc" ? "desc" : "asc";
+    else { confirmedSort.key = key; confirmedSort.dir = "asc"; }
+    renderConfirmedTab();
+  });
+});
+document.getElementById("confirmedExportBtn")?.addEventListener("click", () => {
+  const rows = confirmedSorted(confirmedFiltered());
+  if (!rows.length) { toast("Nothing to export"); return; }
+  const headers = ["reference","firstName","lastName","email","phone","category","subCategory",
+                   "bib","amount","status","paidAt","checkedInAt","checkedInBy"];
+  const csv = [headers.join(",")].concat(rows.map(r => [
+    r.whishReference, r.firstName, r.lastName, r.email, r.phone,
+    r.categoryName, r.subQuestionAnswer, r.bibNumber, r.priceUSD,
+    r.paymentStatus, r.paidAt ? fmtDate(r.paidAt) : "",
+    r.checkedInAt ? fmtDate(r.checkedInAt) : "", r.checkedInBy || ""
+  ].map(csvCell).join(","))).join("\n");
+  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `batroun-race-confirmed-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
 function renderBackupTable() {
   const tbody = $("#backupTable tbody");
   if (!tbody) return;
