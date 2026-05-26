@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Race-day scanner — Batroun Race</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap">
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+  :root{
+    --bg1:#08172b;--bg2:#0d2140;
+    --ink:#ecf6ff;--muted:#9fb2c8;--line:rgba(255,255,255,.16);
+    --accent:#3dd6c6;--accent2:#21b3a7;
+    --good:#27cbbb;--bad:#ff6b6b;--warn:#ffa726;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;
+            background:linear-gradient(180deg,var(--bg1),var(--bg2));color:var(--ink);
+            font:16px/1.55 'Inter',system-ui,-apple-system,Segoe UI,Roboto;
+            -webkit-font-smoothing:antialiased}
+  .wrap{max-width:520px;margin:0 auto;padding:18px 14px}
+  header{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px}
+  h1{margin:0;font-size:clamp(20px,4.5vw,28px);font-weight:900;letter-spacing:-.01em;
+     background:linear-gradient(180deg,#fff 0%,#d8efea 70%,var(--accent) 100%);
+     -webkit-background-clip:text;background-clip:text;color:transparent}
+  .user{font-size:.85rem;color:var(--muted)}
+  .signout{background:transparent;color:var(--ink);border:1px solid var(--line);
+           border-radius:8px;padding:5px 10px;font-size:.8rem;cursor:pointer}
+
+  /* Sign-in screen */
+  .login{min-height:80vh;display:grid;place-items:center}
+  .login .box{background:rgba(255,255,255,.04);border:1px solid var(--line);
+              border-radius:18px;padding:24px;text-align:center;max-width:380px;width:100%}
+  .login h2{margin:0 0 6px}
+  .login p{color:var(--muted);margin:0 0 18px}
+  .google-btn{display:inline-flex;align-items:center;gap:10px;background:#fff;color:#222;
+              border:none;border-radius:10px;padding:12px 18px;font-weight:800;cursor:pointer}
+  .err{color:var(--bad);margin-top:12px;font-size:.9rem;min-height:1.2em;font-weight:700}
+
+  /* Scanner */
+  #qr-reader{background:#000;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  #qr-reader video{max-width:100%}
+  .hint{color:var(--muted);text-align:center;margin:12px 0;font-size:.9rem}
+
+  /* Result card */
+  .result{margin-top:14px;border-radius:16px;padding:18px;border:2px solid var(--line);
+          background:rgba(0,0,0,.25);box-shadow:0 18px 50px rgba(0,0,0,.5)}
+  .result.ok   {border-color:var(--good);background:rgba(39,203,187,.08)}
+  .result.bad  {border-color:var(--bad);background:rgba(255,107,107,.08)}
+  .result.warn {border-color:var(--warn);background:rgba(255,167,38,.08)}
+  .result h2{margin:0 0 8px;font-size:1.8rem;font-weight:900;letter-spacing:.01em}
+  .result.ok   h2{color:var(--good)}
+  .result.bad  h2{color:var(--bad)}
+  .result.warn h2{color:var(--warn)}
+  .result .row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed rgba(255,255,255,.08);font-size:.95rem}
+  .result .row:last-child{border:0}
+  .result .row .k{color:var(--muted)}
+  .result .row .v{font-weight:700;text-align:right;word-break:break-word}
+  .result code{font-family:ui-monospace,Menlo,monospace;color:var(--accent)}
+
+  .btn{display:block;width:100%;margin-top:14px;padding:14px;border-radius:12px;border:none;
+       font-weight:800;font-size:1rem;cursor:pointer;
+       background:linear-gradient(180deg,var(--accent),var(--accent2));color:#062028}
+  .btn.sec{background:transparent;color:var(--ink);border:1px solid var(--line)}
+  .btn:active{transform:translateY(1px)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🏁 Race-day scanner</h1>
+    <div style="display:flex;gap:8px;align-items:center">
+      <span class="user" id="userEmail"></span>
+      <button id="signOutBtn" class="signout" hidden>Sign out</button>
+    </div>
+  </header>
+
+  <!-- Sign-in -->
+  <div id="loginScreen" class="login">
+    <div class="box">
+      <h2>Sign in to scan</h2>
+      <p>Use one of the approved admin or staff Google accounts.</p>
+      <button id="signInBtn" class="google-btn">
+        <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
+          <path d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84c-.21 1.13-.85 2.08-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z" fill="#4285F4"/>
+          <path d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.83.87-3.04.87-2.34 0-4.32-1.58-5.03-3.71H.96v2.33A8.997 8.997 0 0 0 9 18z" fill="#34A853"/>
+          <path d="M3.97 10.72A5.42 5.42 0 0 1 3.68 9c0-.6.1-1.18.29-1.72V4.95H.96A8.997 8.997 0 0 0 0 9c0 1.45.35 2.83.96 4.05l3.01-2.33z" fill="#FBBC05"/>
+          <path d="M9 3.58c1.32 0 2.51.46 3.44 1.35l2.58-2.58C13.46.89 11.42 0 9 0A8.997 8.997 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z" fill="#EA4335"/>
+        </svg>
+        Sign in with Google
+      </button>
+      <div id="signInError" class="err"></div>
+    </div>
+  </div>
+
+  <!-- Scanner -->
+  <div id="scannerScreen" hidden>
+    <div id="qr-reader"></div>
+    <div class="hint">Point the camera at the runner's QR code (on their phone or printout). Or paste a reference below.</div>
+    <input id="manualRef" type="text" placeholder="Or type a reference, e.g. BTN-2026-AB3K"
+           style="width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--line);background:rgba(0,0,0,.3);color:var(--ink);font:inherit;text-transform:uppercase;letter-spacing:1px">
+    <button id="manualLookup" class="btn sec" style="margin-top:8px">Look up reference</button>
+    <div id="result"></div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
+import {
+  getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult,
+  signOut, onAuthStateChanged, browserLocalPersistence, setPersistence
+} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
+import {
+  getFirestore, collection, query, where, getDocs, doc, updateDoc, serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyChNfEHu5FhaNIe1Y7_Q_SaVSXmfHcfUQA",
+  authDomain: "batroun-race.firebaseapp.com",
+  projectId: "batroun-race",
+  storageBucket: "batroun-race.firebasestorage.app",
+  messagingSenderId: "175612171118",
+  appId: "1:175612171118:web:96fc6e09ec599758f9277f",
+  measurementId: "G-Z3FQ9B2QJZ"
+};
+const ALLOWED_EMAILS = [
+  "raedelkady@gmail.com", "nizarelkady@gmail.com",
+  "mary.bi.mbi@gmail.com", "raedelkady84@gmail.com", "rcasper1184@gmail.com"
+];
+const COMPETITION_ID = "batroun-race-2026";
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+setPersistence(auth, browserLocalPersistence).catch(() => {});
+
+const $ = s => document.querySelector(s);
+let scanner = null;
+
+// Auth
+$("#signInBtn").addEventListener("click", async () => {
+  $("#signInError").textContent = "";
+  try {
+    await signInWithPopup(auth, new GoogleAuthProvider().setCustomParameters({ prompt:"select_account" }));
+  } catch (e) {
+    if (e.code === "auth/popup-blocked" || e.code === "auth/operation-not-supported-in-this-environment") {
+      await signInWithRedirect(auth, new GoogleAuthProvider());
+    } else if (e.code !== "auth/popup-closed-by-user") {
+      $("#signInError").textContent = e.message || "Sign-in failed.";
+    }
+  }
+});
+$("#signOutBtn").addEventListener("click", () => { stopScanner(); signOut(auth); });
+getRedirectResult(auth).catch(() => {});
+
+onAuthStateChanged(auth, user => {
+  if (!user) return showLogin();
+  const email = (user.email || "").toLowerCase();
+  if (!ALLOWED_EMAILS.includes(email)) {
+    $("#signInError").innerHTML = `Access denied for <code>${email}</code>.`;
+    signOut(auth);
+    return;
+  }
+  $("#userEmail").textContent = user.email;
+  $("#signOutBtn").hidden = false;
+  showScanner();
+});
+
+function showLogin() {
+  $("#loginScreen").style.display = "grid";
+  $("#scannerScreen").hidden = true;
+  $("#signOutBtn").hidden = true;
+  stopScanner();
+}
+function showScanner() {
+  $("#loginScreen").style.display = "none";
+  $("#scannerScreen").hidden = false;
+  startScanner();
+}
+
+function startScanner() {
+  if (scanner) return;
+  if (!window.Html5Qrcode) {
+    $("#qr-reader").innerHTML = "<div style='padding:20px;color:#fff'>QR library failed to load. Check your connection.</div>";
+    return;
+  }
+  scanner = new Html5Qrcode("qr-reader");
+  scanner.start(
+    { facingMode: "environment" },
+    { fps: 10, qrbox: { width: 240, height: 240 } },
+    onScanSuccess,
+    () => {} // ignore per-frame decode failures
+  ).catch(err => {
+    console.error(err);
+    $("#qr-reader").innerHTML = `<div style="padding:20px;color:#fff">Couldn't access the camera: ${err.message}<br><br>You can still type the reference manually below.</div>`;
+    scanner = null;
+  });
+}
+function stopScanner() {
+  if (scanner) {
+    scanner.stop().catch(() => {}).finally(() => { scanner = null; });
+  }
+}
+
+async function onScanSuccess(decoded) {
+  if (scanner) { scanner.pause(true); }
+  await lookupAndShow(decoded.trim());
+}
+
+$("#manualLookup").addEventListener("click", () => {
+  const v = $("#manualRef").value.trim().toUpperCase();
+  if (v) lookupAndShow(v);
+});
+
+async function lookupAndShow(ref) {
+  $("#result").innerHTML = `<div class="result"><h2 style="color:var(--muted)">Looking up…</h2><code>${ref}</code></div>`;
+  try {
+    const q = query(
+      collection(db, "competitions", COMPETITION_ID, "registrations"),
+      where("whishReference", "==", ref)
+    );
+    const snap = await getDocs(q);
+    if (snap.empty) {
+      $("#result").innerHTML = `<div class="result bad"><h2>❌ Not found</h2><div class="row"><span class="k">Scanned</span><span class="v"><code>${ref}</code></span></div><div class="row"><span class="k">Status</span><span class="v">No registration matches this code.</span></div></div>`;
+      addRescan();
+      return;
+    }
+    const docSnap = snap.docs[0];
+    const r = { id: docSnap.id, ...docSnap.data() };
+    renderResult(r);
+  } catch (err) {
+    console.error(err);
+    $("#result").innerHTML = `<div class="result bad"><h2>⚠ Error</h2><div class="row"><span class="k">Message</span><span class="v">${err.message}</span></div></div>`;
+    addRescan();
+  }
+}
+
+function renderResult(r) {
+  if (r.deletedAt) {
+    $("#result").innerHTML =
+      `<div class="result bad"><h2>❌ Deleted</h2>
+        <div class="row"><span class="k">Reference</span><span class="v"><code>${r.whishReference}</code></span></div>
+        <div class="row"><span class="k">Status</span><span class="v">This registration was deleted. Refer to admin.</span></div>
+      </div>`;
+    addRescan();
+    return;
+  }
+  const isPaid = r.paymentStatus === "paid" || r.paymentStatus === "free";
+  const alreadyCheckedIn = !!r.checkedInAt;
+  const cls = isPaid ? (alreadyCheckedIn ? "warn" : "ok") : "bad";
+  const headline = !isPaid
+    ? "❌ NOT PAID"
+    : (alreadyCheckedIn ? "⚠ ALREADY CHECKED IN" : "✅ PAID");
+
+  $("#result").innerHTML = `
+    <div class="result ${cls}">
+      <h2>${headline}</h2>
+      <div class="row"><span class="k">Name</span><span class="v">${escapeHtml(r.firstName + " " + r.lastName)}</span></div>
+      <div class="row"><span class="k">Bib</span><span class="v">${r.bibNumber ?? "—"}</span></div>
+      <div class="row"><span class="k">Category</span><span class="v">${escapeHtml(r.categoryName || "")}${r.subQuestionAnswer ? "<br><small>"+escapeHtml(r.subQuestionAnswer)+"</small>" : ""}</span></div>
+      <div class="row"><span class="k">Reference</span><span class="v"><code>${escapeHtml(r.whishReference)}</code></span></div>
+      <div class="row"><span class="k">Payment</span><span class="v">${escapeHtml(r.paymentStatus)}</span></div>
+      ${alreadyCheckedIn ? `<div class="row"><span class="k">Checked in</span><span class="v">${fmtDateTime(r.checkedInAt)}<br><small>by ${escapeHtml(r.checkedInBy||"")}</small></span></div>` : ""}
+      ${isPaid && !alreadyCheckedIn
+        ? `<button class="btn" id="checkInBtn">Mark as checked in → hand out bib</button>` : ""}
+      <button class="btn sec" id="rescanBtn">Scan another</button>
+    </div>
+  `;
+  if (isPaid && !alreadyCheckedIn) {
+    document.getElementById("checkInBtn").onclick = async () => {
+      try {
+        await updateDoc(doc(db, "competitions", COMPETITION_ID, "registrations", r.id), {
+          checkedInAt: serverTimestamp(),
+          checkedInBy: auth.currentUser?.email || "unknown"
+        });
+        renderResult({ ...r, checkedInAt: new Date(), checkedInBy: auth.currentUser?.email });
+      } catch (e) {
+        alert("Check-in failed: " + e.message);
+      }
+    };
+  }
+  document.getElementById("rescanBtn").onclick = rescan;
+}
+
+function addRescan() {
+  const div = document.createElement("button");
+  div.className = "btn sec";
+  div.textContent = "Scan another";
+  div.onclick = rescan;
+  $("#result").appendChild(div);
+}
+
+function rescan() {
+  $("#result").innerHTML = "";
+  $("#manualRef").value = "";
+  if (scanner) scanner.resume();
+  else startScanner();
+}
+
+function fmtDateTime(ts) {
+  if (!ts) return "—";
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  return d.toLocaleString("en-GB", { day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit" });
+}
+function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+</script>
+</body>
+</html>
