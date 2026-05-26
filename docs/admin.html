@@ -149,9 +149,12 @@
   .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
          background:var(--card);border:1px solid var(--accent);color:var(--ink);
          padding:12px 20px;border-radius:10px;z-index:200;box-shadow:0 20px 50px rgba(0,0,0,.5);
-         opacity:0;transition:opacity .25s,transform .25s;pointer-events:none}
-  .toast.show{opacity:1;transform:translateX(-50%) translateY(-6px)}
+         opacity:0;transition:opacity .25s,transform .25s;pointer-events:none;
+         display:flex;align-items:center;gap:12px;max-width:90vw}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(-6px);pointer-events:auto}
   .toast.err{border-color:var(--danger)}
+  .toast.undo{border-color:var(--warn,#ffa726)}
+  .toast button{flex:0 0 auto}
 </style>
 </head>
 <body>
@@ -537,10 +540,69 @@ const $$ = s => document.querySelectorAll(s);
 
 function toast(msg, err = false) {
   const t = $("#toast");
+  // Cancel any pending undo so this fresh toast isn't immediately overwritten
+  if (window._pendingUndo) {
+    window._pendingUndo.commitNow();
+    window._pendingUndo = null;
+  }
+  t.classList.remove("undo");
   t.textContent = msg;
   t.classList.toggle("err", err);
   t.classList.add("show");
-  setTimeout(() => t.classList.remove("show"), 2400);
+  clearTimeout(t._hideId);
+  t._hideId = setTimeout(() => t.classList.remove("show"), 2400);
+}
+
+// Pop a toast with an Undo button and a countdown. After `durationMs` it
+// auto-commits (calls onConfirm). If the user clicks Undo first, onUndo
+// fires instead and onConfirm is skipped.
+function undoableAction({ message, durationMs = 10000, onConfirm, onUndo }) {
+  const t = $("#toast");
+  // If a previous undo is still live, commit it first so we don't lose work
+  if (window._pendingUndo) window._pendingUndo.commitNow();
+
+  let secondsLeft = Math.ceil(durationMs / 1000);
+  let cancelled = false;
+  let timerId = null, countdownId = null;
+
+  const cleanup = () => {
+    clearTimeout(timerId);
+    clearInterval(countdownId);
+    t.classList.remove("show", "undo");
+    t.innerHTML = "";
+    window._pendingUndo = null;
+  };
+
+  const commitNow = async () => {
+    if (cancelled) { cleanup(); return; }
+    cleanup();
+    try { await onConfirm?.(); } catch (e) { console.error(e); }
+  };
+
+  const render = () => {
+    t.innerHTML =
+      `<span>${message} <span style="opacity:.7">— ${secondsLeft}s</span></span>` +
+      `<button type="button" id="__undoBtn" class="btn tiny sec">Undo</button>`;
+    document.getElementById("__undoBtn").onclick = () => {
+      cancelled = true;
+      cleanup();
+      try { onUndo?.(); } catch (e) { console.error(e); }
+    };
+  };
+
+  render();
+  t.classList.add("show", "undo");
+  clearTimeout(t._hideId);
+
+  countdownId = setInterval(() => {
+    if (cancelled) return;
+    secondsLeft--;
+    if (secondsLeft >= 0) render();
+  }, 1000);
+
+  timerId = setTimeout(() => { if (!cancelled) commitNow(); }, durationMs);
+
+  window._pendingUndo = { commitNow };
 }
 
 function openModal(html) {
