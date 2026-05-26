@@ -90,6 +90,9 @@ Currently hardcoded as `2026-11-22` in `index.html` (`RACE_DAY` constant). Move 
 - **Never edit JS via Python scripts that use string manipulation** — splits regex literals on `/`, doubles `const`, breaks template literals. If automating JS edits, run `node --check file.js` after every change.
 - **Avoid template literals in any JS string that gets generated via Python f-strings or regex replacement.**
 - **Firebase Auth `signInWithRedirect` is preferred over `signInWithPopup`** on mobile (popups get blocked). Café Molière learned this.
+- **Admin must be opened in Chrome.** Microsoft Edge's tracking prevention silently blocks Firebase Auth's cross-origin token handoff between `relkady84.github.io` and `batroun-race.firebaseapp.com`, so `getRedirectResult` resolves to `null` and `onAuthStateChanged` fires with `user=null`. Public page is unaffected. Don't waste time debugging admin sign-in until the user confirms which browser they're in.
+- **Firebase Storage requires the Blaze plan** (paid). The user is on the free Spark plan — admin image uploads use client-side canvas resize + base64 stored on the theme doc instead. Don't add Storage SDK usage without confirming an upgrade.
+- **Firestore `onSnapshot` fires twice on initial load** (cache then server). Any editor that populates inputs from a listener needs a "dirty" flag, or user-typed values get wiped between keystrokes and Save. The Competition tab in admin already does this — copy that pattern for any new editor.
 - **Disable App Check** during development; it blocks Firestore writes from localhost in confusing ways.
 - **GitHub Pages cache is aggressive.** Hard reload (`Cmd+Shift+R`) after pushing or you'll think your fix didn't work.
 
