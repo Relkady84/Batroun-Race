@@ -47,8 +47,14 @@
   header.bar{position:sticky;top:0;z-index:5;display:flex;justify-content:space-between;align-items:center;
              padding:12px 20px;background:rgba(10,22,40,.92);backdrop-filter:blur(8px);
              border-bottom:1px solid var(--line)}
-  header.bar .brand{font-weight:900;font-size:1.1rem}
+  header.bar .brand{font-weight:900;font-size:1.1rem;display:flex;align-items:center}
   header.bar .brand span{color:var(--accent)}
+  header.bar .brand .brand-gradient{
+    background:linear-gradient(180deg, #ffffff 0%, #d8efea 70%, var(--accent) 100%);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    font-weight:900;letter-spacing:-.01em;
+    font-size:clamp(18px,2.5vw,26px);
+  }
   header.bar .user{display:flex;align-items:center;gap:12px;font-size:.9rem;color:var(--muted)}
   .signout{background:transparent;color:var(--ink);border:1px solid var(--line);
            border-radius:8px;padding:6px 12px;font-size:.85rem}
@@ -184,7 +190,7 @@
 <div id="adminApp" hidden>
   <header class="bar">
     <div class="brand">
-      <img id="brandLogoImg" alt="" style="display:none;height:32px;width:auto;margin-right:10px;vertical-align:middle">
+      <img id="brandLogoImg" alt="" style="display:none;height:56px;width:auto;margin-right:14px;vertical-align:middle">
       <span id="brandLogoText">🏃 Batroun Race <span style="color:var(--accent)">Admin</span></span>
     </div>
     <div class="user">
@@ -1707,10 +1713,10 @@ function applyAdminLogo(url) {
   const txt = $("#brandLogoText");
   if (url) {
     img.src = url; img.style.display = "";
-    txt.innerHTML = '<span style="color:var(--accent);font-weight:800">Admin</span>';
+    txt.innerHTML = '<span class="brand-gradient">Batroun Race Admin</span>';
   } else {
     img.style.display = "none";
-    txt.innerHTML = '🏃 Batroun Race <span style="color:var(--accent)">Admin</span>';
+    txt.innerHTML = '🏃 <span class="brand-gradient">Batroun Race Admin</span>';
   }
 }
 
