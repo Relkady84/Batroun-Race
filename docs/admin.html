@@ -488,7 +488,11 @@ const firebaseConfig = {
 };
 
 const ADMIN_EMAILS  = ["raedelkady@gmail.com", "nizarelkady@gmail.com"];
-const VIEWER_EMAILS = ["mary.bi.mbi@gmail.com", "raedelkady84@gmail.com"];
+const VIEWER_EMAILS = [
+  "mary.bi.mbi@gmail.com",
+  "raedelkady84@gmail.com",
+  "rcasper1184@gmail.com"
+];
 const ALLOWED_EMAILS = [...ADMIN_EMAILS, ...VIEWER_EMAILS];
 let userRole = "guest"; // 'admin' | 'viewer'
 const COMPETITION_ID = "batroun-race-2026";
@@ -1019,8 +1023,9 @@ function renderRegTable() {
       <td class="col-registeredAt">${fmtDate(r.registeredAt)}</td>
       <td class="actions">
         <button class="btn tiny sec" data-act="view" data-id="${r.id}">View</button>
-        ${(r.paymentStatus === "pending" && userRole === "admin")
+        ${r.paymentStatus === "pending"
           ? `<button class="btn tiny" data-act="pay" data-id="${r.id}">Confirm pay</button>` : ""}
+        <button class="btn tiny danger" data-act="del" data-id="${r.id}" title="Delete (spam)">Delete</button>
       </td>
     </tr>
   `).join("");
@@ -1030,6 +1035,7 @@ function renderRegTable() {
     b.addEventListener("click", () => {
       const r = regs.find(x => x.id === b.dataset.id);
       if (!r) return;
+      if (b.dataset.act === "del")  return deleteRegistration(r);
       if (b.dataset.act === "view") openRegDetails(r);
       if (b.dataset.act === "pay") openConfirmPay(r);
     });
@@ -1068,6 +1074,25 @@ function openRegDetails(r) {
       <button class="btn sec" onclick="document.getElementById('modalBg').classList.remove('open')">Close</button>
     </div>
   `);
+}
+
+async function deleteRegistration(r) {
+  const name = `${r.firstName || ""} ${r.lastName || ""}`.trim() || "(no name)";
+  const msg =
+    `Permanently delete this registration?\n\n` +
+    `  ${name}\n` +
+    `  ${r.email  || "—"}\n` +
+    `  ${r.phone  || "—"}\n` +
+    `  Ref: ${r.whishReference || "—"}\n\n` +
+    `Use this for spam / accidental entries. This CANNOT be undone.`;
+  if (!confirm(msg)) return;
+  try {
+    await deleteDoc(doc(db, "competitions", COMPETITION_ID, "registrations", r.id));
+    toast("Registration deleted");
+  } catch (e) {
+    console.error(e);
+    toast(e.message || "Delete failed", true);
+  }
 }
 
 function openConfirmPay(r) {
