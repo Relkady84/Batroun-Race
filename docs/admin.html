@@ -186,6 +186,7 @@
 
   <nav class="tabs">
     <button data-tab="registrations" class="active">Registrations</button>
+    <button data-tab="dashboard">Dashboard</button>
     <button data-tab="categories">Categories</button>
     <button data-tab="formFields">Form fields</button>
     <button data-tab="theme">Theme &amp; copy</button>
@@ -199,20 +200,40 @@
       <div class="stats" id="statsGrid"></div>
 
       <div class="card">
-        <div class="filters-grid">
-          <input type="search" id="searchInput" placeholder="Search anything…">
-          <input type="text"   id="filterFirst" placeholder="First name">
-          <input type="text"   id="filterLast"  placeholder="Last name">
-          <input type="number" id="filterAgeMin" placeholder="Age ≥">
-          <input type="number" id="filterAgeMax" placeholder="Age ≤">
-          <select id="filterCategory"><option value="">All categories</option></select>
-          <select id="filterSubCategory"><option value="">All sub-categories</option></select>
-          <select id="filterStatus">
+        <div class="filters-grid" id="filtersBar">
+          <input type="search" data-filter-id="search"      id="searchInput"     placeholder="Search anything…">
+          <input type="text"   data-filter-id="firstName"   id="filterFirst"     placeholder="First name">
+          <input type="text"   data-filter-id="lastName"    id="filterLast"      placeholder="Last name">
+          <input type="text"   data-filter-id="email"       id="filterEmail"     placeholder="Email">
+          <input type="text"   data-filter-id="phone"       id="filterPhone"     placeholder="Phone">
+          <input type="text"   data-filter-id="city"        id="filterCity"      placeholder="City">
+          <input type="text"   data-filter-id="club"        id="filterClub"      placeholder="Club">
+          <input type="text"   data-filter-id="nationality" id="filterNat"       placeholder="Nationality">
+          <input type="number" data-filter-id="ageMin"      id="filterAgeMin"    placeholder="Age ≥">
+          <input type="number" data-filter-id="ageMax"      id="filterAgeMax"    placeholder="Age ≤">
+          <select data-filter-id="category"     id="filterCategory"><option value="">All categories</option></select>
+          <select data-filter-id="subCategory"  id="filterSubCategory"><option value="">All sub-categories</option></select>
+          <select data-filter-id="gender"       id="filterGender">
+            <option value="">Any gender</option>
+            <option>Female</option><option>Male</option>
+            <option>Non-binary</option><option>Prefer not to say</option>
+          </select>
+          <select data-filter-id="tshirt"       id="filterTshirt">
+            <option value="">Any T-shirt</option>
+            <option>XS</option><option>S</option><option>M</option>
+            <option>L</option><option>XL</option><option>XXL</option>
+          </select>
+          <select data-filter-id="status"       id="filterStatus">
             <option value="">All statuses</option>
             <option value="pending">Pending</option>
             <option value="paid">Paid</option>
             <option value="free">Free</option>
             <option value="refunded">Refunded</option>
+          </select>
+          <select data-filter-id="paymentMethod" id="filterPaymentMethod">
+            <option value="">Any method</option>
+            <option value="manual">Manual</option>
+            <option value="free">Free</option>
           </select>
           <button id="exportCsvBtn" class="btn sec">Export CSV</button>
           <button id="clearFiltersBtn" class="btn sec">Clear filters</button>
@@ -221,20 +242,49 @@
         <div class="table-wrap">
           <table id="regTable">
             <thead><tr>
-              <th class="sortable" data-sort="whishReference">Ref</th>
-              <th class="sortable" data-sort="firstName">First name</th>
-              <th class="sortable" data-sort="lastName">Last name</th>
-              <th class="sortable" data-sort="categoryName">Category</th>
-              <th class="sortable" data-sort="subQuestionAnswer">Sub-category</th>
-              <th class="sortable" data-sort="ageOnRaceDay">Age</th>
-              <th class="sortable" data-sort="priceUSD">Price</th>
-              <th class="sortable" data-sort="paymentStatus">Status</th>
-              <th class="sortable" data-sort="bibNumber">Bib</th>
-              <th class="sortable" data-sort="registeredAt">Date</th>
+              <th class="sortable col-whishReference"    data-sort="whishReference">Ref</th>
+              <th class="sortable col-firstName"         data-sort="firstName">First name</th>
+              <th class="sortable col-lastName"          data-sort="lastName">Last name</th>
+              <th class="sortable col-email"             data-sort="email">Email</th>
+              <th class="sortable col-phone"             data-sort="phone">Phone</th>
+              <th class="sortable col-categoryName"      data-sort="categoryName">Category</th>
+              <th class="sortable col-subQuestionAnswer" data-sort="subQuestionAnswer">Sub-category</th>
+              <th class="sortable col-ageOnRaceDay"      data-sort="ageOnRaceDay">Age</th>
+              <th class="sortable col-gender"            data-sort="gender">Gender</th>
+              <th class="sortable col-tshirtSize"        data-sort="tshirtSize">T-shirt</th>
+              <th class="sortable col-club"              data-sort="club">Club</th>
+              <th class="sortable col-city"              data-sort="city">City</th>
+              <th class="sortable col-priceUSD"          data-sort="priceUSD">Price</th>
+              <th class="sortable col-paymentStatus"     data-sort="paymentStatus">Status</th>
+              <th class="sortable col-paymentMethod"     data-sort="paymentMethod">Method</th>
+              <th class="sortable col-bibNumber"         data-sort="bibNumber">Bib</th>
+              <th class="sortable col-registeredAt"      data-sort="registeredAt">Date</th>
               <th></th>
             </tr></thead>
-            <tbody><tr><td colspan="11" class="empty">Loading…</td></tr></tbody>
+            <tbody><tr><td colspan="18" class="empty">Loading…</td></tr></tbody>
           </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ Dashboard customization ============ -->
+    <section id="tab-dashboard" class="tab">
+      <div class="card">
+        <h2>Customize the Registrations dashboard</h2>
+        <p class="muted" style="margin:0 0 14px">Pick which filter inputs and table columns are visible. Preferences are saved in this browser only.</p>
+        <div class="row two">
+          <div>
+            <h3 style="margin:0 0 10px;font-size:.95rem;color:var(--accent)">Filter inputs</h3>
+            <div id="prefFilters" style="display:grid;gap:6px"></div>
+          </div>
+          <div>
+            <h3 style="margin:0 0 10px;font-size:.95rem;color:var(--accent)">Table columns</h3>
+            <div id="prefColumns" style="display:grid;gap:6px"></div>
+          </div>
+        </div>
+        <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
+          <button id="prefsSaveBtn" class="btn">Save preferences</button>
+          <button id="prefsResetBtn" class="btn sec">Reset to defaults</button>
         </div>
       </div>
     </section>
@@ -558,6 +608,7 @@ function showApp(user) {
   $("#loginScreen").style.display = "none";
   $("#adminApp").hidden = false;
   $("#userEmail").textContent = user.email;
+  applyPrefs(); // apply saved dashboard preferences once UI is visible
   startListeners();
 }
 
@@ -645,18 +696,134 @@ function renderStats() {
 // ===== Registrations: filter + sort + table =====
 const sortState = { key: "registeredAt", dir: "desc" };
 
-["searchInput","filterFirst","filterLast","filterAgeMin","filterAgeMax"].forEach(id => {
-  $("#"+id).addEventListener("input", renderRegTable);
-});
-["filterCategory","filterSubCategory","filterStatus"].forEach(id => {
-  $("#"+id).addEventListener("change", renderRegTable);
+// ---- Dashboard preferences (which filters / columns are visible) ----
+const DASHBOARD_FILTERS = [
+  { id:"search",        label:"Search box (all fields)" },
+  { id:"firstName",     label:"First name" },
+  { id:"lastName",      label:"Last name" },
+  { id:"email",         label:"Email" },
+  { id:"phone",         label:"Phone" },
+  { id:"city",          label:"City" },
+  { id:"club",          label:"Club" },
+  { id:"nationality",   label:"Nationality" },
+  { id:"ageMin",        label:"Age min (≥)" },
+  { id:"ageMax",        label:"Age max (≤)" },
+  { id:"category",      label:"Category dropdown" },
+  { id:"subCategory",   label:"Sub-category dropdown" },
+  { id:"gender",        label:"Gender" },
+  { id:"tshirt",        label:"T-shirt size" },
+  { id:"status",        label:"Status" },
+  { id:"paymentMethod", label:"Payment method" }
+];
+const DASHBOARD_COLUMNS = [
+  { key:"whishReference",    label:"Reference" },
+  { key:"firstName",         label:"First name" },
+  { key:"lastName",          label:"Last name" },
+  { key:"email",             label:"Email" },
+  { key:"phone",             label:"Phone" },
+  { key:"categoryName",      label:"Category" },
+  { key:"subQuestionAnswer", label:"Sub-category" },
+  { key:"ageOnRaceDay",      label:"Age" },
+  { key:"gender",            label:"Gender" },
+  { key:"tshirtSize",        label:"T-shirt" },
+  { key:"club",              label:"Club" },
+  { key:"city",              label:"City" },
+  { key:"priceUSD",          label:"Price" },
+  { key:"paymentStatus",     label:"Status" },
+  { key:"paymentMethod",     label:"Method" },
+  { key:"bibNumber",         label:"Bib" },
+  { key:"registeredAt",      label:"Date" }
+];
+const DEFAULT_PREFS = {
+  filters: { search:true, firstName:true, lastName:true, ageMin:true, ageMax:true,
+             category:true, subCategory:true, status:true,
+             email:false, phone:false, city:false, club:false, nationality:false,
+             gender:false, tshirt:false, paymentMethod:false },
+  columns: { whishReference:true, firstName:true, lastName:true, categoryName:true,
+             subQuestionAnswer:true, ageOnRaceDay:true, priceUSD:true,
+             paymentStatus:true, bibNumber:true, registeredAt:true,
+             email:false, phone:false, gender:false, tshirtSize:false,
+             club:false, city:false, paymentMethod:false }
+};
+const PREFS_KEY = "br-dashboard-prefs-v1";
+
+function loadPrefs() {
+  try {
+    const raw = localStorage.getItem(PREFS_KEY);
+    if (!raw) return structuredClone(DEFAULT_PREFS);
+    const p = JSON.parse(raw);
+    return {
+      filters: { ...DEFAULT_PREFS.filters, ...(p.filters || {}) },
+      columns: { ...DEFAULT_PREFS.columns, ...(p.columns || {}) }
+    };
+  } catch { return structuredClone(DEFAULT_PREFS); }
+}
+let prefs = loadPrefs();
+
+function applyPrefs() {
+  // Show/hide filter inputs
+  document.querySelectorAll('[data-filter-id]').forEach(el => {
+    el.style.display = prefs.filters[el.dataset.filterId] ? "" : "none";
+  });
+  // Show/hide table columns
+  DASHBOARD_COLUMNS.forEach(c => {
+    document.querySelectorAll('.col-' + c.key).forEach(el => {
+      el.style.display = prefs.columns[c.key] ? "" : "none";
+    });
+  });
+}
+
+function renderPrefsEditor() {
+  const ff = $("#prefFilters");
+  ff.innerHTML = DASHBOARD_FILTERS.map(f => `
+    <label class="inline" style="display:flex;align-items:center;gap:8px;cursor:pointer">
+      <input type="checkbox" data-pref="filter" data-key="${f.id}" ${prefs.filters[f.id] ? "checked" : ""}>
+      <span>${f.label}</span>
+    </label>
+  `).join("");
+  const cc = $("#prefColumns");
+  cc.innerHTML = DASHBOARD_COLUMNS.map(c => `
+    <label class="inline" style="display:flex;align-items:center;gap:8px;cursor:pointer">
+      <input type="checkbox" data-pref="column" data-key="${c.key}" ${prefs.columns[c.key] ? "checked" : ""}>
+      <span>${c.label}</span>
+    </label>
+  `).join("");
+}
+renderPrefsEditor();
+
+$("#prefsSaveBtn").addEventListener("click", () => {
+  document.querySelectorAll('[data-pref="filter"]').forEach(cb => {
+    prefs.filters[cb.dataset.key] = cb.checked;
+  });
+  document.querySelectorAll('[data-pref="column"]').forEach(cb => {
+    prefs.columns[cb.dataset.key] = cb.checked;
+  });
+  localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+  applyPrefs();
+  renderRegTable();
+  toast("Dashboard preferences saved");
 });
 
+$("#prefsResetBtn").addEventListener("click", () => {
+  if (!confirm("Reset dashboard preferences to defaults?")) return;
+  prefs = structuredClone(DEFAULT_PREFS);
+  localStorage.removeItem(PREFS_KEY);
+  renderPrefsEditor();
+  applyPrefs();
+  renderRegTable();
+  toast("Dashboard reset to defaults");
+});
+
+// Wire all filter inputs (visibility handled separately via prefs)
+["searchInput","filterFirst","filterLast","filterEmail","filterPhone","filterCity","filterClub","filterNat","filterAgeMin","filterAgeMax"]
+  .forEach(id => { const el = $("#"+id); if (el) el.addEventListener("input", renderRegTable); });
+["filterCategory","filterSubCategory","filterGender","filterTshirt","filterStatus","filterPaymentMethod"]
+  .forEach(id => { const el = $("#"+id); if (el) el.addEventListener("change", renderRegTable); });
+
 $("#clearFiltersBtn").addEventListener("click", () => {
-  ["searchInput","filterFirst","filterLast","filterAgeMin","filterAgeMax"]
-    .forEach(id => $("#"+id).value = "");
-  ["filterCategory","filterSubCategory","filterStatus"]
-    .forEach(id => $("#"+id).value = "");
+  document.querySelectorAll('[data-filter-id]').forEach(el => {
+    if (el.tagName === "INPUT" || el.tagName === "SELECT") el.value = "";
+  });
   renderRegTable();
 });
 
@@ -720,29 +887,49 @@ function renderSubCategoryFilter() {
   sel.value = current;
 }
 
+function _val(id) { const el = $("#"+id); return el ? el.value : ""; }
+function _activeFilter(filterId) { return prefs.filters[filterId]; } // ignored filters don't apply
+
 function filteredRegs() {
-  const q  = $("#searchInput").value.trim().toLowerCase();
-  const fn = $("#filterFirst").value.trim().toLowerCase();
-  const ln = $("#filterLast").value.trim().toLowerCase();
-  const ageMinRaw = $("#filterAgeMin").value;
-  const ageMaxRaw = $("#filterAgeMax").value;
+  const q   = _val("searchInput").trim().toLowerCase();
+  const fn  = _val("filterFirst").trim().toLowerCase();
+  const ln  = _val("filterLast").trim().toLowerCase();
+  const em  = _val("filterEmail").trim().toLowerCase();
+  const ph  = _val("filterPhone").trim().toLowerCase();
+  const ci  = _val("filterCity").trim().toLowerCase();
+  const cl  = _val("filterClub").trim().toLowerCase();
+  const nt  = _val("filterNat").trim().toLowerCase();
+  const ageMinRaw = _val("filterAgeMin");
+  const ageMaxRaw = _val("filterAgeMax");
   const ageMin = ageMinRaw === "" ? null : parseInt(ageMinRaw, 10);
   const ageMax = ageMaxRaw === "" ? null : parseInt(ageMaxRaw, 10);
-  const cat    = $("#filterCategory").value;
-  const sub    = $("#filterSubCategory").value;
-  const status = $("#filterStatus").value;
+  const cat = _val("filterCategory");
+  const sub = _val("filterSubCategory");
+  const gen = _val("filterGender");
+  const ts  = _val("filterTshirt");
+  const st  = _val("filterStatus");
+  const pm  = _val("filterPaymentMethod");
 
   return regs.filter(r => {
-    if (cat && r.categoryId !== cat) return false;
-    if (sub && r.subQuestionAnswer !== sub) return false;
-    if (status && r.paymentStatus !== status) return false;
-    if (fn && !(r.firstName || "").toLowerCase().includes(fn)) return false;
-    if (ln && !(r.lastName  || "").toLowerCase().includes(ln)) return false;
+    if (_activeFilter("category")     && cat && r.categoryId        !== cat) return false;
+    if (_activeFilter("subCategory")  && sub && r.subQuestionAnswer !== sub) return false;
+    if (_activeFilter("status")       && st  && r.paymentStatus     !== st)  return false;
+    if (_activeFilter("gender")       && gen && r.gender            !== gen) return false;
+    if (_activeFilter("tshirt")       && ts  && r.tshirtSize        !== ts)  return false;
+    if (_activeFilter("paymentMethod")&& pm  && r.paymentMethod     !== pm)  return false;
+    if (_activeFilter("firstName")   && fn && !(r.firstName  || "").toLowerCase().includes(fn)) return false;
+    if (_activeFilter("lastName")    && ln && !(r.lastName   || "").toLowerCase().includes(ln)) return false;
+    if (_activeFilter("email")       && em && !(r.email      || "").toLowerCase().includes(em)) return false;
+    if (_activeFilter("phone")       && ph && !(r.phone      || "").toLowerCase().includes(ph)) return false;
+    if (_activeFilter("city")        && ci && !((r.city||"")).toLowerCase().includes(ci))      return false;
+    if (_activeFilter("club")        && cl && !((r.club||"")).toLowerCase().includes(cl))      return false;
+    if (_activeFilter("nationality") && nt && !((r.nationality||"")).toLowerCase().includes(nt)) return false;
     const age = r.ageOnRaceDay;
-    if (ageMin !== null && (age == null || age < ageMin)) return false;
-    if (ageMax !== null && (age == null || age > ageMax)) return false;
-    if (q) {
-      const hay = [r.firstName, r.lastName, r.email, r.phone, r.whishReference, r.subQuestionAnswer]
+    if (_activeFilter("ageMin") && ageMin !== null && (age == null || age < ageMin)) return false;
+    if (_activeFilter("ageMax") && ageMax !== null && (age == null || age > ageMax)) return false;
+    if (_activeFilter("search") && q) {
+      const hay = [r.firstName, r.lastName, r.email, r.phone, r.whishReference,
+                   r.subQuestionAnswer, r.city, r.club, r.nationality]
         .map(x => (x||"").toLowerCase()).join(" ");
       if (!hay.includes(q)) return false;
     }
@@ -761,16 +948,23 @@ function renderRegTable() {
   }
   tbody.innerHTML = rows.map(r => `
     <tr>
-      <td><code>${escapeHtml(r.whishReference || "—")}</code></td>
-      <td>${escapeHtml(r.firstName)}</td>
-      <td>${escapeHtml(r.lastName)}</td>
-      <td>${escapeHtml(r.categoryName || r.categoryId || "—")}</td>
-      <td>${escapeHtml(r.subQuestionAnswer || "—")}</td>
-      <td>${r.ageOnRaceDay ?? "—"}</td>
-      <td>${fmtMoney(r.priceUSD || 0)}</td>
-      <td><span class="pill ${r.paymentStatus}">${r.paymentStatus}</span></td>
-      <td>${r.bibNumber ?? "—"}</td>
-      <td>${fmtDate(r.registeredAt)}</td>
+      <td class="col-whishReference"><code>${escapeHtml(r.whishReference || "—")}</code></td>
+      <td class="col-firstName">${escapeHtml(r.firstName)}</td>
+      <td class="col-lastName">${escapeHtml(r.lastName)}</td>
+      <td class="col-email">${escapeHtml(r.email || "—")}</td>
+      <td class="col-phone">${escapeHtml(r.phone || "—")}</td>
+      <td class="col-categoryName">${escapeHtml(r.categoryName || r.categoryId || "—")}</td>
+      <td class="col-subQuestionAnswer">${escapeHtml(r.subQuestionAnswer || "—")}</td>
+      <td class="col-ageOnRaceDay">${r.ageOnRaceDay ?? "—"}</td>
+      <td class="col-gender">${escapeHtml(r.gender || "—")}</td>
+      <td class="col-tshirtSize">${escapeHtml(r.tshirtSize || "—")}</td>
+      <td class="col-club">${escapeHtml(r.club || "—")}</td>
+      <td class="col-city">${escapeHtml(r.city || "—")}</td>
+      <td class="col-priceUSD">${fmtMoney(r.priceUSD || 0)}</td>
+      <td class="col-paymentStatus"><span class="pill ${r.paymentStatus}">${r.paymentStatus}</span></td>
+      <td class="col-paymentMethod">${escapeHtml(r.paymentMethod || "—")}</td>
+      <td class="col-bibNumber">${r.bibNumber ?? "—"}</td>
+      <td class="col-registeredAt">${fmtDate(r.registeredAt)}</td>
       <td class="actions">
         <button class="btn tiny sec" data-act="view" data-id="${r.id}">View</button>
         ${r.paymentStatus === "pending"
@@ -778,6 +972,7 @@ function renderRegTable() {
       </td>
     </tr>
   `).join("");
+  applyPrefs(); // re-hide any disabled columns in the newly-rendered cells
 
   tbody.querySelectorAll('button[data-act]').forEach(b => {
     b.addEventListener("click", () => {
