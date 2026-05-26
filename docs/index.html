@@ -902,14 +902,14 @@ function applyTheme(t) {
   if (t.bg1)      root.setProperty("--bg1", t.bg1);
   if (t.bg2)      root.setProperty("--bg2", t.bg2);
 
-  // Default to the Batroun Race photo if no bgImage is explicitly set in Firestore.
-  // An explicit empty string ("") means "no background image" — respect that.
-  const bg = (t.bgImage === "" ? null : (t.bgImage || DEFAULT_BG_IMAGE));
+  // No automatic default photo — the page is clean unless the admin uploads one.
+  const bg = t.bgImage || null;
   if (bg) {
     root.setProperty("--bg-image", `url("${bg}")`);
     document.body.classList.add("has-bg-image");
   } else {
     document.body.classList.remove("has-bg-image");
+    root.removeProperty("--bg-image");
   }
 
   if (t.heading)  document.getElementById("reg-heading").textContent = t.heading;
