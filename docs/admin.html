@@ -113,6 +113,19 @@
   .filters{display:grid;grid-template-columns:1fr 180px 180px 180px;gap:10px;margin-bottom:14px}
   @media (max-width:800px){.filters{grid-template-columns:1fr}}
 
+  /* New compact filter grid for the registrations tab */
+  .filters-grid{display:grid;gap:8px;margin-bottom:14px;
+    grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+  .filters-grid input,.filters-grid select{padding:8px 10px;font-size:.92rem}
+  .filters-grid button{padding:8px 12px;font-size:.92rem;white-space:nowrap}
+
+  /* Sortable column headers */
+  th.sortable{cursor:pointer;user-select:none;position:relative;padding-right:18px}
+  th.sortable:hover{background:rgba(255,255,255,.06);color:var(--ink)}
+  th.sortable::after{content:" ⇅";opacity:.35;position:absolute;right:6px}
+  th.sortable.sorted-asc::after{content:" ↑";opacity:1;color:var(--accent)}
+  th.sortable.sorted-desc::after{content:" ↓";opacity:1;color:var(--accent)}
+
   /* Modal */
   .modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:100;
             place-items:center;padding:20px}
@@ -186,9 +199,14 @@
       <div class="stats" id="statsGrid"></div>
 
       <div class="card">
-        <div class="filters">
-          <input type="search" id="searchInput" placeholder="Search name, email, phone, reference…">
+        <div class="filters-grid">
+          <input type="search" id="searchInput" placeholder="Search anything…">
+          <input type="text"   id="filterFirst" placeholder="First name">
+          <input type="text"   id="filterLast"  placeholder="Last name">
+          <input type="number" id="filterAgeMin" placeholder="Age ≥">
+          <input type="number" id="filterAgeMax" placeholder="Age ≤">
           <select id="filterCategory"><option value="">All categories</option></select>
+          <select id="filterSubCategory"><option value="">All sub-categories</option></select>
           <select id="filterStatus">
             <option value="">All statuses</option>
             <option value="pending">Pending</option>
@@ -197,15 +215,25 @@
             <option value="refunded">Refunded</option>
           </select>
           <button id="exportCsvBtn" class="btn sec">Export CSV</button>
+          <button id="clearFiltersBtn" class="btn sec">Clear filters</button>
         </div>
 
         <div class="table-wrap">
           <table id="regTable">
             <thead><tr>
-              <th>Ref</th><th>Name</th><th>Category</th>
-              <th>Price</th><th>Status</th><th>Bib</th><th>Date</th><th></th>
+              <th class="sortable" data-sort="whishReference">Ref</th>
+              <th class="sortable" data-sort="firstName">First name</th>
+              <th class="sortable" data-sort="lastName">Last name</th>
+              <th class="sortable" data-sort="categoryName">Category</th>
+              <th class="sortable" data-sort="subQuestionAnswer">Sub-category</th>
+              <th class="sortable" data-sort="ageOnRaceDay">Age</th>
+              <th class="sortable" data-sort="priceUSD">Price</th>
+              <th class="sortable" data-sort="paymentStatus">Status</th>
+              <th class="sortable" data-sort="bibNumber">Bib</th>
+              <th class="sortable" data-sort="registeredAt">Date</th>
+              <th></th>
             </tr></thead>
-            <tbody><tr><td colspan="9" class="empty">Loading…</td></tr></tbody>
+            <tbody><tr><td colspan="11" class="empty">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -614,10 +642,66 @@ function renderStats() {
   `;
 }
 
-// ===== Registrations: filter + table =====
-$("#searchInput").addEventListener("input", renderRegTable);
-$("#filterCategory").addEventListener("change", renderRegTable);
-$("#filterStatus").addEventListener("change", renderRegTable);
+// ===== Registrations: filter + sort + table =====
+const sortState = { key: "registeredAt", dir: "desc" };
+
+["searchInput","filterFirst","filterLast","filterAgeMin","filterAgeMax"].forEach(id => {
+  $("#"+id).addEventListener("input", renderRegTable);
+});
+["filterCategory","filterSubCategory","filterStatus"].forEach(id => {
+  $("#"+id).addEventListener("change", renderRegTable);
+});
+
+$("#clearFiltersBtn").addEventListener("click", () => {
+  ["searchInput","filterFirst","filterLast","filterAgeMin","filterAgeMax"]
+    .forEach(id => $("#"+id).value = "");
+  ["filterCategory","filterSubCategory","filterStatus"]
+    .forEach(id => $("#"+id).value = "");
+  renderRegTable();
+});
+
+// Wire sortable column clicks (delegated to thead)
+document.querySelectorAll('#regTable thead th.sortable').forEach(th => {
+  th.addEventListener("click", () => {
+    const key = th.dataset.sort;
+    if (sortState.key === key) {
+      sortState.dir = sortState.dir === "asc" ? "desc" : "asc";
+    } else {
+      sortState.key = key;
+      sortState.dir = "asc";
+    }
+    renderRegTable();
+  });
+});
+
+function applySortIndicators() {
+  document.querySelectorAll('#regTable th.sortable').forEach(th => {
+    th.classList.remove("sorted-asc", "sorted-desc");
+    if (th.dataset.sort === sortState.key) {
+      th.classList.add(sortState.dir === "asc" ? "sorted-asc" : "sorted-desc");
+    }
+  });
+}
+
+function applySort(rows) {
+  if (!sortState.key) return rows;
+  const k = sortState.key;
+  const dir = sortState.dir === "asc" ? 1 : -1;
+  return [...rows].sort((a, b) => {
+    let av = a[k], bv = b[k];
+    if (av?.toDate) av = av.toDate().getTime();
+    if (bv?.toDate) bv = bv.toDate().getTime();
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1;
+    if (bv == null) return -1;
+    if (typeof av === "string" && typeof bv === "string") {
+      return dir * av.localeCompare(bv, undefined, { sensitivity: "base" });
+    }
+    if (av < bv) return -1 * dir;
+    if (av > bv) return  1 * dir;
+    return 0;
+  });
+}
 
 function renderCategoryFilter() {
   const sel = $("#filterCategory");
@@ -627,15 +711,38 @@ function renderCategoryFilter() {
   sel.value = current;
 }
 
+function renderSubCategoryFilter() {
+  const sel = $("#filterSubCategory");
+  const current = sel.value;
+  const unique = [...new Set(regs.map(r => r.subQuestionAnswer).filter(Boolean))].sort();
+  sel.innerHTML = '<option value="">All sub-categories</option>' +
+    unique.map(o => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join("");
+  sel.value = current;
+}
+
 function filteredRegs() {
-  const q = $("#searchInput").value.trim().toLowerCase();
-  const cat = $("#filterCategory").value;
+  const q  = $("#searchInput").value.trim().toLowerCase();
+  const fn = $("#filterFirst").value.trim().toLowerCase();
+  const ln = $("#filterLast").value.trim().toLowerCase();
+  const ageMinRaw = $("#filterAgeMin").value;
+  const ageMaxRaw = $("#filterAgeMax").value;
+  const ageMin = ageMinRaw === "" ? null : parseInt(ageMinRaw, 10);
+  const ageMax = ageMaxRaw === "" ? null : parseInt(ageMaxRaw, 10);
+  const cat    = $("#filterCategory").value;
+  const sub    = $("#filterSubCategory").value;
   const status = $("#filterStatus").value;
+
   return regs.filter(r => {
     if (cat && r.categoryId !== cat) return false;
+    if (sub && r.subQuestionAnswer !== sub) return false;
     if (status && r.paymentStatus !== status) return false;
+    if (fn && !(r.firstName || "").toLowerCase().includes(fn)) return false;
+    if (ln && !(r.lastName  || "").toLowerCase().includes(ln)) return false;
+    const age = r.ageOnRaceDay;
+    if (ageMin !== null && (age == null || age < ageMin)) return false;
+    if (ageMax !== null && (age == null || age > ageMax)) return false;
     if (q) {
-      const hay = [r.firstName, r.lastName, r.email, r.phone, r.whishReference]
+      const hay = [r.firstName, r.lastName, r.email, r.phone, r.whishReference, r.subQuestionAnswer]
         .map(x => (x||"").toLowerCase()).join(" ");
       if (!hay.includes(q)) return false;
     }
@@ -644,17 +751,22 @@ function filteredRegs() {
 }
 
 function renderRegTable() {
-  const rows = filteredRegs();
+  applySortIndicators();
+  renderSubCategoryFilter();
+  const rows = applySort(filteredRegs());
   const tbody = $("#regTable tbody");
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="9" class="empty">No registrations match.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="11" class="empty">No registrations match.</td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map(r => `
     <tr>
       <td><code>${escapeHtml(r.whishReference || "—")}</code></td>
-      <td>${escapeHtml(r.firstName)} ${escapeHtml(r.lastName)}</td>
+      <td>${escapeHtml(r.firstName)}</td>
+      <td>${escapeHtml(r.lastName)}</td>
       <td>${escapeHtml(r.categoryName || r.categoryId || "—")}</td>
+      <td>${escapeHtml(r.subQuestionAnswer || "—")}</td>
+      <td>${r.ageOnRaceDay ?? "—"}</td>
       <td>${fmtMoney(r.priceUSD || 0)}</td>
       <td><span class="pill ${r.paymentStatus}">${r.paymentStatus}</span></td>
       <td>${r.bibNumber ?? "—"}</td>
@@ -740,7 +852,7 @@ function openConfirmPay(r) {
 
 // ===== CSV export =====
 $("#exportCsvBtn").addEventListener("click", () => {
-  const rows = filteredRegs();
+  const rows = applySort(filteredRegs());
   if (!rows.length) { toast("Nothing to export", true); return; }
   const headers = ["reference","firstName","lastName","email","phone","dob","gender",
                    "nationality","city","category","subCategory","price","status","bibNumber",
