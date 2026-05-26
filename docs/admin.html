@@ -1142,6 +1142,8 @@ function renderRegTable() {
         <button class="btn tiny sec" data-act="view" data-id="${r.id}">View</button>
         ${r.paymentStatus === "pending"
           ? `<button class="btn tiny" data-act="pay" data-id="${r.id}">Confirm pay</button>` : ""}
+        ${(r.paymentStatus === "paid" || r.paymentStatus === "free") && r.bibNumber
+          ? `<button class="btn tiny sec" data-act="wa" data-id="${r.id}" title="Resend WhatsApp ticket">WA</button>` : ""}
         <button class="btn tiny danger" data-act="del" data-id="${r.id}" title="Delete (spam)">Delete</button>
       </td>
     </tr>
@@ -1154,7 +1156,12 @@ function renderRegTable() {
       if (!r) return;
       if (b.dataset.act === "del")  return deleteRegistration(r);
       if (b.dataset.act === "view") openRegDetails(r);
-      if (b.dataset.act === "pay") openConfirmPay(r);
+      if (b.dataset.act === "pay")  openConfirmPay(r);
+      if (b.dataset.act === "wa")   {
+        const waUrl = buildWhatsAppUrl(r);
+        if (waUrl) window.open(waUrl, "_blank", "noopener");
+        else toast("No phone number on record", true);
+      }
     });
   });
 }
@@ -1342,12 +1349,57 @@ $("#backupPurgeAll").addEventListener("click", async () => {
   toast(`Permanently deleted ${ok}${fail ? ` (${fail} failed)` : ""}`);
 });
 
+// ===== Ticket + WhatsApp helpers =====
+// Each runner gets a public ticket page (URL-encoded params, no Firestore lookup).
+function buildTicketUrl(r) {
+  const params = new URLSearchParams({
+    ref: r.whishReference || "",
+    name: `${r.firstName || ""} ${r.lastName || ""}`.trim(),
+    bib: String(r.bibNumber || ""),
+    cat: (r.categoryName || "") + (r.subQuestionAnswer ? " — " + r.subQuestionAnswer : ""),
+    date: r.raceDay || ""
+  });
+  return `${location.origin}${location.pathname.replace(/admin\.html$/, "")}ticket.html?${params}`;
+}
+
+function buildWhatsAppUrl(r) {
+  // Phone is already canonical (e.g. "96171503555") because the registration
+  // doc ID is normalizePhone(...). Strip any leftover non-digits to be safe.
+  const phone = String(r.phone || "").replace(/\D/g, "");
+  if (!phone) return null;
+  const ticketUrl = buildTicketUrl(r);
+  const lines = [
+    `Hi ${r.firstName}, your Batroun Race 2026 registration is confirmed! 🏃`,
+    ``,
+    `✅ Payment received`,
+    `📋 Reference: ${r.whishReference}`,
+    `🎽 Bib number: ${r.bibNumber}`,
+    `🏁 Category: ${r.categoryName || ""}${r.subQuestionAnswer ? " — " + r.subQuestionAnswer : ""}`,
+    r.priceUSD ? `💵 Amount paid: $${r.priceUSD}` : `💵 Free entry`,
+    ``,
+    `Your race ticket (show this at pickup — has a QR code):`,
+    ticketUrl,
+    ``,
+    `See you at the start line!`
+  ];
+  return `https://wa.me/${phone}?text=${encodeURIComponent(lines.join("\n"))}`;
+}
+
 function openConfirmPay(r) {
+  const priceFree = (r.priceUSD || 0) === 0;
   openModal(`
     <h3>Confirm payment — ${escapeHtml(r.firstName)} ${escapeHtml(r.lastName)}</h3>
     <p class="muted">Reference: <code>${escapeHtml(r.whishReference)}</code> · Amount: ${fmtMoney(r.priceUSD || 0)}</p>
-    <label>Bib number</label>
+    <p class="muted" style="margin:8px 0 0;font-size:.85rem">${priceFree
+      ? "This is a free entry — assign a bib and we'll WhatsApp the runner."
+      : "Confirm the Whish payment matched this reference, then assign a bib. The runner will receive a WhatsApp message with their QR ticket."}
+    </p>
+    <label style="margin-top:14px">Bib number</label>
     <input id="bibInput" type="number" min="1" placeholder="e.g. 142">
+    <label class="inline" style="display:flex;align-items:center;gap:8px;margin-top:10px;cursor:pointer">
+      <input type="checkbox" id="sendWaCb" checked>
+      <span>Open WhatsApp message after confirming</span>
+    </label>
     <div class="modal-actions">
       <button class="btn sec" id="cancelPay">Cancel</button>
       <button class="btn" id="okPay">Mark as paid</button>
@@ -1357,13 +1409,20 @@ function openConfirmPay(r) {
   $("#okPay").onclick = async () => {
     const bib = parseInt($("#bibInput").value, 10);
     if (!bib) { toast("Enter a bib number", true); return; }
+    const sendWa = $("#sendWaCb").checked;
     try {
       await updateDoc(
         doc(db, "competitions", COMPETITION_ID, "registrations", r.id),
-        { paymentStatus: "paid", bibNumber: bib, paidAt: serverTimestamp() }
+        { paymentStatus: priceFree ? "free" : "paid", bibNumber: bib, paidAt: serverTimestamp() }
       );
       closeModal();
-      toast("Payment confirmed");
+      toast("Payment confirmed — bib " + bib + " assigned");
+      if (sendWa) {
+        const updated = { ...r, bibNumber: bib, paymentStatus: priceFree ? "free" : "paid" };
+        const waUrl = buildWhatsAppUrl(updated);
+        if (waUrl) window.open(waUrl, "_blank", "noopener");
+        else toast("No phone number on record — couldn't open WhatsApp", true);
+      }
     } catch (e) { toast(e.message, true); }
   };
   setTimeout(() => $("#bibInput").focus(), 50);

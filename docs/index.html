@@ -505,11 +505,22 @@
 
         <div id="paymentBlock">
           <p class="muted" style="margin:14px 0 0">Total due: <strong style="color:var(--ink);font-size:1.1rem" id="amountDue">—</strong></p>
-          <p style="margin-top:10px">We'll contact you via WhatsApp within 24h to arrange payment and confirm your bib number.</p>
+
+          <div style="background:rgba(61,214,198,.07);border:1px solid rgba(61,214,198,.35);border-radius:12px;padding:14px;margin-top:14px">
+            <p style="margin:0 0 10px;font-weight:800;color:var(--accent)">📲 How to pay via Whish Money</p>
+            <ol style="margin:0;padding-left:22px;line-height:1.7">
+              <li>Open <strong>Whish Money</strong> and send <strong id="whishAmount">$X</strong> to <strong>Batroun Race</strong>.</li>
+              <li><strong>In the note / comment field of the transfer, write your reference code <span id="refInline" style="color:var(--accent);font-family:ui-monospace,Menlo,monospace">BTN-2026-XXXX</span></strong> exactly. Without it, we cannot match your payment and <strong>your registration will not be approved</strong>.</li>
+              <li><strong>Save this reference</strong> — keep this page open, take a screenshot, or write it down.</li>
+            </ol>
+          </div>
+
+          <p style="margin-top:12px">Once we verify your Whish payment, you'll receive a <strong>WhatsApp message</strong> with your bib number and a QR code ticket to show at pickup.</p>
         </div>
 
         <div id="freeBlock" style="display:none">
-          <p>This category is <strong>free of charge</strong>. We'll WhatsApp you within 24h with your bib number and event details.</p>
+          <p>This category is <strong>free of charge</strong>. No payment needed.</p>
+          <p>We'll WhatsApp you with your bib number and a QR code ticket to show at pickup.</p>
         </div>
       </div>
     </div>
@@ -1134,6 +1145,10 @@ function showConfirmation(ref, price, cat) {
   // Pre-populate the confirmation content before revealing
   document.getElementById("refCode").textContent = ref;
   document.getElementById("amountDue").textContent = price === 0 ? "Free" : `$${price} USD`;
+  const whishAmt = document.getElementById("whishAmount");
+  if (whishAmt) whishAmt.textContent = `$${price}`;
+  const refInline = document.getElementById("refInline");
+  if (refInline) refInline.textContent = ref;
   if (price === 0) {
     document.getElementById("paymentBlock").style.display = "none";
     document.getElementById("freeBlock").style.display = "block";

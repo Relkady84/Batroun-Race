@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Race Ticket — Batroun Race 2026</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap">
+<style>
+  :root{
+    --bg1:#08172b; --bg2:#0d2140;
+    --ink:#ecf6ff; --muted:#9fb2c8; --line:rgba(255,255,255,.16);
+    --accent:#3dd6c6; --accent2:#21b3a7;
+    --card:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.03));
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;min-height:100%;
+            background:linear-gradient(180deg,var(--bg1),var(--bg2));color:var(--ink);
+            font:16px/1.55 'Inter',system-ui,-apple-system,Segoe UI,Roboto;
+            -webkit-font-smoothing:antialiased}
+  .wrap{max-width:520px;margin:0 auto;padding:24px 16px;min-height:100vh;
+        display:flex;flex-direction:column;justify-content:center}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:18px;
+        box-shadow:0 24px 60px rgba(0,0,0,.55);padding:22px;text-align:center}
+  .brand{font-weight:900;font-size:.78rem;letter-spacing:.22em;
+         text-transform:uppercase;color:var(--accent);margin:0 0 6px}
+  h1{margin:0 0 4px;font-size:clamp(22px,5vw,30px);font-weight:900;letter-spacing:-.01em;
+     background:linear-gradient(180deg, #ffffff 0%, #d8efea 70%, var(--accent) 100%);
+     -webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{color:var(--muted);margin:0 0 18px;font-size:.95rem}
+
+  .qr-wrap{background:#ffffff;padding:14px;border-radius:14px;
+           display:inline-block;margin:6px 0 18px}
+  .qr-wrap img{display:block;width:240px;height:240px;max-width:60vw;max-height:60vw}
+
+  .ref{display:inline-block;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+       font-size:1.4rem;font-weight:900;color:var(--accent);letter-spacing:2px;
+       background:rgba(0,0,0,.25);border:1px dashed rgba(61,214,198,.5);
+       padding:8px 18px;border-radius:10px;user-select:all;margin-bottom:14px}
+
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:8px 0 14px;text-align:left}
+  .grid > div{background:rgba(0,0,0,.18);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+  .grid label{display:block;font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;
+              color:var(--muted);margin:0 0 3px;font-weight:700}
+  .grid .v{font-weight:800;font-size:1rem;word-break:break-word}
+
+  .hint{color:var(--muted);font-size:.85rem;margin:14px 0 0;line-height:1.5}
+  .hint strong{color:var(--ink)}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <div class="card">
+    <div class="brand">Batroun Race · 2026</div>
+    <h1>Race Ticket</h1>
+    <p class="sub" id="subName">Show this at pickup</p>
+
+    <div class="qr-wrap"><img id="qr" alt="QR code"></div>
+    <div class="ref" id="ref">—</div>
+
+    <div class="grid">
+      <div><label>Name</label><div class="v" id="name">—</div></div>
+      <div><label>Bib number</label><div class="v" id="bib">—</div></div>
+      <div><label>Category</label><div class="v" id="cat">—</div></div>
+      <div><label>Race day</label><div class="v" id="date">—</div></div>
+    </div>
+
+    <p class="hint">Present this ticket at the pickup desk on race day. The hostess will scan the QR code (or read the reference) to verify your registration and hand you your bib + race pack.</p>
+  </div>
+</main>
+
+<script>
+const params = new URLSearchParams(location.search);
+const ref  = (params.get("ref") || "").trim();
+const name = (params.get("name") || "").trim();
+const bib  = (params.get("bib") || "").trim();
+const cat  = (params.get("cat") || "").trim();
+const date = (params.get("date") || "").trim();
+
+function set(id, v, fallback = "—") {
+  document.getElementById(id).textContent = v || fallback;
+}
+set("ref",  ref);
+set("name", name);
+set("bib",  bib);
+set("cat",  cat);
+set("date", date ? new Date(date).toLocaleDateString("en-GB", { day:"numeric", month:"long", year:"numeric" }) : "");
+
+if (name) document.getElementById("subName").textContent = name + " — show this at pickup";
+
+document.getElementById("qr").src =
+  `https://api.qrserver.com/v1/create-qr-code/?size=400x400&margin=8&data=${encodeURIComponent(ref || "BATROUN-RACE")}`;
+</script>
+</body>
+</html>
