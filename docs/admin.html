@@ -1458,16 +1458,18 @@ function buildWhatsAppUrl(r) {
   const phone = String(r.phone || "").replace(/\D/g, "");
   if (!phone) return null;
   const ticketUrl = buildTicketUrl(r);
+  // Plain text labels — no emojis. Some older Android phones render unknown
+  // emojis as "?" inside WhatsApp; ASCII-safe lines work everywhere.
   const lines = [
-    `Hi ${r.firstName}, your Batroun Race 2026 registration is confirmed! 🏃`,
+    `Hi ${r.firstName}, your Batroun Race 2026 registration is confirmed!`,
     ``,
-    `✅ Payment received`,
-    `📋 Reference: ${r.whishReference}`,
-    `🎽 Bib number: ${r.bibNumber}`,
-    `🏁 Category: ${r.categoryName || ""}${r.subQuestionAnswer ? " — " + r.subQuestionAnswer : ""}`,
-    r.priceUSD ? `💵 Amount paid: $${r.priceUSD}` : `💵 Free entry`,
+    `Status: PAYMENT RECEIVED`,
+    `Reference: ${r.whishReference}`,
+    `Bib number: ${r.bibNumber}`,
+    `Category: ${r.categoryName || ""}${r.subQuestionAnswer ? " - " + r.subQuestionAnswer : ""}`,
+    r.priceUSD ? `Amount paid: $${r.priceUSD}` : `Entry: Free`,
     ``,
-    `Your race ticket (show this at pickup — has a QR code):`,
+    `Your race ticket (with QR code to show at pickup):`,
     ticketUrl,
     ``,
     `See you at the start line!`
