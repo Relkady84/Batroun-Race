@@ -1202,7 +1202,7 @@ function filteredRegs() {
   const ts  = _val("filterTshirt");
   const st  = _val("filterStatus");
   const pm  = _val("filterPaymentMethod");
-  const ci  = _val("filterCheckedIn");
+  const ckd = _val("filterCheckedIn");
 
   return regs.filter(r => {
     if (r.deletedAt) return false; // main dashboard hides soft-deleted; Backup tab handles them
@@ -1212,8 +1212,8 @@ function filteredRegs() {
     if (_activeFilter("gender")       && gen && r.gender            !== gen) return false;
     if (_activeFilter("tshirt")       && ts  && r.tshirtSize        !== ts)  return false;
     if (_activeFilter("paymentMethod")&& pm  && r.paymentMethod     !== pm)  return false;
-    if (_activeFilter("checkedIn")    && ci === "yes" && !r.checkedInAt)     return false;
-    if (_activeFilter("checkedIn")    && ci === "no"  &&  r.checkedInAt)     return false;
+    if (_activeFilter("checkedIn")    && ckd === "yes" && !r.checkedInAt)    return false;
+    if (_activeFilter("checkedIn")    && ckd === "no"  &&  r.checkedInAt)    return false;
     if (_activeFilter("firstName")   && fn && !(r.firstName  || "").toLowerCase().includes(fn)) return false;
     if (_activeFilter("lastName")    && ln && !(r.lastName   || "").toLowerCase().includes(ln)) return false;
     if (_activeFilter("email")       && em && !(r.email      || "").toLowerCase().includes(em)) return false;
