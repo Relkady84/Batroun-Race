@@ -504,7 +504,7 @@
 <!-- Firebase SDK -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
-import { getFirestore, collection, addDoc, serverTimestamp, runTransaction, doc, getDoc, getDocs }
+import { getFirestore, collection, addDoc, setDoc, serverTimestamp, runTransaction, doc, getDoc, getDocs }
   from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 
 // ============================================================
@@ -608,6 +608,21 @@ function ageOnRaceDay(dobStr) {
   const m = race.getMonth() - dob.getMonth();
   if (m < 0 || (m === 0 && race.getDate() < dob.getDate())) age--;
   return age;
+}
+
+// Canonical phone format used as the registration doc ID (enforces uniqueness).
+// Lebanese local "71503555" → "96171503555". International like "+33 …" preserved.
+function normalizePhone(raw) {
+  if (!raw) return "";
+  const trimmed = String(raw).trim();
+  let digits = trimmed.replace(/\D/g, "");
+  if (trimmed.startsWith("+") || trimmed.startsWith("00")) {
+    if (digits.startsWith("00")) digits = digits.slice(2);
+  } else {
+    if (digits.startsWith("0")) digits = digits.slice(1);
+    digits = "961" + digits;
+  }
+  return digits;
 }
 
 function generateRef() {
@@ -1066,13 +1081,27 @@ form.addEventListener("submit", async (e) => {
   };
 
   try {
-    await addDoc(collection(db, "competitions", COMPETITION_ID, "registrations"), payload);
+    const phoneId = normalizePhone(payload.phone);
+    if (!phoneId || phoneId.length < 8) throw new Error("Invalid phone number.");
+    const regRef = doc(db, "competitions", COMPETITION_ID, "registrations", phoneId);
+    // setDoc with the phone-as-ID. Firestore rules allow `create` for the
+    // public, but `update` only for admins — so a second submit with the
+    // same phone is treated as an update and rejected by the server.
+    await setDoc(regRef, payload);
     showConfirmation(ref, price, cat);
   } catch (err) {
     console.error(err);
-    const msg = err?.code === "permission-denied"
-      ? "Your registration was rejected by our server. Please make sure all required fields and consent boxes are filled correctly, then try again."
-      : "Sorry, something went wrong submitting your registration. Please try again or contact batrounrace@gmail.com" + (err?.message ? ("\n\nDetails: " + err.message) : "");
+    let msg;
+    if (err?.code === "permission-denied") {
+      // Almost always means: phone already registered (the rule rejects the
+      // second create as an update). Could also be a validation failure.
+      msg = "This phone number is already registered for Batroun Race 2026, " +
+            "or one of the required fields is invalid.\n\nIf you already registered, " +
+            "we'll be in touch — no need to register again. If this is a mistake, " +
+            "double-check your details or contact batrounrace@gmail.com.";
+    } else {
+      msg = "Sorry, something went wrong submitting your registration. Please try again or contact batrounrace@gmail.com" + (err?.message ? ("\n\nDetails: " + err.message) : "");
+    }
     alert(msg);
     btn.disabled = false;
     btn.classList.remove("loading");
