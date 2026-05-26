@@ -14,6 +14,16 @@ service cloud.firestore {
         ];
     }
 
+    // Read-only viewers (e.g. staff who only need to see registrations).
+    function isViewer() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email in [
+          'mary.bi.mbi@gmail.com'
+        ];
+    }
+    function canReadDashboard() { return isAdmin() || isViewer(); }
+
     function isValidNewRegistration() {
       let d = request.resource.data;
       return d.firstName is string && d.firstName.size() > 0 && d.firstName.size() < 100
@@ -64,9 +74,9 @@ service cloud.firestore {
         allow write: if isAdmin();
       }
 
-      // Registrations: nobody reads except admin; public can CREATE only.
+      // Registrations: admin + viewer can READ; only admin writes; public can CREATE only.
       match /registrations/{regId} {
-        allow read:   if isAdmin();
+        allow read:   if canReadDashboard();
         allow create: if isValidNewRegistration() && registrationOpen(competitionId);
         allow update: if isAdmin();
         allow delete: if false; // audit trail — never delete

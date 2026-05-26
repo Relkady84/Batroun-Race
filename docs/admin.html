@@ -487,7 +487,10 @@ const firebaseConfig = {
   measurementId: "G-Z3FQ9B2QJZ"
 };
 
-const ALLOWED_EMAILS = ["raedelkady@gmail.com", "nizarelkady@gmail.com"];
+const ADMIN_EMAILS  = ["raedelkady@gmail.com", "nizarelkady@gmail.com"];
+const VIEWER_EMAILS = ["mary.bi.mbi@gmail.com"];
+const ALLOWED_EMAILS = [...ADMIN_EMAILS, ...VIEWER_EMAILS];
+let userRole = "guest"; // 'admin' | 'viewer'
 const COMPETITION_ID = "batroun-race-2026";
 
 const app = initializeApp(firebaseConfig);
@@ -608,11 +611,16 @@ $("#signOutBtn").addEventListener("click", () => signOut(auth));
 onAuthStateChanged(auth, user => {
   console.log("[auth] onAuthStateChanged user=", user?.email || null);
   if (!user) { showLogin(); return; }
-  if (!ALLOWED_EMAILS.includes(user.email)) {
+  const email = (user.email || "").toLowerCase();
+  if (ADMIN_EMAILS.includes(email))       userRole = "admin";
+  else if (VIEWER_EMAILS.includes(email)) userRole = "viewer";
+  else userRole = "guest";
+
+  if (userRole === "guest") {
     console.warn("[auth] Rejected — not on allowlist:", user.email);
     $("#signInError").innerHTML =
-      `Access denied. You signed in as <code style="background:rgba(0,0,0,.25);padding:1px 6px;border-radius:4px">${user.email}</code>, which is not on the admin allowlist.<br>` +
-      `Sign in again with one of: <strong>${ALLOWED_EMAILS.join(", ")}</strong>.`;
+      `Access denied. You signed in as <code style="background:rgba(0,0,0,.25);padding:1px 6px;border-radius:4px">${user.email}</code>, which is not on the allowlist.<br>` +
+      `Sign in with one of: <strong>${ALLOWED_EMAILS.join(", ")}</strong>.`;
     signOut(auth);
     return;
   }
@@ -631,9 +639,29 @@ function showLogin() {
 function showApp(user) {
   $("#loginScreen").style.display = "none";
   $("#adminApp").hidden = false;
-  $("#userEmail").textContent = user.email;
-  applyPrefs(); // apply saved dashboard preferences once UI is visible
+  $("#userEmail").textContent = user.email + (userRole === "viewer" ? " · read-only" : "");
+  document.body.classList.toggle("role-viewer", userRole === "viewer");
+  applyRoleVisibility();
+  applyPrefs();
   startListeners();
+}
+
+function applyRoleVisibility() {
+  // Viewers see ONLY the Registrations tab.
+  document.querySelectorAll('nav.tabs button[data-tab]').forEach(btn => {
+    if (userRole === "viewer" && btn.dataset.tab !== "registrations") {
+      btn.style.display = "none";
+    } else {
+      btn.style.display = "";
+    }
+  });
+  // Force the active tab to registrations for viewers
+  if (userRole === "viewer") {
+    document.querySelectorAll('nav.tabs button').forEach(b => b.classList.remove("active"));
+    document.querySelector('nav.tabs button[data-tab="registrations"]').classList.add("active");
+    document.querySelectorAll('section.tab').forEach(s => s.classList.remove("active"));
+    document.getElementById("tab-registrations").classList.add("active");
+  }
 }
 
 // ===== Tabs =====
@@ -991,7 +1019,7 @@ function renderRegTable() {
       <td class="col-registeredAt">${fmtDate(r.registeredAt)}</td>
       <td class="actions">
         <button class="btn tiny sec" data-act="view" data-id="${r.id}">View</button>
-        ${r.paymentStatus === "pending"
+        ${(r.paymentStatus === "pending" && userRole === "admin")
           ? `<button class="btn tiny" data-act="pay" data-id="${r.id}">Confirm pay</button>` : ""}
       </td>
     </tr>
