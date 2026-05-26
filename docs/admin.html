@@ -521,7 +521,9 @@ $("#modalBg").addEventListener("click", e => { if (e.target.id === "modalBg") cl
 function fmtDate(ts) {
   if (!ts) return "—";
   const d = ts.toDate ? ts.toDate() : new Date(ts);
-  return d.toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" });
+  const datePart = d.toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" });
+  const timePart = d.toLocaleTimeString("en-GB", { hour:"2-digit", minute:"2-digit" });
+  return `${datePart} · ${timePart}`;
 }
 function fmtMoney(n) { return n === 0 ? "Free" : "$" + n; }
 function escapeHtml(s) {
