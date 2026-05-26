@@ -233,8 +233,21 @@
         </div>
         <div class="row two">
           <div><label>Price (USD)</label><input id="catNewPrice" type="number" placeholder="e.g. 25 — use 0 for free"></div>
-          <div style="display:flex;align-items:flex-end"><button id="catAddBtn" class="btn" style="width:100%">Add category</button></div>
+          <div></div>
         </div>
+
+        <details style="margin-top:10px;padding:10px 12px;background:rgba(0,0,0,.18);border-radius:8px">
+          <summary style="cursor:pointer;font-weight:700;color:var(--muted)">Optional extra dropdown (e.g. age bracket)</summary>
+          <p class="muted" style="margin:8px 0;font-size:.85rem">When the runner picks this category, an additional dropdown appears with the options below.</p>
+          <div><label>Dropdown label</label><input id="catNewSqLabel" placeholder="Age categories eligible to participate"></div>
+          <label style="margin-top:8px">Options (one per line)</label>
+          <textarea id="catNewSqOptions" rows="4" placeholder="U20 (2007-2008)
+Seniors Men-Women (20-34 years)
+Masters Men-Women 35-39
+..."></textarea>
+        </details>
+
+        <div style="margin-top:12px"><button id="catAddBtn" class="btn">Add category</button></div>
       </div>
 
       <div id="catEmpty" class="card" style="display:none;text-align:center">
@@ -680,6 +693,7 @@ function openRegDetails(r) {
       ${k("Nationality", r.nationality)}
       ${k("City", r.city)}
       ${k("Category", r.categoryName)}
+      ${r.subQuestionAnswer ? k(cats.find(c => c.id === r.categoryId)?.subQuestion?.label || "Sub-category", r.subQuestionAnswer) : ""}
       ${k("Price", fmtMoney(r.priceUSD || 0))}
       ${k("Status", r.paymentStatus)}
       ${k("Bib", r.bibNumber)}
@@ -729,12 +743,12 @@ $("#exportCsvBtn").addEventListener("click", () => {
   const rows = filteredRegs();
   if (!rows.length) { toast("Nothing to export", true); return; }
   const headers = ["reference","firstName","lastName","email","phone","dob","gender",
-                   "nationality","city","category","price","status","bibNumber",
+                   "nationality","city","category","subCategory","price","status","bibNumber",
                    "tshirt","club","medicalNotes","emergencyName","emergencyPhone",
                    "registeredAt","paidAt"];
   const csv = [headers.join(",")].concat(rows.map(r => [
     r.whishReference, r.firstName, r.lastName, r.email, r.phone, r.dob, r.gender,
-    r.nationality, r.city, r.categoryName, r.priceUSD,
+    r.nationality, r.city, r.categoryName, r.subQuestionAnswer, r.priceUSD,
     r.paymentStatus, r.bibNumber, r.tshirtSize, r.club, r.medicalNotes,
     r.emergencyContactName, r.emergencyContactPhone,
     r.registeredAt ? fmtDate(r.registeredAt) : "",
@@ -819,6 +833,10 @@ $("#catAddBtn").addEventListener("click", async () => {
     if (!Number.isNaN(ageMin) && !Number.isNaN(ageMax) && ageMax < ageMin) {
       toast("Max age must be ≥ min age", true); return;
     }
+    const sqLabel = $("#catNewSqLabel").value.trim();
+    const sqOpts  = $("#catNewSqOptions").value.split("\n").map(s => s.trim()).filter(Boolean);
+    const subQuestion = (sqLabel && sqOpts.length) ? { label: sqLabel, options: sqOpts } : null;
+
     await setDoc(doc(db, "competitions", COMPETITION_ID, "categories", id), {
       name,
       distanceKm: parseFloat($("#catNewDistance").value) || null,
@@ -827,21 +845,38 @@ $("#catAddBtn").addEventListener("click", async () => {
       timed: $("#catNewTimed").value === "true",
       capacity: parseInt($("#catNewCap").value, 10) || null,
       registeredCount: 0,
-      price: parseFloat($("#catNewPrice").value) || 0
+      price: parseFloat($("#catNewPrice").value) || 0,
+      subQuestion
     });
-    ["catNewId","catNewName","catNewDistance","catNewAgeMin","catNewAgeMax","catNewCap","catNewPrice"]
+    ["catNewId","catNewName","catNewDistance","catNewAgeMin","catNewAgeMax","catNewCap","catNewPrice","catNewSqLabel","catNewSqOptions"]
       .forEach(id => $("#"+id).value = "");
     toast("Category added");
   } catch (e) { toast(e.message, true); }
 });
 
 // ===== Seed defaults =====
+const STD_AGE_BRACKETS_COMMON = [
+  "Seniors Men-Women (20-34 years) 2006 to 1992",
+  "Masters Men-Women 35-39",
+  "Masters Men-Women 40-44",
+  "Masters Men-Women 45-49",
+  "Masters Men-Women 50-54",
+  "Masters Men-Women 55-59",
+  "Masters Men-Women 60-64",
+  "Masters Men-Women 65-69",
+  "Masters Men-Women 70+"
+];
+const STD_10K_BRACKETS = ["U20 (2007-2008)", ...STD_AGE_BRACKETS_COMMON];
+const STD_5K_BRACKETS  = ["U18 (2009-2010)", "U20 (2007-2008)", ...STD_AGE_BRACKETS_COMMON];
+
 const DEFAULT_CATEGORIES = [
-  { id: "marathon",     name: "Marathon 42.195 KM",    distanceKm: 42.195, ageLimit: 18, timed: true,  capacity: null, price: 40 },
-  { id: "halfMarathon", name: "Half Marathon 21.1 KM", distanceKm: 21.1,   ageLimit: 17, timed: true,  capacity: null, price: 30 },
-  { id: "10k",          name: "10 KM Race",            distanceKm: 10,     ageLimit: 12, timed: true,  capacity: null, price: 25 },
-  { id: "5k",           name: "5 KM Race",             distanceKm: 5,      ageLimit: 0,  timed: false, capacity: null, price: 22 },
-  { id: "para",         name: "Para Athlete Race",     distanceKm: null,   ageLimit: 15, timed: true,  capacity: null, price: 0  }
+  { id: "marathon",     name: "Marathon 42.195 KM",    distanceKm: 42.195, ageLimit: 18, timed: true,  capacity: null, price: 40, subQuestion: null },
+  { id: "halfMarathon", name: "Half Marathon 21.1 KM", distanceKm: 21.1,   ageLimit: 17, timed: true,  capacity: null, price: 30, subQuestion: null },
+  { id: "10k",          name: "10 KM Race",            distanceKm: 10,     ageLimit: 12, timed: true,  capacity: null, price: 25,
+    subQuestion: { label: "Age categories eligible to participate in the 10 KM race", options: STD_10K_BRACKETS } },
+  { id: "5k",           name: "5 KM Race",             distanceKm: 5,      ageLimit: 0,  timed: false, capacity: null, price: 22,
+    subQuestion: { label: "Age categories eligible to participate in the 5 KM race",  options: STD_5K_BRACKETS  } },
+  { id: "para",         name: "Para Athlete Race",     distanceKm: null,   ageLimit: 15, timed: true,  capacity: null, price: 0,  subQuestion: null }
 ];
 
 $("#seedCatsBtn").addEventListener("click", async () => {
@@ -855,7 +890,8 @@ $("#seedCatsBtn").addEventListener("click", async () => {
         timed: c.timed,
         capacity: c.capacity,
         registeredCount: 0,
-        price: c.price
+        price: c.price,
+        subQuestion: c.subQuestion || null
       });
     }
     toast("5 default categories added");
@@ -879,14 +915,49 @@ function openEditCategory(c) {
       <label>Price (USD)</label>
       <input id="ec_price" type="number" value="${(typeof c.price === 'number') ? c.price : (c.prices?.wave1 ?? 0)}">
     </div>
+
+    <details style="margin-top:14px;padding:10px 12px;background:rgba(0,0,0,.18);border-radius:8px" ${c.subQuestion?.label ? "open" : ""}>
+      <summary style="cursor:pointer;font-weight:700;color:var(--muted)">Optional extra dropdown (e.g. age bracket)</summary>
+      <p class="muted" style="margin:8px 0;font-size:.85rem">Shown to the runner when they pick this category. Leave label blank to remove.</p>
+      <div><label>Dropdown label</label>
+        <input id="ec_sqLabel" value="${escapeHtml(c.subQuestion?.label || "")}" placeholder="Age categories eligible to participate">
+      </div>
+      <label style="margin-top:8px">Options (one per line)</label>
+      <textarea id="ec_sqOptions" rows="6" placeholder="U20 (2007-2008)
+Seniors Men-Women (20-34 years)
+Masters Men-Women 35-39
+...">${escapeHtml((c.subQuestion?.options || []).join("\n"))}</textarea>
+      <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+        <button type="button" class="btn tiny sec" id="ec_preset10k">Use 10K standard brackets</button>
+        <button type="button" class="btn tiny sec" id="ec_preset5k">Use 5K standard brackets</button>
+        <button type="button" class="btn tiny sec" id="ec_presetClear">Clear</button>
+      </div>
+    </details>
+
     <div class="modal-actions">
       <button class="btn sec" id="ec_cancel">Cancel</button>
       <button class="btn" id="ec_save">Save</button>
     </div>
   `);
   $("#ec_cancel").onclick = closeModal;
+  $("#ec_preset10k").onclick = () => {
+    $("#ec_sqLabel").value = "Age categories eligible to participate in the 10 KM race";
+    $("#ec_sqOptions").value = STD_10K_BRACKETS.join("\n");
+  };
+  $("#ec_preset5k").onclick = () => {
+    $("#ec_sqLabel").value = "Age categories eligible to participate in the 5 KM race";
+    $("#ec_sqOptions").value = STD_5K_BRACKETS.join("\n");
+  };
+  $("#ec_presetClear").onclick = () => {
+    $("#ec_sqLabel").value = "";
+    $("#ec_sqOptions").value = "";
+  };
   $("#ec_save").onclick = async () => {
     try {
+      const sqLabel = $("#ec_sqLabel").value.trim();
+      const sqOpts  = $("#ec_sqOptions").value.split("\n").map(s => s.trim()).filter(Boolean);
+      const subQuestion = (sqLabel && sqOpts.length) ? { label: sqLabel, options: sqOpts } : null;
+
       await updateDoc(doc(db, "competitions", COMPETITION_ID, "categories", c.id), {
         name: $("#ec_name").value.trim(),
         distanceKm: parseFloat($("#ec_dist").value) || null,
@@ -894,7 +965,8 @@ function openEditCategory(c) {
         ageLimitMax: parseInt($("#ec_ageMax").value, 10) || null,
         timed: $("#ec_timed").value === "true",
         capacity: parseInt($("#ec_cap").value, 10) || null,
-        price: parseFloat($("#ec_price").value) || 0
+        price: parseFloat($("#ec_price").value) || 0,
+        subQuestion
       });
       closeModal();
       toast("Category updated");

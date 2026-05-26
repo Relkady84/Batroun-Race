@@ -316,6 +316,8 @@
           <div class="err" id="categoryErr"></div>
         </div>
 
+        <div class="row" id="subQuestionWrap"></div>
+
         <div class="card price-card" id="priceCard" style="margin:14px 0 0">
           <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap">
             <div>
@@ -622,8 +624,31 @@ const priceMeta = document.getElementById("priceMeta");
 const priceLadder = document.getElementById("priceLadder");
 const includesEl = document.getElementById("includes");
 
+function escHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+function renderSubQuestion(cat) {
+  const wrap = document.getElementById("subQuestionWrap");
+  const sq = cat?.subQuestion;
+  if (!sq || !sq.label || !Array.isArray(sq.options) || sq.options.length === 0) {
+    wrap.innerHTML = "";
+    return;
+  }
+  wrap.innerHTML = `
+    <label for="subQuestion">${escHtml(sq.label)} *</label>
+    <select id="subQuestion" name="subQuestion" required>
+      <option value="">Select…</option>
+      ${sq.options.map(o => `<option>${escHtml(o)}</option>`).join("")}
+    </select>
+  `;
+  // Re-attach error span + clear-on-input for the freshly-inserted required field
+  if (typeof initFieldErrors === "function") initFieldErrors();
+}
+
 catSelect.addEventListener("change", () => {
   const cat = CATEGORIES[catSelect.value];
+  renderSubQuestion(cat);
   if (!cat) { priceCard.classList.remove("show"); return; }
 
   const price = cat.price ?? 0;
@@ -823,6 +848,7 @@ async function loadFromFirestore() {
           timed: !!x.timed,
           ageLimit:    x.ageLimit    || 0,
           ageLimitMax: x.ageLimitMax || 0,
+          subQuestion: x.subQuestion || null,
           distance: x.distanceKm || null,
           capacity: x.capacity || null,
           registeredCount: x.registeredCount || 0,
@@ -932,6 +958,7 @@ form.addEventListener("submit", async (e) => {
       newsletter: !!data.newsletter
     },
     priceUSD: price,
+    subQuestionAnswer: data.subQuestion || null,
     whishReference: ref,
     paymentStatus: price === 0 ? "free" : "pending",
     paymentMethod: price === 0 ? "free" : "manual",
