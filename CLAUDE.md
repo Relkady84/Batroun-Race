@@ -67,6 +67,7 @@ competitions/{competitionId}/categories/{categoryId}
   ├─ ageLimit (min), ageLimitMax (optional)
   ├─ price (single value — no waves)
   ├─ capacity (nullable), registeredCount
+  ├─ bibRangeStart, bibRangeEnd                 // when set → confirm-payment auto-assigns the next unused bib in [start, end], FIFO
   ├─ isRelay: bool                              // when true → public form collects a teammate
   └─ subQuestion: { label, options[] } | null   // e.g. age-bracket dropdown
 
