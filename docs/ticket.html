@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#08172b">
 <title>Race Ticket — Batroun Race</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -10,7 +11,7 @@
 <style>
   :root{
     --bg1:#08172b; --bg2:#0d2140;
-    --ink:#0b1726; --paper:#ffffff; --muted:#5b6c80; --line:#e0e6ee;
+    --ink:#0b1726; --paper:#ffffff; --muted:#5b6c80; --line:#e2e8f0;
     --accent:#21b3a7; --accent2:#3dd6c6;
   }
   *{box-sizing:border-box}
@@ -18,70 +19,99 @@
             background:linear-gradient(180deg,var(--bg1),var(--bg2));
             color:var(--ink);
             font:15px/1.55 'Inter',system-ui,-apple-system,Segoe UI,Roboto;
-            -webkit-font-smoothing:antialiased}
-  .page{max-width:640px;margin:0 auto;padding:18px 12px 40px}
+            -webkit-font-smoothing:antialiased;
+            -webkit-text-size-adjust:100%}
+  .page{max-width:640px;margin:0 auto;
+        padding:max(12px,env(safe-area-inset-top)) max(10px,env(safe-area-inset-right)) 32px max(10px,env(safe-area-inset-left))}
 
   .toolbar{display:flex;justify-content:flex-end;gap:8px;margin-bottom:10px}
-  .btn{appearance:none;border:0;border-radius:10px;padding:10px 16px;
-       font:inherit;font-weight:700;cursor:pointer;color:#062028;
+  .btn{appearance:none;border:0;border-radius:12px;padding:12px 18px;
+       font:inherit;font-weight:800;cursor:pointer;color:#062028;
        background:linear-gradient(180deg,var(--accent2),var(--accent));
-       box-shadow:0 6px 18px rgba(33,179,167,.35)}
-  .btn:hover{transform:translateY(-1px)}
-  .btn.sec{background:rgba(255,255,255,.92);color:#1a2b3d}
+       box-shadow:0 6px 18px rgba(33,179,167,.35);
+       min-height:44px}
+  .btn:active{transform:scale(.98)}
+  .btn.sec{background:rgba(255,255,255,.94);color:#1a2b3d}
 
   .ticket{background:var(--paper);color:var(--ink);border-radius:18px;
           overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.45);
           border:1px solid rgba(0,0,0,.04)}
 
   .ticket-header{background:linear-gradient(135deg,#08172b 0%,#11365e 100%);
-                 color:#ecf6ff;padding:22px 22px 18px;text-align:center;position:relative}
+                 color:#ecf6ff;padding:22px 22px 26px;text-align:center;position:relative}
   .ticket-header::after{content:"";position:absolute;left:-10px;right:-10px;bottom:-10px;height:20px;
                         background:radial-gradient(circle at 10px 10px, var(--paper) 9px, transparent 10px) 0 0/20px 20px}
-  .brand{font-weight:900;font-size:.78rem;letter-spacing:.22em;
+  .brand{font-weight:900;font-size:.74rem;letter-spacing:.22em;
          text-transform:uppercase;color:var(--accent2);margin:0 0 4px}
-  .ticket-title{margin:0;font-size:clamp(20px,4.6vw,28px);font-weight:900;letter-spacing:-.01em;
-                color:#ffffff}
-  .ticket-sub{color:#a9c5dd;margin:6px 0 0;font-size:.92rem}
+  .ticket-title{margin:0;font-size:clamp(20px,5.2vw,28px);font-weight:900;letter-spacing:-.01em;color:#fff}
+  .ticket-sub{color:#a9c5dd;margin:6px 0 0;font-size:.92rem;word-break:break-word}
 
-  .ticket-body{padding:26px 22px 18px}
+  .ticket-body{padding:24px 20px 16px}
 
-  .qr-row{display:flex;gap:16px;align-items:center;flex-wrap:wrap;justify-content:center;
-          padding:14px 0 6px}
+  /* QR + reference / bib block ──────────────────────────────────────────
+     On wider screens it sits side-by-side; on phones it stacks with the
+     QR centered and the codes neatly below it. */
+  .qr-row{display:flex;gap:18px;align-items:center;justify-content:center;
+          flex-wrap:wrap;padding:6px 0 4px}
   .qr-card{background:#ffffff;padding:10px;border-radius:14px;border:1px solid var(--line);
-           display:inline-block}
+           display:inline-block;line-height:0}
   .qr-card > div, .qr-card canvas, .qr-card img{
-    display:block;width:200px!important;height:200px!important;max-width:55vw;max-height:55vw
+    display:block;
+    width:clamp(180px,55vw,220px)!important;
+    height:clamp(180px,55vw,220px)!important
   }
-  .qr-side{flex:1;min-width:200px;text-align:left}
-  .qr-label{font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);
+  .qr-side{flex:1;min-width:0;max-width:280px;text-align:left}
+  .qr-label{font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);
             font-weight:700;margin:0 0 4px}
   .ref{display:inline-block;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
-       font-size:1.15rem;font-weight:900;color:var(--accent);letter-spacing:1.5px;
+       font-size:clamp(1rem,3.6vw,1.2rem);font-weight:900;color:var(--accent);letter-spacing:1.5px;
        background:rgba(33,179,167,.08);border:1px dashed rgba(33,179,167,.4);
-       padding:8px 14px;border-radius:10px;user-select:all;margin:0 0 12px}
+       padding:8px 14px;border-radius:10px;user-select:all;margin:0 0 14px;
+       word-break:break-all;max-width:100%}
+  .bib-big{font-weight:900;font-size:clamp(1.8rem,8vw,2.2rem);
+           letter-spacing:.5px;color:var(--accent);line-height:1;margin:0}
 
-  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0 4px}
+  /* Info grid — auto-wraps based on available width. */
+  .grid{display:grid;gap:10px;margin:14px 0 4px;
+        grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+  .grid.three{grid-template-columns:repeat(auto-fit,minmax(130px,1fr))}
   .grid > div{background:#f4f7fb;border:1px solid var(--line);border-radius:12px;padding:10px 12px;min-width:0}
-  .grid.three{grid-template-columns:repeat(3,1fr)}
-  .grid label{display:block;font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;
+  .grid label{display:block;font-size:.66rem;text-transform:uppercase;letter-spacing:.08em;
               color:var(--muted);margin:0 0 4px;font-weight:700}
-  .grid .v{font-weight:800;font-size:1rem;word-break:break-word;color:var(--ink)}
-  .grid .v.big{font-size:1.55rem;letter-spacing:.5px;color:var(--accent)}
+  .grid .v{font-weight:800;font-size:.98rem;word-break:break-word;color:var(--ink)}
+  .grid .v.big{font-size:clamp(1.4rem,5vw,1.55rem);letter-spacing:.5px;color:var(--accent)}
+  .grid .full{grid-column:1/-1}
 
   .stub{margin-top:18px;border-top:2px dashed var(--line);padding-top:14px;
-        display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;
+        display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;
         font-size:.85rem;color:var(--muted)}
   .stub strong{color:var(--ink)}
 
-  .hint{margin:16px 22px 22px;padding:12px;background:#f8fafc;border:1px solid var(--line);
+  .hint{margin:14px 20px 22px;padding:12px 14px;background:#f8fafc;border:1px solid var(--line);
         border-radius:12px;color:#36495e;font-size:.85rem;line-height:1.5}
   .hint strong{color:var(--ink)}
 
+  /* Mobile-tuned spacing & layout — applies to most phones. */
+  @media (max-width:520px){
+    .page{padding:10px 8px 28px}
+    .toolbar{justify-content:stretch}
+    .toolbar .btn{flex:1;width:100%}
+    .ticket-header{padding:18px 16px 22px}
+    .ticket-body{padding:18px 14px 14px}
+    .qr-row{flex-direction:column;gap:12px}
+    .qr-side{text-align:center;max-width:none;width:100%}
+    .ref{margin-bottom:10px}
+    .hint{margin:12px 14px 18px;font-size:.82rem}
+  }
+
+  /* Print → "Save as PDF" path. Strip the page background, hide the
+     toolbar, and let the ticket sit cleanly on a single page. */
   @media print{
-    html,body{background:#fff!important}
+    html,body{background:#fff!important;color:#000}
     .toolbar{display:none!important}
     .ticket{box-shadow:none;border:1px solid #d0d6df;page-break-inside:avoid}
     .page{max-width:none;margin:0;padding:0}
+    .ticket-header{background:#08172b!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     a[href]:after{content:""}
   }
 </style>
@@ -106,7 +136,7 @@
           <p class="qr-label">Reference code</p>
           <div class="ref" id="ref">—</div>
           <p class="qr-label">Bib number</p>
-          <div class="v big" id="bib">—</div>
+          <p class="bib-big" id="bib">—</p>
         </div>
       </div>
 
@@ -120,7 +150,7 @@
         <div><label>Amount paid</label><div class="v" id="amount">—</div></div>
       </div>
       <div class="grid">
-        <div style="grid-column:1/-1"><label>Location</label><div class="v" id="loc">Lycée Montaigne, Beit Chabab</div></div>
+        <div class="full"><label>Location</label><div class="v" id="loc">Lycée Montaigne, Beit Chabab</div></div>
       </div>
 
       <div class="stub">
@@ -181,9 +211,12 @@ document.title = name ? `Race Ticket — ${name}` : "Race Ticket — Batroun Rac
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
+  // qrcodejs renders at a fixed pixel size. Pick a size based on the
+  // viewport so the QR is crisp on phones without being huge on desktop.
+  const qrPx = Math.min(220, Math.max(180, Math.floor(window.innerWidth * 0.55)));
   new QRCode(document.getElementById("qr"), {
     text: (new URLSearchParams(location.search)).get("ref") || "BATROUN-RACE",
-    width: 200, height: 200, correctLevel: QRCode.CorrectLevel.M,
+    width: qrPx, height: qrPx, correctLevel: QRCode.CorrectLevel.M,
     colorDark: "#000000", colorLight: "#ffffff"
   });
 </script>
