@@ -550,6 +550,25 @@ Masters Men-Women 35-39
       </div>
 
       <div class="card">
+        <h2>Whish Money logo (optional)</h2>
+        <p class="muted" style="margin:0 0 8px">Shown on the invoice that signed-in runners see when they still owe Whish Money. Leave blank to use a built-in styled "whish MONEY" badge.</p>
+
+        <label>Upload from your device</label>
+        <input id="thWhishFile" type="file" accept="image/*">
+        <div id="thWhishProgress" class="muted" style="font-size:.85rem;margin-top:6px;min-height:1.2em"></div>
+
+        <label style="margin-top:14px">Or paste a URL</label>
+        <input id="thWhishUrl" type="url" placeholder="https://...">
+
+        <div id="thWhishPreview" style="margin-top:10px;display:none">
+          <div class="muted" style="font-size:.8rem;margin-bottom:4px">Current Whish logo:</div>
+          <img id="thWhishPreviewImg" alt="Whish logo preview"
+               style="max-width:140px;max-height:80px;background:#fff;padding:8px;border-radius:8px;border:1px solid var(--line)">
+          <button id="thWhishClearBtn" class="btn tiny sec" style="margin-top:8px">Clear Whish logo</button>
+        </div>
+      </div>
+
+      <div class="card">
         <h2>Background image (optional)</h2>
         <p class="muted" style="margin:0 0 8px">Upload an image from your device, or paste a public URL. Leave blank for plain gradient.</p>
 
@@ -2574,6 +2593,8 @@ function loadThemeIntoEditor(t) {
   $("#thSubtitle").value = t.subtitle || "";
   $("#thBanner").value   = t.bannerText || "";
   $("#thLogoUrl").value  = t.logoImage || "";
+  $("#thWhishUrl").value = t.whishLogo || "";
+  updateWhishPreview(t.whishLogo);
   $("#thLogoText").value = t.logoText  || "";
   $("#thLogoSize").value = t.logoHeight || "";
   updateBgPreview(t.bgImage);
@@ -2636,6 +2657,46 @@ $("#thLogoClearBtn").addEventListener("click", () => {
   $("#thLogoFile").value = "";
   $("#thLogoProgress").textContent = "Logo cleared — click Save to apply.";
   updateLogoPreview(null);
+});
+
+function updateWhishPreview(url) {
+  const wrap = $("#thWhishPreview");
+  const img  = $("#thWhishPreviewImg");
+  if (url) { img.src = url; wrap.style.display = ""; }
+  else { img.removeAttribute("src"); wrap.style.display = "none"; }
+}
+$("#thWhishUrl").addEventListener("input", () => {
+  updateWhishPreview($("#thWhishUrl").value.trim());
+});
+$("#thWhishFile").addEventListener("change", async (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  if (!file.type.startsWith("image/")) { toast("Pick an image file", true); e.target.value = ""; return; }
+  $("#thWhishProgress").textContent = "Compressing Whish logo…";
+  try {
+    const dataUrl = await compressImageToDataURL(file, 600, 600, 0.9);
+    const approxKB = Math.round(dataUrl.length / 1024);
+    if (dataUrl.length > 250 * 1024) {
+      $("#thWhishProgress").textContent = `Whish logo too large (~${approxKB} KB). Use a smaller image.`;
+      toast("Whish logo too large", true); e.target.value = ""; return;
+    }
+    $("#thWhishUrl").value = dataUrl;
+    updateWhishPreview(dataUrl);
+    $("#thWhishProgress").textContent = `Whish logo ready (~${approxKB} KB) — click 'Save theme & copy' to apply.`;
+    toast("Whish logo ready — remember to save");
+  } catch (err) {
+    console.error(err);
+    $("#thWhishProgress").textContent = "Failed to process Whish logo: " + err.message;
+    toast(err.message, true);
+  }
+  e.target.value = "";
+});
+$("#thWhishClearBtn").addEventListener("click", () => {
+  if (!confirm("Clear the Whish logo? (Click 'Save theme & copy' to apply.)")) return;
+  $("#thWhishUrl").value = "";
+  $("#thWhishFile").value = "";
+  $("#thWhishProgress").textContent = "Whish logo cleared — click Save to apply.";
+  updateWhishPreview(null);
 });
 
 function updateBgPreview(url) {
@@ -2740,6 +2801,7 @@ $("#themeSaveBtn").addEventListener("click", async () => {
         logoImage:  $("#thLogoUrl").value.trim() || null,
         logoText:   $("#thLogoText").value.trim() || null,
         logoHeight: parseInt($("#thLogoSize").value, 10) || null,
+        whishLogo:  $("#thWhishUrl").value.trim() || null,
         updatedAt:  serverTimestamp()
       },
       { merge: true }

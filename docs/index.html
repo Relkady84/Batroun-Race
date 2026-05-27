@@ -1639,8 +1639,10 @@ function collectCustomValues() {
 // ============================================================
 // Theme + copy (from Firestore /config/theme)
 // ============================================================
+let WHISH_LOGO_URL = null;
 function applyTheme(t) {
   t = t || {};
+  WHISH_LOGO_URL = t.whishLogo || null;
   const root = document.documentElement.style;
   if (t.accent)   root.setProperty("--accent", t.accent);
   if (t.accent2)  root.setProperty("--accent2", t.accent2);
@@ -2192,7 +2194,9 @@ function renderCart(r) {
   const fullName = `${r.firstName || ""} ${r.lastName || ""}`.trim();
   const isPaid = status === "paid" || status === "free";
 
-  const whishBadge = `<span class="whish-badge" aria-label="Whish Money"><span class="w">W</span>whish<span class="m">MONEY</span></span>`;
+  const whishBadge = WHISH_LOGO_URL
+    ? `<img src="${escHtml(WHISH_LOGO_URL)}" alt="Whish Money" style="height:40px;width:auto;border-radius:8px;background:#fff;padding:4px;box-shadow:0 2px 6px rgba(0,0,0,.2)">`
+    : `<span class="whish-badge" aria-label="Whish Money"><span class="w">W</span>whish<span class="m">MONEY</span></span>`;
 
   let block = "";
   if (!isPaid) {
