@@ -237,9 +237,11 @@
   /* Top bar with logo (admin-uploadable) */
   .page-top-bar{
     padding:14px 22px 0;
-    display:flex;align-items:center;gap:14px;
+    display:flex;align-items:center;justify-content:space-between;gap:14px;
     position:relative;z-index:3;
   }
+  .topbar-left{display:flex;align-items:center;gap:14px;min-width:0;flex:1}
+  .topbar-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
   .page-top-bar img{
     height:60px;width:auto;max-width:65vw;
     filter:drop-shadow(0 4px 18px rgba(0,0,0,.45));
@@ -255,10 +257,33 @@
     filter:drop-shadow(0 1px 0 rgba(0,0,0,.25)) drop-shadow(0 4px 18px rgba(0,0,0,.5));
   }
   .page-top-bar #pageLogoText:empty{display:none}
+
+  /* Session controls in top-bar */
+  .tb-btn{appearance:none;border:1px solid var(--line);background:rgba(255,255,255,.06);
+    color:var(--ink);font:inherit;font-weight:700;font-size:.88rem;
+    padding:8px 14px;border-radius:10px;cursor:pointer;
+    transition:background .15s,transform .05s;line-height:1;min-height:38px}
+  .tb-btn:hover{background:rgba(255,255,255,.12)}
+  .tb-btn:active{transform:scale(.97)}
+  .tb-btn.primary{background:linear-gradient(180deg,var(--accent2),var(--accent));border-color:transparent;color:#062028}
+  .tb-cart{position:relative;display:inline-flex;align-items:center;gap:6px;padding:8px 12px}
+  .tb-cart svg{width:18px;height:18px;flex-shrink:0}
+  .tb-cart .badge{position:absolute;top:-6px;right:-6px;min-width:18px;height:18px;padding:0 5px;
+    border-radius:10px;background:var(--accent);color:#062028;font-size:.7rem;font-weight:900;
+    display:inline-flex;align-items:center;justify-content:center;line-height:1}
+  .tb-user{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;
+    background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:10px;
+    font-size:.86rem;font-weight:700;max-width:140px;min-height:36px}
+  .tb-user .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
   @media (max-width:600px){
     .page-top-bar img{height:48px}
     .page-top-bar #pageLogoText{font-size:16px}
-    .page-top-bar{padding:10px 14px 0;gap:10px}
+    .page-top-bar{padding:10px 12px 0;gap:8px}
+    .tb-user{display:none}
+    .tb-btn{padding:8px 10px;font-size:.82rem}
+    .tb-cart{padding:8px}
+    .tb-cart-label{display:none}
   }
 
   /* Top banner (admin-editable) */
@@ -396,8 +421,11 @@
 </head>
 <body>
 <header class="page-top-bar">
-  <img id="pageLogoImg" alt="" style="display:none">
-  <span id="pageLogoText"></span>
+  <div class="topbar-left">
+    <img id="pageLogoImg" alt="" style="display:none">
+    <span id="pageLogoText"></span>
+  </div>
+  <div class="topbar-right" id="topbarRight"></div>
 </header>
 <section aria-labelledby="reg-heading">
 
@@ -409,11 +437,6 @@
       <span id="topBannerText"></span>
     </div>
 
-    <p style="margin:12px 0 0;font-size:.95rem">
-      Already registered?
-      <a href="#" id="signinLink" style="color:var(--accent);font-weight:700;text-decoration:underline;cursor:pointer">Sign in with your mobile + reference code</a>
-      to view your invoice and ticket.
-    </p>
   </div>
 
   <div class="wrap">
@@ -734,14 +757,18 @@
       </div>
     </div>
 
-    <!-- Shopping cart (shown after successful sign-in) -->
+    <!-- Shopping cart (shown after successful sign-in or from the cart icon) -->
     <div id="cartPanel" hidden style="margin-top:14px">
       <div class="card" style="background:var(--card);border:1px solid var(--line);border-radius:18px;padding:22px">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px">
           <h2 style="margin:0;font-size:1.25rem">Welcome back, <span id="cartName">runner</span></h2>
-          <button type="button" id="cartSignOut" class="btn sec" style="padding:8px 14px;font-size:.9rem">Sign out</button>
+          <button type="button" id="cartClose" class="btn sec" style="padding:8px 14px;font-size:.9rem">Close cart</button>
         </div>
         <div id="cartItems"></div>
+        <div id="cartAddWrap" style="margin-top:14px;padding-top:14px;border-top:1px dashed var(--line)">
+          <button type="button" id="cartAddBtn" class="btn" style="width:100%">+ Add another participant under this mobile</button>
+        </div>
+        <div id="cartAddForm" hidden style="margin-top:14px"></div>
       </div>
     </div>
 
@@ -2040,6 +2067,10 @@ form.addEventListener("submit", async (e) => {
     // a ref for.
     await upsertPhoneIndex(phoneNorm, refs);
 
+    // Auto-sign-in so the cart icon + Hi-name appear in the top bar
+    // immediately. Confirmation panel still shows for payment instructions.
+    await startSession(phoneNorm);
+
     showConfirmation(created, totalPrice, cat);
   } catch (err) {
     console.error(err);
@@ -2095,7 +2126,6 @@ function showConfirmation(created, total, cat) {
 // ============================================================
 // Sign in (mobile + ref) → shopping cart with Whish invoice / ticket
 // ============================================================
-const signinLink   = document.getElementById("signinLink");
 const signinModal  = document.getElementById("signinModal");
 const siClose      = document.getElementById("siClose");
 const siSubmit     = document.getElementById("siSubmit");
@@ -2105,7 +2135,9 @@ const siErr        = document.getElementById("siErr");
 const cartPanel    = document.getElementById("cartPanel");
 const cartName     = document.getElementById("cartName");
 const cartItems    = document.getElementById("cartItems");
-const cartSignOut  = document.getElementById("cartSignOut");
+const cartCloseBtn = document.getElementById("cartClose");
+const cartAddBtn   = document.getElementById("cartAddBtn");
+const cartAddForm  = document.getElementById("cartAddForm");
 
 function openSignin() {
   siErr.style.display = "none";
@@ -2118,7 +2150,6 @@ function closeSignin() {
   signinModal.hidden = true;
   document.body.style.overflow = "";
 }
-signinLink.addEventListener("click", (e) => { e.preventDefault(); openSignin(); });
 siClose.addEventListener("click", closeSignin);
 signinModal.addEventListener("click", (e) => { if (e.target === signinModal) closeSignin(); });
 document.addEventListener("keydown", (e) => {
@@ -2164,6 +2195,9 @@ siSubmit.addEventListener("click", async () => {
     // via the phone-index doc. Fall back to just the one we matched if the
     // index doc doesn't exist (pre-Phase-2 registrations).
     const allRegs = await loadAllRegsForPhone(phoneNorm, r, refRaw);
+    SESSION_REGS = allRegs;
+    setSession({ phone: phoneNorm, since: Date.now() });
+    renderTopBar();
     closeSignin();
     renderCart(allRegs);
   } catch (err) {
@@ -2317,14 +2351,321 @@ function renderCart(regs) {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-cartSignOut.addEventListener("click", () => {
+// ============================================================
+// Session: signed-in state lives in localStorage and shows in the top bar
+// ============================================================
+const SESSION_KEY = "br-session-v1";
+let SESSION_REGS = []; // last-loaded registrations for the signed-in phone
+
+function getSession() {
+  try { return JSON.parse(localStorage.getItem(SESSION_KEY) || "null"); }
+  catch (_) { return null; }
+}
+function setSession(s) { localStorage.setItem(SESSION_KEY, JSON.stringify(s)); }
+function clearSessionStore() { localStorage.removeItem(SESSION_KEY); }
+
+async function loadRegsForPhone(phoneNorm) {
+  try {
+    const idx = await getDoc(doc(db, "competitions", COMPETITION_ID, "phoneIndex", phoneNorm));
+    if (!idx.exists()) return [];
+    const refs = Array.isArray(idx.data().refs) ? idx.data().refs : [];
+    if (!refs.length) return [];
+    const fetched = await Promise.all(refs.map(async (ref) => {
+      try {
+        const s = await getDoc(doc(db, "competitions", COMPETITION_ID, "registrations", ref));
+        return s.exists() ? { ref, ...s.data() } : null;
+      } catch (_) { return null; }
+    }));
+    return fetched.filter(Boolean);
+  } catch (_) { return []; }
+}
+
+function renderTopBar() {
+  const right = document.getElementById("topbarRight");
+  const session = getSession();
+  if (session?.phone && SESSION_REGS.length) {
+    const firstName = (SESSION_REGS[0]?.firstName || "").split(" ")[0] || "you";
+    right.innerHTML = `
+      <span class="tb-user" title="Signed in as ${escHtml(session.phone)}">
+        <span style="opacity:.7">Hi,</span>
+        <span class="name">${escHtml(firstName)}</span>
+      </span>
+      <button type="button" class="tb-btn tb-cart" id="tbCartBtn" aria-label="View invoices">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="9" cy="20" r="1.6"></circle>
+          <circle cx="18" cy="20" r="1.6"></circle>
+          <path d="M2.5 3h3l2.4 12.2a2 2 0 0 0 2 1.6h8.7a2 2 0 0 0 2-1.5L22 7H6.2"></path>
+        </svg>
+        <span class="tb-cart-label">Cart</span>
+        <span class="badge">${SESSION_REGS.length}</span>
+      </button>
+      <button type="button" class="tb-btn" id="tbSignOutBtn">Sign out</button>`;
+    document.getElementById("tbCartBtn").addEventListener("click", toggleCart);
+    document.getElementById("tbSignOutBtn").addEventListener("click", doSignOut);
+  } else {
+    right.innerHTML = `<button type="button" class="tb-btn primary" id="tbSignInBtn">Sign in</button>`;
+    document.getElementById("tbSignInBtn").addEventListener("click", openSignin);
+  }
+}
+
+async function refreshSessionFromStorage() {
+  const session = getSession();
+  if (!session?.phone) { SESSION_REGS = []; renderTopBar(); return; }
+  SESSION_REGS = await loadRegsForPhone(session.phone);
+  renderTopBar();
+}
+
+async function startSession(phoneNorm) {
+  setSession({ phone: phoneNorm, since: Date.now() });
+  SESSION_REGS = await loadRegsForPhone(phoneNorm);
+  renderTopBar();
+}
+
+function doSignOut() {
+  clearSessionStore();
+  SESSION_REGS = [];
   cartPanel.hidden = true;
+  cartAddForm.hidden = true;
+  cartAddForm.innerHTML = "";
   form.style.display = "";
   form.classList.remove("is-hiding");
   siPhoneInput.value = "";
   siRefInput.value = "";
+  renderTopBar();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function toggleCart() {
+  if (!cartPanel.hidden) {
+    cartPanel.hidden = true;
+    form.style.display = "";
+    form.classList.remove("is-hiding");
+    return;
+  }
+  renderCart(SESSION_REGS);
+  cartAddForm.hidden = true;
+  cartAddForm.innerHTML = "";
+  cartPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+cartCloseBtn?.addEventListener("click", () => {
+  cartPanel.hidden = true;
+  form.style.display = "";
+  form.classList.remove("is-hiding");
+  cartAddForm.hidden = true;
+  cartAddForm.innerHTML = "";
   window.scrollTo({ top: 0, behavior: "smooth" });
 });
+
+// Boot the top bar based on what's in localStorage.
+refreshSessionFromStorage();
+
+// ============================================================
+// Add another participant from inside the cart
+// ============================================================
+const ADD_BLOOD_OPTIONS = ["A+","A-","B+","B-","AB+","AB-","O+","O-"];
+
+function multiCatOptionsAllOrSafe(selectedId) {
+  // Show every category by default; the household's existing registrations
+  // give a hint at which categories they typically use but we don't restrict.
+  return Object.entries(CATEGORIES)
+    .filter(([_, c]) => !c.isRelay)
+    .map(([id, c]) => {
+      const price = (typeof c.price === "number") ? (c.price === 0 ? "Free" : `$${c.price}`) : `$${c.price ?? 0}`;
+      return `<option value="${id}"${id === selectedId ? " selected" : ""}>${escHtml(c.name)} — ${price}</option>`;
+    }).join("");
+}
+
+cartAddBtn?.addEventListener("click", () => {
+  const lead = SESSION_REGS[0];
+  if (!lead) { toast?.("No existing registration on this mobile.", true); return; }
+  const defaultCat = lead.categoryId || "";
+  cartAddForm.hidden = false;
+  cartAddForm.innerHTML = `
+    <div class="card" style="background:rgba(0,0,0,.18);border:1px solid var(--line);border-radius:14px;padding:14px;margin:0">
+      <h3 class="title" style="font-size:1.05rem;margin-top:0">New participant</h3>
+      <p class="muted" style="margin:0 0 12px;font-size:.85rem">Will be registered under <strong>${escHtml(lead.phone || "")}</strong>. Shared contact details are reused from your first registration.</p>
+      <div class="row">
+        <label for="ca_cat">Race / Category *</label>
+        <select id="ca_cat" name="ca_cat" required>
+          <option value="">Select…</option>
+          ${multiCatOptionsAllOrSafe(defaultCat)}
+        </select>
+      </div>
+      <div class="row" id="ca_subq"></div>
+      <div class="row two">
+        <div>
+          <label for="ca_first">First name *</label>
+          <input id="ca_first" type="text" required placeholder="Given name">
+        </div>
+        <div>
+          <label for="ca_last">Last name *</label>
+          <input id="ca_last" type="text" required placeholder="Family name">
+        </div>
+      </div>
+      <div class="row two">
+        <div>
+          <label for="ca_dob">Date of birth *</label>
+          <input id="ca_dob" class="dob-input" readonly required
+                 placeholder="Tap to choose date of birth" aria-haspopup="dialog">
+        </div>
+        <div>
+          <label for="ca_gender">Gender *</label>
+          <select id="ca_gender" required>
+            <option value="">Select…</option>
+            <option>Female</option><option>Male</option>
+            <option>Non-binary</option><option>Prefer not to say</option>
+          </select>
+        </div>
+      </div>
+      <div class="row two">
+        <div>
+          <label for="ca_shirt">T-shirt size *</label>
+          <select id="ca_shirt" required>
+            <option value="">Select…</option>
+            <option>XS</option><option>S</option><option>M</option>
+            <option>L</option><option>XL</option><option>XXL</option>
+          </select>
+        </div>
+        <div>
+          <label for="ca_blood">Blood type *</label>
+          <select id="ca_blood" required>
+            <option value="">Select…</option>
+            ${ADD_BLOOD_OPTIONS.map(b => `<option>${b}</option>`).join("")}
+            <option value="Unknown">Don't know</option>
+          </select>
+        </div>
+      </div>
+      <div class="err" id="ca_err" style="margin-top:8px"></div>
+      <div style="display:flex;gap:10px;margin-top:12px">
+        <button type="button" id="ca_cancel" class="btn sec" style="flex:1">Cancel</button>
+        <button type="button" id="ca_submit" class="btn" style="flex:2">Register this participant</button>
+      </div>
+    </div>`;
+  // Wire sub-question + cancel + submit
+  const renderCaSubQ = () => {
+    const wrap = document.getElementById("ca_subq");
+    const c = CATEGORIES[document.getElementById("ca_cat").value];
+    const dob = document.getElementById("ca_dob").value;
+    if (!c?.subQuestion?.options?.length) { wrap.innerHTML = ""; return; }
+    const labelHtml = escHtml(c.subQuestion.label || "Sub-category") + " *";
+    if (!dob) {
+      wrap.innerHTML = `<label>${labelHtml}</label>
+        <input type="text" id="ca_sq" readonly placeholder="Auto-fills once you enter the date of birth above">`;
+      return;
+    }
+    const match = c.subQuestion.options.find(o => bracketMatches(o, dob));
+    if (!match) {
+      wrap.innerHTML = `<label>${labelHtml}</label>
+        <input type="text" id="ca_sq" readonly value="">
+        <div class="err show" style="margin-top:6px">Date of birth doesn't fit any age bracket for ${escHtml(c.name)}.</div>`;
+      return;
+    }
+    wrap.innerHTML = `<label>${labelHtml}</label>
+      <input type="text" id="ca_sq" readonly value="${escHtml(match)}">
+      <div class="help">Auto-filled from the date of birth.</div>`;
+  };
+  document.getElementById("ca_cat").addEventListener("change", renderCaSubQ);
+  document.getElementById("ca_dob").addEventListener("change", renderCaSubQ);
+  renderCaSubQ();
+  document.getElementById("ca_cancel").addEventListener("click", () => {
+    cartAddForm.hidden = true;
+    cartAddForm.innerHTML = "";
+  });
+  document.getElementById("ca_submit").addEventListener("click", submitCartAdd);
+});
+
+async function submitCartAdd() {
+  const err = document.getElementById("ca_err");
+  err.classList.remove("show");
+  err.textContent = "";
+  const lead = SESSION_REGS[0];
+  if (!lead) return;
+
+  const catId  = document.getElementById("ca_cat").value;
+  const cat    = CATEGORIES[catId];
+  const first  = document.getElementById("ca_first").value.trim();
+  const last   = document.getElementById("ca_last").value.trim();
+  const dob    = document.getElementById("ca_dob").value;
+  const gender = document.getElementById("ca_gender").value;
+  const shirt  = document.getElementById("ca_shirt").value;
+  const blood  = document.getElementById("ca_blood").value;
+  const sq     = document.getElementById("ca_sq")?.value || null;
+
+  if (!cat) return showCAErr(err, "Pick a race / category.");
+  if (!first || !last) return showCAErr(err, "First and last name are required.");
+  if (!dob) return showCAErr(err, "Date of birth is required.");
+  if (!gender || !shirt || !blood) return showCAErr(err, "Gender, t-shirt size, and blood type are required.");
+
+  const age = ageOnRaceDay(dob);
+  if (cat.ageLimit > 0 && (age === null || age < cat.ageLimit)) {
+    return showCAErr(err, `Minimum age for ${cat.name} is ${cat.ageLimit} on race day. Age: ${age ?? "—"}.`);
+  }
+  if (cat.ageLimitMax > 0 && age !== null && age > cat.ageLimitMax) {
+    return showCAErr(err, `Maximum age for ${cat.name} is ${cat.ageLimitMax} on race day. Age: ${age}.`);
+  }
+  if (cat.subQuestion?.options?.length && !sq) {
+    return showCAErr(err, `Date of birth doesn't fit any age bracket for ${cat.name}.`);
+  }
+
+  const btn = document.getElementById("ca_submit");
+  btn.disabled = true;
+  const _orig = btn.textContent;
+  btn.textContent = "Submitting…";
+  try {
+    const newRef = generateRef();
+    const price = cat.price ?? 0;
+    const phoneNorm = normalizePhone(lead.phone || "");
+    const payload = {
+      competitionId: COMPETITION_ID,
+      firstName: first,
+      lastName: last,
+      email: lead.email || "",
+      phone: phoneNorm,
+      dob,
+      ageOnRaceDay: age,
+      gender,
+      nationality: lead.nationality || null,
+      country: lead.country || null,
+      city: lead.city || null,
+      categoryId: catId,
+      categoryName: cat.name,
+      tshirtSize: shirt,
+      bloodType: blood,
+      club: lead.club || null,
+      medicalNotes: null,
+      emergencyContactName: lead.emergencyContactName || null,
+      emergencyContactPhone: lead.emergencyContactPhone || null,
+      consents: { waiver: true, dataUsage: true },
+      priceUSD: price,
+      subQuestionAnswer: sq,
+      whishReference: newRef,
+      paymentStatus: price === 0 ? "free" : "pending",
+      paymentMethod: price === 0 ? "free" : "manual",
+      bibNumber: null,
+      registeredAt: serverTimestamp(),
+      paidAt: null,
+      teammate: null,
+      addedFromCart: true
+    };
+    await setDoc(doc(db, "competitions", COMPETITION_ID, "registrations", newRef), payload);
+    await upsertPhoneIndex(phoneNorm, [newRef]);
+    SESSION_REGS = await loadRegsForPhone(phoneNorm);
+    cartAddForm.hidden = true;
+    cartAddForm.innerHTML = "";
+    renderTopBar();
+    renderCart(SESSION_REGS);
+    toast?.("Participant registered. Pay via Whish using the new reference code.");
+  } catch (e) {
+    console.error(e);
+    showCAErr(err, e?.message || "Couldn't register the participant. Please try again.");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = _orig;
+  }
+}
+function showCAErr(el, msg) { el.textContent = msg; el.classList.add("show"); el.style.display = "block"; }
+function toast(msg) { /* silent on public — kept as a hook for future */ console.log("[toast]", msg); }
 </script>
 </body>
 </html>
