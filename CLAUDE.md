@@ -1,147 +1,195 @@
 # Batroun Race — Registration System
 
-Project context for Claude Code. This file is read on every session. Keep it short and current.
+Project context for Claude Code. This file is auto-read on every session. **Keep it accurate.**
 
 ## What this is
 
-A registration system for the **Batroun Race** annual running competition in Lebanon. Public registration page + admin dashboard. Built to be reusable each year — never hardcode "2026", always use the `competitionId` (e.g. `batroun-race-2026`).
+A complete registration system for the **Batroun Race** annual running event in Lebanon (Lycée Montaigne, Beit Chabab). Public registration page + admin dashboard + race-day QR scanner. Built reusable each year — never hardcode "2026" anywhere; always use `competitionId` (e.g. `batroun-race-2026`).
 
-## Tech stack (locked in — don't change without asking)
+## Tech stack (locked — don't change without asking)
 
-- **Frontend**: vanilla HTML + CSS + JavaScript (no framework, no build step)
-- **Database**: Firebase Firestore
-- **Auth (admin only)**: Google sign-in via Firebase Auth, restricted to an email allowlist (`raedelkady@gmail.com`, `nizarelkady@gmail.com`). Allowlist lives both in `firestore.rules` and in the admin page client-side check.
-- **Hosting**: GitHub Pages (deploy from `main` branch, `/docs` folder — GitHub Pages only supports root or `/docs`)
-- **Payment**: Fully off-platform — collected manually by admin (no QR, no provider integration on the registration page). `paymentMethod` on registrations is `"manual"` (or `"free"` for Para Athletes).
-
-Public registration requires **no auth** — riders shouldn't need accounts.
+- **Frontend**: vanilla HTML + CSS + JavaScript. **No build step, no framework.** Inter font from Google Fonts at runtime.
+- **Database**: Firebase Firestore (free Spark plan)
+- **Auth**: Google sign-in via Firebase Auth, restricted to a dynamic allowlist (super admins hardcoded, additional admins/staff stored in Firestore `/config/access`)
+- **Hosting**: GitHub Pages serves `/docs` from `main` branch (Pages only supports `/` or `/docs`; that's why the folder is named that)
+- **Payment**: Whish Money, manual reconciliation. Runner pastes their reference code into the Whish note; admin matches it and clicks Confirm.
+- **WhatsApp**: pre-composed `wa.me` links open in WhatsApp Web after payment confirmation — admin clicks Send. Semi-automatic, no API costs.
+- **QR**: generated client-side via `qrcodejs` (cdnjs CDN). No external QR API at runtime.
+- **No Firebase Storage** — Storage requires Blaze (paid); we use base64 in Firestore for the logo + background image instead.
 
 ## File structure
 
 ```
 batroun-race/
 ├── CLAUDE.md              (this file)
-├── WORKFLOW.md            (phase-by-phase build plan)
-├── README.md              (setup instructions for humans)
-├── firestore.rules        (Firestore security rules)
-├── firebase.json          (Firebase deploy config)
-├── .firebaserc            (Firebase project link)
-└── docs/                  (served by GitHub Pages — name required by Pages, contents are the public site)
-    ├── index.html         (public registration page — DONE)
-    ├── admin.html         (admin dashboard — TODO)
-    └── assets/
-        └── whish-qr.png   (school's Whish QR code image)
+├── README.md              (human-facing — points at user guide)
+├── WORKFLOW.md            (historical build plan — kept for reference)
+├── firestore.rules        (Firestore security rules — re-publish manually in Firebase console after edits)
+├── firebase.json          (Firebase CLI config)
+├── .firebaserc            (Firebase project link → "batroun-race")
+├── .devcontainer/         (GitHub Codespaces config — auto-installs Claude Code + Firebase CLI)
+└── docs/                  (served by GitHub Pages)
+    ├── index.html         (public registration page)
+    ├── admin.html         (admin dashboard — Chrome only)
+    ├── scan.html          (race-day QR scanner)
+    ├── ticket.html        (public ticket page with QR — linked from WhatsApp)
+    └── USER_GUIDE.md      (comprehensive non-technical manual for all roles)
 ```
+
+## Live URLs
+
+- Public registration: https://relkady84.github.io/Batroun-Race/
+- Admin: https://relkady84.github.io/Batroun-Race/admin.html
+- Race-day scanner: https://relkady84.github.io/Batroun-Race/scan.html
+- Ticket page (per runner): https://relkady84.github.io/Batroun-Race/ticket.html?ref=...&name=...&bib=...
+
+## Roles & access
+
+| Role | Where defined | Sees |
+|---|---|---|
+| **Super admin** | Hardcoded in code + rules — `raedelkady@gmail.com`, `nizarelkady@gmail.com` — cannot be removed | Everything |
+| **Admin** | `/config/access.admins` array in Firestore (managed via admin Settings tab) | Everything including Settings |
+| **Staff / viewer** | `/config/access.viewers` array | Registrations · Confirmed · scanner only |
+| **Public** | No auth | Just the registration page |
+
+`firestore.rules` `isAdmin()` checks super-admin list OR `/config/access.admins`. `isViewer()` checks `/config/access.viewers`. Rules read the access doc via `get()`.
 
 ## Firestore data model
 
 ```
-competitions/{competitionId}                    // e.g. "batroun-race-2026"
+competitions/{competitionId}                    // "batroun-race-2026"
   ├─ name, year, registrationOpens, registrationCloses, raceDay
-  ├─ waves: [{ id, label, endsAt }]
-  └─ whish: { number, qrImageUrl }
 
 competitions/{competitionId}/categories/{categoryId}
-  ├─ name, distanceKm, timed, ageLimit
-  ├─ prices: { wave1, wave2, wave3 }
-  ├─ capacity, registeredCount
-  └─ includes: [string]
+  ├─ name, distanceKm, timed
+  ├─ ageLimit (min), ageLimitMax (optional)
+  ├─ price (single value — no waves)
+  ├─ capacity (nullable), registeredCount
+  └─ subQuestion: { label, options[] } | null   // e.g. age-bracket dropdown
 
-competitions/{competitionId}/registrations/{regId}
+competitions/{competitionId}/config/{configId}   // public read except /access
+  ├─ theme:    { accent, accent2, ink, bg1, bg2, bgImage, logoImage, logoText, logoHeight, heading, subtitle, bannerText }
+  ├─ form:     { fields: [{ key, label, type, required, options }] }   // extra public-form fields
+  ├─ scanner:  { fields: [...] }    // which fields the hostess scanner shows
+  └─ access:   { admins: [email], viewers: [email] }   // authenticated read only
+
+competitions/{competitionId}/registrations/{regId}    // doc ID = normalizePhone(phone)
   ├─ firstName, lastName, email, phone, dob, gender, nationality, city
-  ├─ categoryId, categoryName, tshirtSize, club, medicalNotes
+  ├─ categoryId, categoryName, subQuestionAnswer
+  ├─ tshirtSize, club, medicalNotes
   ├─ emergencyContactName, emergencyContactPhone
   ├─ consents: { waiver, dataUsage, newsletter }
-  ├─ waveAtRegistration, priceUSD
-  ├─ whishReference          // "BTN-2026-A4K9" — unique, user-visible
-  ├─ paymentStatus           // "pending" | "paid" | "refunded" | "free"
-  ├─ paymentMethod           // "whish" | "free"
-  ├─ bibNumber               // assigned by admin on payment confirmation
-  ├─ registeredAt, paidAt
-  └─ ageOnRaceDay            // denormalized for filtering
+  ├─ priceUSD, whishReference   // "BTN-2026-A4K9"
+  ├─ paymentStatus              // "pending" | "paid" | "refunded" | "free"
+  ├─ paymentMethod              // "manual" | "free"
+  ├─ bibNumber, paidAt
+  ├─ registeredAt, ageOnRaceDay
+  ├─ custom: { ...customFieldValues }
+  ├─ deletedAt, deletedBy       // soft delete; admin Backup tab restores
+  └─ checkedInAt, checkedInBy   // set by hostess scanner
 ```
 
 ## Critical conventions
 
-### Currency
-USD throughout. The Race.docx prices are in USD. Display as `$X USD` for clarity.
-
-### Phone numbers
-Lebanese format: `+961XXXXXXXX` or local `XXXXXXXX`. Store as user-entered, normalize on display.
-
-### WhatsApp links
-Format: `https://wa.me/9613XXXXXXX?text=<urlencoded>`. The number `96171503555` is Café Molière's pattern — Batroun Race will have its own.
+### Phone-based registration uniqueness
+Each registration's Firestore document ID **is** `normalizePhone(phone)` (canonical "961XXXXXXXX" form). Because rules allow public `create` but not public `update`, a second submission with the same phone is treated as an `update` and rejected by the server. No client-side check needed.
 
 ### Whish reference codes
 - Format: `BTN-2026-XXXX` (4 chars, no confusing 0/O/1/I/L)
 - Generated client-side at submit time
-- Stored on registration doc
-- Shown to user on confirmation — they include it in Whish payment memo
-- Admin uses it to match incoming Whish payments
+- Shown prominently on the confirmation panel
+- Runner must include in Whish note/comment — admin matches manually
 
-### Capacity gates (Phase 3 — not yet built)
-**Must use Firestore transactions.** Two people submitting at the same time for the last spot is a real race condition. Use `runTransaction` to atomically read `registeredCount`, check against `capacity`, write the registration, increment count. Reject if full.
+### Sub-question (age brackets per category)
+Each category can have a `subQuestion: { label, options }` field. On the public form, when the runner picks the category AND enters their DOB, the matching bracket is auto-filled as a **readonly** field (parser handles `(YYYY-YYYY)`, `X-Y years`, `X+`, etc.). The runner cannot override — enforces correct bracket-to-DOB match.
 
-### Race day date
-Currently hardcoded as `2026-11-22` in `index.html` (`RACE_DAY` constant). Move this to the `competitions/{id}` document when admin dashboard is built so it's editable without redeploying.
+### Capacity gates
+Categories may have a `capacity` and a `registeredCount`. **Currently not enforced.** If/when we need it: use `runTransaction` to atomically read count, check capacity, write registration, increment count.
+
+### Theme/logo upload
+Admin uploads images via the Theme tab. Images are compressed client-side (canvas → JPEG ≤ 800 KB for backgrounds, ≤ 250 KB for logos) and stored as `data:image/jpeg;base64,...` strings on `/config/theme`. **No Firebase Storage** (Blaze required).
+
+### Soft delete + 10s undo
+When viewer/admin clicks Delete on a registration:
+1. Warning dialog
+2. `updateDoc` sets `deletedAt + deletedBy` (NOT `deleteDoc`)
+3. Yellow toast at bottom with **Undo** button, 10s countdown
+4. Clicking Undo within 10s clears `deletedAt`/`deletedBy`
+5. After 10s, registration stays soft-deleted; only visible in admin **Backup** tab
+
+Admin can **Restore all** / **Permanent delete all** from Backup. Permanent delete frees the phone-based doc ID for re-registration.
+
+### Confirmed → Revert
+Confirmed tab has a **↩ Revert** button per row that clears `paymentStatus`/`bibNumber`/`paidAt`/`checkedInAt`/`checkedInBy`, moving the runner back to Registrations as pending.
 
 ## Gotchas learned the hard way
 
-- **Never edit JS via Python scripts that use string manipulation** — splits regex literals on `/`, doubles `const`, breaks template literals. If automating JS edits, run `node --check file.js` after every change.
-- **Avoid template literals in any JS string that gets generated via Python f-strings or regex replacement.**
-- **Firebase Auth `signInWithRedirect` is preferred over `signInWithPopup`** on mobile (popups get blocked). Café Molière learned this.
-- **Admin must be opened in Chrome.** Microsoft Edge's tracking prevention silently blocks Firebase Auth's cross-origin token handoff between `relkady84.github.io` and `batroun-race.firebaseapp.com`, so `getRedirectResult` resolves to `null` and `onAuthStateChanged` fires with `user=null`. Public page is unaffected. Don't waste time debugging admin sign-in until the user confirms which browser they're in.
-- **Firebase Storage requires the Blaze plan** (paid). The user is on the free Spark plan — admin image uploads use client-side canvas resize + base64 stored on the theme doc instead. Don't add Storage SDK usage without confirming an upgrade.
-- **Firestore `onSnapshot` fires twice on initial load** (cache then server). Any editor that populates inputs from a listener needs a "dirty" flag, or user-typed values get wiped between keystrokes and Save. The Competition tab in admin already does this — copy that pattern for any new editor.
-- **Disable App Check** during development; it blocks Firestore writes from localhost in confusing ways.
-- **GitHub Pages cache is aggressive.** Hard reload (`Cmd+Shift+R`) after pushing or you'll think your fix didn't work.
-
-## Race categories (from Race.docx — authoritative)
-
-| ID            | Name                     | Timed | Age limit | Wave 1 | Wave 2 | Wave 3 |
-|---------------|--------------------------|-------|-----------|--------|--------|--------|
-| marathon      | Marathon 42.195 KM       | Yes   | 18+       | $40    | $50    | $65    |
-| halfMarathon  | Half Marathon 21.1 KM    | Yes   | 17+       | $30    | $40    | $50    |
-| 10k           | 10 KM Race               | Yes   | 12+       | $25    | $30    | $35    |
-| 5k            | 5 KM Race                | No    | none      | $22    | $22    | $22    |
-| para          | Para Athlete Race        | Yes   | 15+       | Free   | Free   | Free   |
-
-### Waves
-- Wave 1: now → **1 Sept 2026** (Early bird)
-- Wave 2: 2 Sept → **10 Nov 2026** (Standard)
-- Wave 3: 11 Nov → **20 Nov 2026** (Late)
-
-Registration closes 20 Nov 2026 for everyone. Race day assumed 22 Nov 2026 (confirm with organizers).
-
-### Includes (shown on all categories)
-Race Registration · BIB & Tag · Finisher T-shirt · Finisher Medal · Goody Bag · Finish Time Certificate · LAF Fees
+- **NEVER edit JS via Python scripts that use string manipulation** — splits regex literals, doubles `const`, breaks template literals. Use the Edit tool.
+- **Always `node --check` the inline admin.html module after edits** — a duplicate `const` once silently broke the entire admin (sign-in button looked dead because the whole script failed to parse). Extract with `awk '/<script type="module">/,/<\/script>/' docs/admin.html | sed 's/<script[^>]*>//;s/<\/script>//' > /tmp/x.mjs && node --check /tmp/x.mjs`.
+- **Admin must be opened in Chrome.** Edge's tracking prevention silently blocks Firebase Auth's cross-origin token handoff between `relkady84.github.io` and `batroun-race.firebaseapp.com` — `getRedirectResult` resolves to null. Public page is unaffected.
+- **Firebase Auth `signInWithPopup` first, then `signInWithRedirect` fallback** on blocked-popup error codes. The admin and scanner pages do this.
+- **Firestore `onSnapshot` fires twice on initial load** (cache then server). Any editor that populates inputs from a listener needs a "dirty" flag, or user-typed values get wiped between keystrokes and Save. See `competitionDirty` in admin.html.
+- **GitHub Pages cache is aggressive.** Hard reload (`Ctrl+Shift+R`) after pushing.
+- **GitHub Pages folder must be `/docs`** — Pages only supports root or `/docs`, not `/public`. The folder is named `docs/` for this reason.
+- **`firestore.rules` changes require manual re-publish** in Firebase Console → Firestore → Rules tab. Pushing to GitHub doesn't deploy rules.
+- **Don't reintroduce `api.qrserver.com`** — was the only external dependency at runtime, swapped for client-side `qrcodejs` so 1000+ registrations don't hit any rate limit.
+- **WhatsApp messages: no emojis** — some Android devices render unknown emojis as "?" in WhatsApp. Use plain text labels.
 
 ## How to test locally
 
 ```bash
-# Quick static server (no Firebase needed for layout testing)
 cd docs && python3 -m http.server 8000
+# then open http://localhost:8000
+```
 
-# For full Firestore testing:
+For Firebase emulator testing:
+```bash
 firebase emulators:start --only firestore,auth
 # then point firebaseConfig at the emulator
 ```
 
 ## How to deploy
 
-GitHub Pages serves from `/docs` on `main`. Just push.
+GitHub Pages serves `/docs` on `main`. Just push.
 
 ```bash
 git add . && git commit -m "..." && git push
 ```
 
-GitHub Pages updates within 1–2 minutes. Hard reload to bypass cache.
+Updates within 1–2 minutes. Hard-reload to bypass cache.
 
-## Status — what's done
+If `firestore.rules` changed, also re-publish manually in Firebase Console.
 
-- [x] Phase 1: Public registration page (`docs/index.html`)
-  - Wave detection, live price display, age validation, Whish reference generation, Firestore write, confirmation panel
+## Status — what's built
 
-## Status — what's next
+- ✅ Public registration page with custom form fields, Whish payment instructions, phone-uniqueness, sub-question (age bracket) auto-fill from DOB, registration-open window enforcement
+- ✅ Admin dashboard:
+  - Registrations table with 17 columns, 16 filters, all sortable, per-browser customization
+  - Confirmed tab for paid/free only (also visible to staff)
+  - Backup tab (admin only) with Restore / Permanent delete / Restore all / Permanent delete all
+  - Categories CRUD with sub-question editor + preset 10K/5K brackets
+  - Form fields CRUD (text/number/textarea/checkbox/dropdown)
+  - Theme tab: logo upload, background upload, colors, copy, banner, logo text, logo size
+  - Competition tab: name/year/dates
+  - Dashboard customization tab: filter/column visibility + scanner card fields
+  - Settings tab: add/remove additional admins + staff
+- ✅ Soft delete + 10s undo toast (stacked, multiple simultaneous undos work)
+- ✅ Payment approval flow → auto-opens pre-composed WhatsApp message with ticket link
+- ✅ Public ticket page (ticket.html) with client-side QR
+- ✅ Race-day scanner (scan.html) with camera + manual fallback + admin-customizable result card fields + check-in tracking
+- ✅ Two-tier access: super admins hardcoded, additional admins + staff dynamic via Firestore
+- ✅ Codespaces devcontainer for cloud development
 
-See `WORKFLOW.md`.
+## Open ideas (not yet built)
+
+- Capacity gate via transaction (data model is ready; UI not wired)
+- Cloud Function or Twilio integration for fully-automatic WhatsApp send (currently semi-manual)
+- Admin-side "Check in manually" button on a registration (currently only scanner does it)
+- Sticky Actions column on the registrations table (sometimes scrolls out of view with many columns enabled)
+- Re-enable a "default background photo" preset that admin can apply with one click
+
+## Who to ask
+
+- **Project owner**: Raed Elkady (`raedelkady@gmail.com`)
+- **Co-admin**: Nizar Elkady (`nizarelkady@gmail.com`)
+- For the day-of: staff are added/removed via the admin **Settings** tab.
