@@ -169,6 +169,17 @@ If `firestore.rules` changed, also re-publish manually in Firebase Console.
 - `claude/...` — feature branches used by Claude Code on the web. Develop and push here; merge to `main` via PR (or fast-forward locally) only when you're ready to ship to production.
 - Never push directly to `main` from a Claude Code session unless explicitly asked — the deploy is immediate and irreversible from the user's perspective.
 
+## Default workflow for Claude Code sessions
+
+The owner often works from his phone, so changes need to be reviewable and mergeable with one tap. **After any edit that the user accepts, always:**
+
+1. Commit on the current `claude/...` branch with a clear message.
+2. Push the branch (`git push -u origin <branch>`).
+3. **Open a PR against `main`** via the GitHub MCP tools, with a concise title and a Summary + Test plan body. Reply with the PR URL.
+4. Do **not** auto-merge. The user merges from the GitHub mobile app when they're ready — that's what triggers the live deploy.
+
+If multiple commits land in one session, keep updating the same PR rather than opening a new one.
+
 ## Status — what's built
 
 - ✅ Public registration page with custom form fields, Whish payment instructions, phone-uniqueness, sub-question (age bracket) auto-fill from DOB, registration-open window enforcement
