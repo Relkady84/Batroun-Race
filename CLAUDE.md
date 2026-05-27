@@ -60,13 +60,14 @@ batroun-race/
 
 ```
 competitions/{competitionId}                    // "batroun-race-2026"
-  ├─ name, year, registrationOpens, registrationCloses, raceDay
+  ├─ name, year, registrationOpens, registrationCloses, raceDay, raceStartTime, raceLocation
 
 competitions/{competitionId}/categories/{categoryId}
   ├─ name, distanceKm, timed
   ├─ ageLimit (min), ageLimitMax (optional)
   ├─ price (single value — no waves)
   ├─ capacity (nullable), registeredCount
+  ├─ bibRangeStart, bibRangeEnd                 // when set → confirm-payment auto-assigns the next unused bib in [start, end], FIFO
   ├─ isRelay: bool                              // when true → public form collects a teammate
   └─ subQuestion: { label, options[] } | null   // e.g. age-bracket dropdown
 

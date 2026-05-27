@@ -593,6 +593,10 @@ Masters Men-Women 35-39
           <div><label>Registration closes</label><input id="cpCloses" type="datetime-local"></div>
           <div><label>Race day</label><input id="cpRaceDay" type="date"></div>
         </div>
+        <div class="row two">
+          <div><label>Race start time</label><input id="cpStartTime" type="time" placeholder="e.g. 07:00"></div>
+          <div><label>Race location</label><input id="cpLocation" placeholder="Lycée Montaigne, Beit Chabab"></div>
+        </div>
       </div>
 
       <div><button id="competitionSaveBtn" class="btn">Save event info</button></div>
@@ -688,6 +692,7 @@ const db = getFirestore(app);
 // State
 let regs = [];
 let cats = [];
+let competition = {};
 let formFields = [];
 let builtInConfig = {};
 let includesConfig = null; // null = use defaults; array = explicit list
@@ -1020,7 +1025,11 @@ function startListeners() {
   // Competition doc
   onSnapshot(
     doc(db, "competitions", COMPETITION_ID),
-    snap => loadCompetitionIntoEditor(snap.exists() ? snap.data() : {}),
+    snap => {
+      const c = snap.exists() ? snap.data() : {};
+      competition = c;
+      loadCompetitionIntoEditor(c);
+    },
     err => toast("Competition listener: " + err.message, true)
   );
 }
@@ -1871,7 +1880,11 @@ function buildTicketUrl(r) {
     name: `${r.firstName || ""} ${r.lastName || ""}`.trim(),
     bib: String(r.bibNumber || ""),
     cat: (r.categoryName || "") + (r.subQuestionAnswer ? " — " + r.subQuestionAnswer : ""),
-    date: r.raceDay || ""
+    date:    competition.raceDay       || "",
+    start:   competition.raceStartTime || "",
+    loc:     competition.raceLocation  || "",
+    amount:  (r.priceUSD ?? 0) ? `$${r.priceUSD}` : "Free",
+    status:  r.paymentStatus || ""
   });
   return `${location.origin}${location.pathname.replace(/admin\.html$/, "")}ticket.html?${params}`;
 }
@@ -1893,38 +1906,63 @@ function buildWhatsAppUrl(r) {
     `Category: ${r.categoryName || ""}${r.subQuestionAnswer ? " - " + r.subQuestionAnswer : ""}`,
     r.priceUSD ? `Amount paid: $${r.priceUSD}` : `Entry: Free`,
     ``,
-    `Your race ticket (with QR code to show at pickup):`,
+    `Open your official race ticket below (with QR code, all your details, and a "Save as PDF" button):`,
     ticketUrl,
     ``,
+    `Bring it printed or on your phone to pick up your bib on race day.`,
     `See you at the start line!`
   ];
   return `https://wa.me/${phone}?text=${encodeURIComponent(lines.join("\n"))}`;
 }
 
+// Find the lowest unused bib in the category's range. FIFO: lowest first.
+function nextBibFor(categoryId) {
+  const cat = cats.find(c => c.id === categoryId);
+  if (!cat) return { error: "Category not found." };
+  const start = parseInt(cat.bibRangeStart, 10);
+  const end   = parseInt(cat.bibRangeEnd,   10);
+  if (!start || !end || start > end) {
+    return { error: `No BIB range set for "${cat.name || cat.id}". Open admin → Categories → edit this category to define start & end.` };
+  }
+  const used = new Set(
+    regs.filter(x => x.categoryId === categoryId && x.bibNumber != null && !x.deletedAt)
+        .map(x => Number(x.bibNumber))
+  );
+  for (let n = start; n <= end; n++) {
+    if (!used.has(n)) return { bib: n, start, end };
+  }
+  return { error: `BIB range ${start}–${end} for "${cat.name || cat.id}" is fully assigned. Extend the range in admin → Categories.` };
+}
+
 function openConfirmPay(r) {
   const priceFree = (r.priceUSD || 0) === 0;
+  const next = nextBibFor(r.categoryId);
+  const bibBlock = next.error
+    ? `<p style="margin-top:14px;color:var(--err);font-weight:600">${escapeHtml(next.error)}</p>`
+    : `<p style="margin-top:14px">Bib to assign: <strong style="font-size:1.2rem;color:var(--accent)">${next.bib}</strong>
+         <span class="muted" style="margin-left:8px;font-size:.85rem">(from range ${next.start}–${next.end})</span>
+       </p>`;
   openModal(`
     <h3>Confirm payment — ${escapeHtml(r.firstName)} ${escapeHtml(r.lastName)}</h3>
     <p class="muted">Reference: <code>${escapeHtml(r.whishReference)}</code> · Amount: ${fmtMoney(r.priceUSD || 0)}</p>
     <p class="muted" style="margin:8px 0 0;font-size:.85rem">${priceFree
-      ? "This is a free entry — assign a bib and we'll WhatsApp the runner."
-      : "Confirm the Whish payment matched this reference, then assign a bib. The runner will receive a WhatsApp message with their QR ticket."}
+      ? "This is a free entry. The runner will be confirmed and we'll WhatsApp them."
+      : "Confirm the Whish payment matched this reference. The next bib in this category's range will be auto-assigned, and the runner will receive a WhatsApp message with their QR ticket."}
     </p>
-    <label style="margin-top:14px">Bib number</label>
-    <input id="bibInput" type="number" min="1" placeholder="e.g. 142">
+    ${bibBlock}
     <label class="inline" style="display:flex;align-items:center;gap:8px;margin-top:10px;cursor:pointer">
       <input type="checkbox" id="sendWaCb" checked>
       <span>Open WhatsApp message after confirming</span>
     </label>
     <div class="modal-actions">
       <button class="btn sec" id="cancelPay">Cancel</button>
-      <button class="btn" id="okPay">Mark as paid</button>
+      <button class="btn" id="okPay" ${next.error ? "disabled" : ""}>Mark as paid</button>
     </div>
   `);
   $("#cancelPay").onclick = closeModal;
   $("#okPay").onclick = async () => {
-    const bib = parseInt($("#bibInput").value, 10);
-    if (!bib) { toast("Enter a bib number", true); return; }
+    if (next.error) return;
+    const bib = next.bib;
     const sendWa = $("#sendWaCb").checked;
     try {
       await updateDoc(
@@ -1941,7 +1979,6 @@ function openConfirmPay(r) {
       }
     } catch (e) { toast(e.message, true); }
   };
-  setTimeout(() => $("#bibInput").focus(), 50);
 }
 
 // ===== CSV export =====
@@ -2007,7 +2044,7 @@ function renderCategoryList() {
           <div style="flex:1;min-width:240px">
             <h2 style="margin:0">${escapeHtml(c.name || c.id)} <span class="muted" style="font-weight:400">#${escapeHtml(c.id)}</span></h2>
             <div class="muted" style="margin-top:4px">
-              ${c.distanceKm ?? "?"} km · ${c.timed ? "Timed" : "Untimed"} · ${formatAgeRange(c.ageLimit, c.ageLimitMax)} · ${(typeof c.price === "number") ? (c.price === 0 ? "Free" : "$" + c.price) : "$" + (c.prices?.wave1 ?? 0)}${c.isRelay ? " · Relay (2 runners)" : ""}
+              ${c.distanceKm ?? "?"} km · ${c.timed ? "Timed" : "Untimed"} · ${formatAgeRange(c.ageLimit, c.ageLimitMax)} · ${(typeof c.price === "number") ? (c.price === 0 ? "Free" : "$" + c.price) : "$" + (c.prices?.wave1 ?? 0)}${(c.bibRangeStart && c.bibRangeEnd) ? ` · BIB ${c.bibRangeStart}–${c.bibRangeEnd}` : ""}${c.isRelay ? " · Relay (2 runners)" : ""}
             </div>
             <div style="margin-top:8px;font-size:.9rem">
               <strong>Capacity:</strong> ${cap ? `${reg} / ${cap}` : `${reg} (no limit)`}
@@ -2124,6 +2161,12 @@ function openEditCategory(c) {
       <input id="ec_price" type="number" value="${(typeof c.price === 'number') ? c.price : (c.prices?.wave1 ?? 0)}">
     </div>
 
+    <div class="row two" style="margin-top:8px">
+      <div><label>BIB range — start</label><input id="ec_bibStart" type="number" min="1" value="${c.bibRangeStart ?? ""}" placeholder="e.g. 1"></div>
+      <div><label>BIB range — end</label><input id="ec_bibEnd" type="number" min="1" value="${c.bibRangeEnd ?? ""}" placeholder="e.g. 200"></div>
+    </div>
+    <p class="muted" style="margin:4px 0 0;font-size:.82rem">When you confirm a payment, the next unused bib in this range is auto-assigned (first-in, first-out).</p>
+
     <label class="inline" style="margin-top:10px;display:flex;align-items:center;gap:8px">
       <input type="checkbox" id="ec_isRelay" ${c.isRelay ? "checked" : ""}
         style="width:auto;min-height:auto;accent-color:var(--accent)">
@@ -2180,6 +2223,8 @@ Masters Men-Women 35-39
         timed: $("#ec_timed").value === "true",
         capacity: parseInt($("#ec_cap").value, 10) || null,
         price: parseFloat($("#ec_price").value) || 0,
+        bibRangeStart: parseInt($("#ec_bibStart").value, 10) || null,
+        bibRangeEnd:   parseInt($("#ec_bibEnd").value,   10) || null,
         isRelay: $("#ec_isRelay").checked,
         subQuestion
       });
@@ -2707,6 +2752,8 @@ function loadCompetitionIntoEditor(c) {
   $("#cpOpens").value  = tsToLocal(c.registrationOpens);
   $("#cpCloses").value = tsToLocal(c.registrationCloses);
   $("#cpRaceDay").value = c.raceDay ? c.raceDay.slice(0,10) : "";
+  $("#cpStartTime").value = c.raceStartTime || "";
+  $("#cpLocation").value = c.raceLocation || "";
 }
 
 function tsToLocal(ts) {
@@ -2728,7 +2775,9 @@ $("#competitionSaveBtn").addEventListener("click", async () => {
     year: parseInt($("#cpYear").value, 10) || null,
     registrationOpens:  opens,
     registrationCloses: closes,
-    raceDay: $("#cpRaceDay").value || null
+    raceDay: $("#cpRaceDay").value || null,
+    raceStartTime: $("#cpStartTime").value || null,
+    raceLocation: $("#cpLocation").value.trim() || null
   };
 
   console.log("[competition] saving:", {
