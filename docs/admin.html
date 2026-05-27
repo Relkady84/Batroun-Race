@@ -436,16 +436,22 @@ Masters Men-Women 35-39
     <!-- ============ Form fields ============ -->
     <section id="tab-formFields" class="tab">
       <div class="card">
-        <h2>Built-in fields — visibility &amp; required</h2>
+        <h2>Built-in fields — name, visibility &amp; required</h2>
         <p class="muted" style="margin:0 0 12px">
-          Toggle which built-in fields appear on the public registration form, and which ones must be filled.
-          Some fields are always required (first/last name, phone, date of birth, category, waiver, data-usage consent) and aren't listed here.
+          Rename the labels users see, toggle visibility, mark as required, or remove fields entirely.
+          Locked fields (first/last name, phone, date of birth, category, waiver, data-usage consent) aren't listed — they're required for the system to work.
         </p>
         <div id="builtInFieldsList"></div>
-        <div style="margin-top:14px;display:flex;gap:10px;align-items:center">
+        <div style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
           <button id="bifSaveBtn" class="btn">Save</button>
-          <button id="bifResetBtn" class="btn" style="background:transparent;border:1px solid var(--border);color:var(--ink)">Reset to defaults</button>
+          <button id="bifResetBtn" class="btn" style="background:transparent;border:1px solid var(--line);color:var(--ink)">Reset all to defaults</button>
           <span class="muted" id="bifStatus"></span>
+        </div>
+
+        <div id="builtInDeletedWrap" style="margin-top:18px" hidden>
+          <h3 style="margin:14px 0 8px;font-size:1rem">Removed fields</h3>
+          <p class="muted" style="margin:0 0 8px;font-size:.9rem">Hidden from the public form. Restore to bring them back.</p>
+          <div id="builtInDeletedList"></div>
         </div>
       </div>
 
@@ -2158,7 +2164,7 @@ async function deleteCategory(c) {
   } catch (e) { toast(e.message, true); }
 }
 
-// ===== Built-in form fields (visibility + required) =====
+// ===== Built-in form fields (label / visibility / required / delete) =====
 const BUILT_IN_FIELDS = [
   { key: "email",       label: "Email" },
   { key: "gender",      label: "Gender" },
@@ -2173,71 +2179,151 @@ const BUILT_IN_FIELDS = [
   { key: "newsletter",  label: "Newsletter consent" },
 ];
 const BUILT_IN_DEFAULTS = {
-  email:{visible:true,required:true},      gender:{visible:true,required:true},
-  nationality:{visible:true,required:false}, country:{visible:true,required:false},
-  city:{visible:true,required:false},      tshirt:{visible:true,required:true},
-  blood:{visible:true,required:true},      club:{visible:true,required:false},
-  note:{visible:true,required:false},      emergency:{visible:true,required:true},
-  newsletter:{visible:true,required:false}
+  email:      { visible:true,  required:true,  deleted:false },
+  gender:     { visible:true,  required:true,  deleted:false },
+  nationality:{ visible:true,  required:false, deleted:false },
+  country:    { visible:true,  required:false, deleted:false },
+  city:       { visible:true,  required:false, deleted:false },
+  tshirt:     { visible:true,  required:true,  deleted:false },
+  blood:      { visible:true,  required:true,  deleted:false },
+  club:       { visible:true,  required:false, deleted:false },
+  note:       { visible:true,  required:false, deleted:false },
+  emergency:  { visible:true,  required:true,  deleted:false },
+  newsletter: { visible:true,  required:false, deleted:false },
 };
+function defaultLabel(key) {
+  return (BUILT_IN_FIELDS.find(f => f.key === key) || {}).label || key;
+}
 function effectiveBuiltIn(key) {
-  return { ...BUILT_IN_DEFAULTS[key], ...(builtInConfig[key] || {}) };
+  return { label: defaultLabel(key), ...BUILT_IN_DEFAULTS[key], ...(builtInConfig[key] || {}) };
+}
+function readRowConfig(key) {
+  const labelEl = $(`input[data-bif="label"][data-key="${key}"]`);
+  const visEl   = $(`input[data-bif="visible"][data-key="${key}"]`);
+  const reqEl   = $(`input[data-bif="required"][data-key="${key}"]`);
+  const cfg = effectiveBuiltIn(key);
+  return {
+    label:    labelEl ? (labelEl.value.trim() || defaultLabel(key)) : cfg.label,
+    visible:  visEl   ? visEl.checked   : cfg.visible,
+    required: reqEl   ? (visEl?.checked && reqEl.checked) : cfg.required,
+    deleted:  cfg.deleted
+  };
 }
 function renderBuiltInFields() {
+  const active  = BUILT_IN_FIELDS.filter(f => !effectiveBuiltIn(f.key).deleted);
+  const deleted = BUILT_IN_FIELDS.filter(f =>  effectiveBuiltIn(f.key).deleted);
+
   const list = $("#builtInFieldsList");
-  list.innerHTML = `
-    <table style="width:100%;border-collapse:collapse">
-      <thead><tr style="text-align:left;border-bottom:1px solid var(--border)">
-        <th style="padding:8px 4px">Field</th>
-        <th style="padding:8px 4px;width:90px;text-align:center">Visible</th>
-        <th style="padding:8px 4px;width:90px;text-align:center">Required</th>
-      </tr></thead>
-      <tbody>
-        ${BUILT_IN_FIELDS.map(f => {
-          const cfg = effectiveBuiltIn(f.key);
-          return `<tr style="border-bottom:1px solid var(--border)">
-            <td style="padding:10px 4px">${escapeHtml(f.label)}</td>
-            <td style="padding:10px 4px;text-align:center">
-              <input type="checkbox" data-bif="visible" data-key="${f.key}" ${cfg.visible?"checked":""}
-                style="width:auto;min-height:auto;accent-color:var(--accent)">
-            </td>
-            <td style="padding:10px 4px;text-align:center">
-              <input type="checkbox" data-bif="required" data-key="${f.key}" ${cfg.required?"checked":""}
-                style="width:auto;min-height:auto;accent-color:var(--accent)">
-            </td>
-          </tr>`;
-        }).join("")}
-      </tbody>
-    </table>`;
-}
-async function saveBuiltInFields() {
-  const next = {};
-  BUILT_IN_FIELDS.forEach(f => {
-    const visible  = $(`input[data-bif="visible"][data-key="${f.key}"]`).checked;
-    const required = $(`input[data-bif="required"][data-key="${f.key}"]`).checked;
-    next[f.key] = { visible, required: visible && required };
+  if (!active.length) {
+    list.innerHTML = `<div class="empty">All built-in fields are removed. Restore one below to bring it back.</div>`;
+  } else {
+    list.innerHTML = `
+      <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:520px">
+        <thead><tr style="text-align:left;border-bottom:1px solid var(--line)">
+          <th style="padding:8px 4px">Label shown to users</th>
+          <th style="padding:8px 4px;width:80px;text-align:center">Visible</th>
+          <th style="padding:8px 4px;width:80px;text-align:center">Required</th>
+          <th style="padding:8px 4px;width:60px"></th>
+        </tr></thead>
+        <tbody>
+          ${active.map(f => {
+            const cfg = effectiveBuiltIn(f.key);
+            return `<tr style="border-bottom:1px solid var(--line)" data-row="${f.key}">
+              <td style="padding:10px 4px">
+                <input type="text" data-bif="label" data-key="${f.key}"
+                       value="${escapeHtml(cfg.label)}" placeholder="${escapeHtml(defaultLabel(f.key))}"
+                       style="width:100%">
+                <div class="muted" style="font-size:.78rem;margin-top:2px">key: <code>${escapeHtml(f.key)}</code></div>
+              </td>
+              <td style="padding:10px 4px;text-align:center">
+                <input type="checkbox" data-bif="visible" data-key="${f.key}" ${cfg.visible?"checked":""}
+                  style="width:auto;min-height:auto;accent-color:var(--accent)">
+              </td>
+              <td style="padding:10px 4px;text-align:center">
+                <input type="checkbox" data-bif="required" data-key="${f.key}" ${cfg.required?"checked":""}
+                  style="width:auto;min-height:auto;accent-color:var(--accent)">
+              </td>
+              <td style="padding:10px 4px;text-align:center">
+                <button class="btn tiny danger" data-action="delete" data-key="${f.key}" title="Remove from form">✕</button>
+              </td>
+            </tr>`;
+          }).join("")}
+        </tbody>
+      </table></div>`;
+  }
+
+  const deletedWrap = $("#builtInDeletedWrap");
+  const deletedList = $("#builtInDeletedList");
+  if (!deleted.length) {
+    deletedWrap.hidden = true;
+    deletedList.innerHTML = "";
+  } else {
+    deletedWrap.hidden = false;
+    deletedList.innerHTML = deleted.map(f => {
+      const cfg = effectiveBuiltIn(f.key);
+      return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)">
+        <div>
+          <strong>${escapeHtml(cfg.label)}</strong>
+          <span class="muted" style="font-size:.85rem"> · key: <code>${escapeHtml(f.key)}</code></span>
+        </div>
+        <button class="btn tiny" data-action="restore" data-key="${f.key}">Restore</button>
+      </div>`;
+    }).join("");
+  }
+
+  list.querySelectorAll('button[data-action="delete"]').forEach(b => {
+    b.addEventListener("click", () => deleteBuiltInField(b.dataset.key));
   });
+  deletedList.querySelectorAll('button[data-action="restore"]').forEach(b => {
+    b.addEventListener("click", () => restoreBuiltInField(b.dataset.key));
+  });
+}
+async function deleteBuiltInField(key) {
+  if (!confirm(`Remove "${effectiveBuiltIn(key).label}" from the registration form? You can restore it later.`)) return;
+  // Persist any unsaved edits in the visible rows before flipping deleted
+  const next = collectAllRows();
+  next[key] = { ...next[key], deleted: true };
+  await persistBuiltIn(next, "Field removed");
+}
+async function restoreBuiltInField(key) {
+  const next = collectAllRows();
+  next[key] = { ...next[key], deleted: false };
+  await persistBuiltIn(next, "Field restored");
+}
+function collectAllRows() {
+  const out = {};
+  BUILT_IN_FIELDS.forEach(f => {
+    const cfg = effectiveBuiltIn(f.key);
+    // For visible rows, read live form values; for removed rows, keep stored cfg.
+    const row = $(`tr[data-row="${f.key}"]`);
+    if (row) {
+      const rc = readRowConfig(f.key);
+      out[f.key] = { ...cfg, ...rc };
+    } else {
+      out[f.key] = cfg;
+    }
+  });
+  return out;
+}
+async function persistBuiltIn(next, msg) {
   try {
     await setDoc(
       doc(db, "competitions", COMPETITION_ID, "config", "publicForm"),
       { builtIn: next },
       { merge: true }
     );
-    $("#bifStatus").textContent = "Saved.";
-    setTimeout(() => { $("#bifStatus").textContent = ""; }, 2500);
-    toast("Built-in fields updated");
+    if (msg) toast(msg);
   } catch (e) { toast(e.message, true); }
 }
+async function saveBuiltInFields() {
+  await persistBuiltIn(collectAllRows(), null);
+  $("#bifStatus").textContent = "Saved.";
+  setTimeout(() => { $("#bifStatus").textContent = ""; }, 2500);
+  toast("Built-in fields saved");
+}
 async function resetBuiltInFields() {
-  if (!confirm("Reset all built-in fields to their defaults?")) return;
-  try {
-    await setDoc(
-      doc(db, "competitions", COMPETITION_ID, "config", "publicForm"),
-      { builtIn: BUILT_IN_DEFAULTS },
-      { merge: true }
-    );
-    toast("Built-in fields reset");
-  } catch (e) { toast(e.message, true); }
+  if (!confirm("Reset all built-in fields (labels, visibility, required, removed list) to their defaults?")) return;
+  await persistBuiltIn(structuredClone(BUILT_IN_DEFAULTS), "Built-in fields reset");
 }
 $("#bifSaveBtn")?.addEventListener("click", saveBuiltInFields);
 $("#bifResetBtn")?.addEventListener("click", resetBuiltInFields);
