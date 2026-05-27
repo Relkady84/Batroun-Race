@@ -907,14 +907,13 @@ function ageOnRaceDay(dobStr) {
 // Lebanese local "71503555" → "96171503555". International like "+33 …" preserved.
 function normalizePhone(raw) {
   if (!raw) return "";
-  const trimmed = String(raw).trim();
-  let digits = trimmed.replace(/\D/g, "");
-  if (trimmed.startsWith("+") || trimmed.startsWith("00")) {
-    if (digits.startsWith("00")) digits = digits.slice(2);
-  } else {
-    if (digits.startsWith("0")) digits = digits.slice(1);
-    digits = "961" + digits;
-  }
+  let digits = String(raw).replace(/\D/g, "");
+  // International prefix: "00961…" → "961…"
+  if (digits.startsWith("00")) digits = digits.slice(2);
+  // National trunk prefix: "03…" → "3…"
+  if (digits.startsWith("0")) digits = digits.slice(1);
+  // If the user already typed the country code, don't add it again.
+  if (!digits.startsWith("961")) digits = "961" + digits;
   return digits;
 }
 
@@ -1375,6 +1374,7 @@ function renderExtraParticipants(count) {
           </select>
           <div class="help">Each participant can choose their own race.</div>
         </div>
+        <div class="row" id="${p}subq"></div>
         <div class="row two">
           <div>
             <label for="${p}first">First name *</label>
@@ -1400,7 +1400,6 @@ function renderExtraParticipants(count) {
             </select>
           </div>
         </div>
-        <div class="row" id="${p}subq"></div>
         <div class="row two">
           <div>
             <label for="${p}shirt">T-shirt size *</label>
@@ -2036,6 +2035,11 @@ form.addEventListener("submit", async (e) => {
       created.push({ ref: refs[i - 1], name: `${docPayload.firstName} ${docPayload.lastName}`.trim() });
     }
 
+    // Maintain the per-phone index so a signed-in runner can pull every
+    // registration filed under their mobile, not just the one they typed
+    // a ref for.
+    await upsertPhoneIndex(phoneNorm, refs);
+
     showConfirmation(created, totalPrice, cat);
   } catch (err) {
     console.error(err);
@@ -2155,8 +2159,13 @@ siSubmit.addEventListener("click", async () => {
       showSigninError("That mobile number doesn't match the one on the registration.");
       return;
     }
+
+    // Try to load every other registration registered under the same phone
+    // via the phone-index doc. Fall back to just the one we matched if the
+    // index doc doesn't exist (pre-Phase-2 registrations).
+    const allRegs = await loadAllRegsForPhone(phoneNorm, r, refRaw);
     closeSignin();
-    renderCart(r);
+    renderCart(allRegs);
   } catch (err) {
     console.error(err);
     showSigninError("Couldn't sign you in. Please try again or contact batrounrace@gmail.com.");
@@ -2165,6 +2174,41 @@ siSubmit.addEventListener("click", async () => {
     siSubmit.textContent = _orig;
   }
 });
+
+async function upsertPhoneIndex(phoneNorm, newRefs) {
+  if (!phoneNorm || !Array.isArray(newRefs) || !newRefs.length) return;
+  const ref = doc(db, "competitions", COMPETITION_ID, "phoneIndex", phoneNorm);
+  try {
+    const snap = await getDoc(ref);
+    const existing = snap.exists() ? (snap.data().refs || []) : [];
+    const next = Array.from(new Set([...existing, ...newRefs]));
+    await setDoc(ref, { refs: next, updatedAt: serverTimestamp() }, { merge: true });
+  } catch (err) {
+    // Non-fatal: the registration itself succeeded. Sign-in will just
+    // show one registration instead of the full group if this fails.
+    console.warn("phoneIndex upsert failed:", err);
+  }
+}
+
+async function loadAllRegsForPhone(phoneNorm, fallbackReg, fallbackRef) {
+  try {
+    const idx = await getDoc(doc(db, "competitions", COMPETITION_ID, "phoneIndex", phoneNorm));
+    if (!idx.exists()) return [{ ref: fallbackRef, ...fallbackReg }];
+    const refs = Array.isArray(idx.data().refs) ? idx.data().refs : [];
+    if (!refs.length) return [{ ref: fallbackRef, ...fallbackReg }];
+    const fetched = await Promise.all(refs.map(async (ref) => {
+      try {
+        const s = await getDoc(doc(db, "competitions", COMPETITION_ID, "registrations", ref));
+        return s.exists() ? { ref, ...s.data() } : null;
+      } catch (_) { return null; }
+    }));
+    const valid = fetched.filter(Boolean);
+    return valid.length ? valid : [{ ref: fallbackRef, ...fallbackReg }];
+  } catch (err) {
+    console.warn("loadAllRegsForPhone failed:", err);
+    return [{ ref: fallbackRef, ...fallbackReg }];
+  }
+}
 siRefInput.addEventListener("keydown", (e) => { if (e.key === "Enter") siSubmit.click(); });
 siPhoneInput.addEventListener("keydown", (e) => { if (e.key === "Enter") siSubmit.click(); });
 
@@ -2187,64 +2231,86 @@ function buildTicketUrlFor(r) {
   return `${location.origin}${location.pathname.replace(/index\.html$/, "")}ticket.html?${params}`;
 }
 
-function renderCart(r) {
-  cartName.textContent = `${r.firstName || ""} ${r.lastName || ""}`.trim() || "runner";
-
-  const status = (r.paymentStatus || "pending").toLowerCase();
-  const fullName = `${r.firstName || ""} ${r.lastName || ""}`.trim();
-  const isPaid = status === "paid" || status === "free";
+function renderCart(regs) {
+  if (!Array.isArray(regs)) regs = [regs];
+  // Use the first registration's name for the greeting.
+  const first = regs[0] || {};
+  cartName.textContent = `${first.firstName || ""} ${first.lastName || ""}`.trim() || "runner";
 
   const whishBadge = WHISH_LOGO_URL
     ? `<img src="${escHtml(WHISH_LOGO_URL)}" alt="Whish Money" style="height:40px;width:auto;border-radius:8px;background:#fff;padding:4px;box-shadow:0 2px 6px rgba(0,0,0,.2)">`
     : `<span class="whish-badge" aria-label="Whish Money"><span class="w">W</span>whish<span class="m">MONEY</span></span>`;
 
-  let block = "";
-  if (!isPaid) {
-    // Pending: show the Whish invoice.
-    block = `
-      <div class="invoice" role="region" aria-label="Whish payment invoice">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px">
-          <h3>Payment invoice</h3>
-          ${whishBadge}
-        </div>
-        <div class="row"><span class="k">Participant</span><span class="v">${escHtml(fullName)}</span></div>
-        <div class="row"><span class="k">Category</span><span class="v">${escHtml(r.categoryName || "—")}${r.subQuestionAnswer ? " · " + escHtml(r.subQuestionAnswer) : ""}</span></div>
-        <div class="row"><span class="k">Race day</span><span class="v">${escHtml(fmtRaceDate(RACE_DAY))}</span></div>
-        <div class="row"><span class="k">Amount due</span><span class="v amount">$${r.priceUSD ?? 0} USD</span></div>
-        <div class="row"><span class="k">Reference</span><span class="v"><span class="ref-pill">${escHtml(r.whishReference || "—")}</span></span></div>
-        <div style="margin-top:12px;padding:10px 12px;background:#fff5f7;border:1px solid #ffd6e0;border-radius:10px;font-size:.85rem;color:#5b6c80">
-          <strong style="color:#1a2b3d">How to pay.</strong>
-          Open Whish Money, send <strong style="color:#e6204e">$${r.priceUSD ?? 0}</strong> to <strong style="color:#1a2b3d">Batroun Race</strong>,
-          and write <strong style="color:#e6204e">${escHtml(r.whishReference || "")}</strong> in the transfer note. Once we confirm the payment,
-          your bib + QR ticket are sent to you on WhatsApp.
-        </div>
-      </div>`;
-  } else {
-    // Paid / free: show the ticket access card.
-    block = `
-      <div style="background:rgba(61,214,198,.07);border:1px solid rgba(61,214,198,.4);border-radius:14px;padding:14px">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-          <strong style="color:var(--accent);font-size:1rem">✓ Confirmed</strong>
-          ${r.bibNumber ? `<span style="margin-left:auto;font-weight:900;color:var(--accent);font-size:1.1rem">Bib ${r.bibNumber}</span>` : ""}
-        </div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin:8px 0">
-          <div><div class="muted" style="font-size:.72rem;text-transform:uppercase;letter-spacing:.08em">Participant</div><div style="font-weight:700">${escHtml(fullName)}</div></div>
-          <div><div class="muted" style="font-size:.72rem;text-transform:uppercase;letter-spacing:.08em">Category</div><div style="font-weight:700">${escHtml(r.categoryName || "—")}</div></div>
-          <div><div class="muted" style="font-size:.72rem;text-transform:uppercase;letter-spacing:.08em">Race day</div><div style="font-weight:700">${escHtml(fmtRaceDate(RACE_DAY))}</div></div>
-        </div>
-        <a href="${buildTicketUrlFor(r)}" target="_blank" rel="noopener" class="btn" style="display:inline-block;text-decoration:none;margin-top:8px">Open race ticket</a>
-      </div>`;
-  }
+  const totalDue = regs
+    .filter(r => {
+      const s = (r.paymentStatus || "pending").toLowerCase();
+      return s !== "paid" && s !== "free";
+    })
+    .reduce((sum, r) => sum + (r.priceUSD || 0), 0);
 
-  cartItems.innerHTML = `
-    <div class="cart-item">
-      <h4>${escHtml(fullName) || "Participant"}
-        <span class="status-pill ${isPaid ? "status-paid" : "status-pending"}">${isPaid ? "Confirmed" : "Payment pending"}</span>
-      </h4>
-      ${block}
-    </div>`;
+  const cards = regs.map(r => {
+    const status = (r.paymentStatus || "pending").toLowerCase();
+    const fullName = `${r.firstName || ""} ${r.lastName || ""}`.trim();
+    const isPaid = status === "paid" || status === "free";
 
-  // Hide the form, show the cart.
+    let block;
+    if (!isPaid) {
+      block = `
+        <div class="invoice" role="region" aria-label="Whish payment invoice">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px">
+            <h3>Payment invoice</h3>
+            ${whishBadge}
+          </div>
+          <div class="row"><span class="k">Participant</span><span class="v">${escHtml(fullName)}</span></div>
+          <div class="row"><span class="k">Category</span><span class="v">${escHtml(r.categoryName || "—")}${r.subQuestionAnswer ? " · " + escHtml(r.subQuestionAnswer) : ""}</span></div>
+          <div class="row"><span class="k">Race day</span><span class="v">${escHtml(fmtRaceDate(RACE_DAY))}</span></div>
+          <div class="row"><span class="k">Amount due</span><span class="v amount">$${r.priceUSD ?? 0} USD</span></div>
+          <div class="row"><span class="k">Reference</span><span class="v"><span class="ref-pill">${escHtml(r.whishReference || r.ref || "—")}</span></span></div>
+          <div style="margin-top:12px;padding:10px 12px;background:#fff5f7;border:1px solid #ffd6e0;border-radius:10px;font-size:.85rem;color:#5b6c80">
+            <strong style="color:#1a2b3d">How to pay.</strong>
+            Open Whish Money, send <strong style="color:#e6204e">$${r.priceUSD ?? 0}</strong> to <strong style="color:#1a2b3d">Batroun Race</strong>,
+            and write <strong style="color:#e6204e">${escHtml(r.whishReference || r.ref || "")}</strong> in the transfer note. Once we confirm the payment,
+            your bib + QR ticket are sent to you on WhatsApp.
+          </div>
+        </div>`;
+    } else {
+      block = `
+        <div style="background:rgba(61,214,198,.07);border:1px solid rgba(61,214,198,.4);border-radius:14px;padding:14px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <strong style="color:var(--accent);font-size:1rem">✓ Confirmed</strong>
+            ${r.bibNumber ? `<span style="margin-left:auto;font-weight:900;color:var(--accent);font-size:1.1rem">Bib ${r.bibNumber}</span>` : ""}
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin:8px 0">
+            <div><div class="muted" style="font-size:.72rem;text-transform:uppercase;letter-spacing:.08em">Participant</div><div style="font-weight:700">${escHtml(fullName)}</div></div>
+            <div><div class="muted" style="font-size:.72rem;text-transform:uppercase;letter-spacing:.08em">Category</div><div style="font-weight:700">${escHtml(r.categoryName || "—")}</div></div>
+            <div><div class="muted" style="font-size:.72rem;text-transform:uppercase;letter-spacing:.08em">Race day</div><div style="font-weight:700">${escHtml(fmtRaceDate(RACE_DAY))}</div></div>
+          </div>
+          <a href="${buildTicketUrlFor(r)}" target="_blank" rel="noopener" class="btn" style="display:inline-block;text-decoration:none;margin-top:8px">Open race ticket</a>
+        </div>`;
+    }
+
+    return `
+      <div class="cart-item">
+        <h4>${escHtml(fullName) || "Participant"}
+          <span class="status-pill ${isPaid ? "status-paid" : "status-pending"}">${isPaid ? "Confirmed" : "Payment pending"}</span>
+        </h4>
+        ${block}
+      </div>`;
+  }).join("");
+
+  const header = regs.length > 1
+    ? `<div style="margin-bottom:14px;padding:12px;background:rgba(230,32,78,.08);border:1px solid rgba(230,32,78,.35);border-radius:12px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+        <div>
+          <div style="font-weight:800;font-size:1.05rem">${regs.length} registration${regs.length > 1 ? "s" : ""} under your mobile</div>
+          ${totalDue > 0
+            ? `<div class="muted" style="font-size:.88rem;margin-top:2px">Outstanding to Whish: <strong style="color:var(--accent)">$${totalDue} USD</strong></div>`
+            : `<div class="muted" style="font-size:.88rem;margin-top:2px">All payments confirmed.</div>`}
+        </div>
+      </div>`
+    : "";
+
+  cartItems.innerHTML = header + cards;
+
   form.style.display = "none";
   document.getElementById("confirmPanel").classList.remove("show");
   cartPanel.hidden = false;
