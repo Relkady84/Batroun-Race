@@ -1053,6 +1053,7 @@ const SCANNER_FIELDS = [
   { key: "bloodType",         label: "Blood" },
   { key: "club",              label: "Club" },
   { key: "nationality",       label: "Nationality" },
+  { key: "country",           label: "Country" },
   { key: "city",              label: "City" },
   { key: "email",             label: "Email" },
   { key: "phone",             label: "Phone" },
@@ -1384,6 +1385,7 @@ function openRegDetails(r) {
       ${k("DOB", r.dob)}
       ${k("Gender", r.gender)}
       ${k("Nationality", r.nationality)}
+      ${k("Country", r.country)}
       ${k("City", r.city)}
       ${k("Category", r.categoryName)}
       ${r.subQuestionAnswer ? k(cats.find(c => c.id === r.categoryId)?.subQuestion?.label || "Sub-category", r.subQuestionAnswer) : ""}
@@ -1885,12 +1887,12 @@ $("#exportCsvBtn").addEventListener("click", () => {
   const rows = applySort(filteredRegs());
   if (!rows.length) { toast("Nothing to export", true); return; }
   const headers = ["reference","firstName","lastName","email","phone","dob","gender",
-                   "nationality","city","category","subCategory","price","status","bibNumber",
+                   "nationality","country","city","category","subCategory","price","status","bibNumber",
                    "tshirt","bloodType","club","medicalNotes","emergencyName","emergencyPhone",
                    "registeredAt","paidAt","checkedInAt","checkedInBy"];
   const csv = [headers.join(",")].concat(rows.map(r => [
     r.whishReference, r.firstName, r.lastName, r.email, r.phone, r.dob, r.gender,
-    r.nationality, r.city, r.categoryName, r.subQuestionAnswer, r.priceUSD,
+    r.nationality, r.country, r.city, r.categoryName, r.subQuestionAnswer, r.priceUSD,
     r.paymentStatus, r.bibNumber, r.tshirtSize, r.bloodType, r.club, r.medicalNotes,
     r.emergencyContactName, r.emergencyContactPhone,
     r.registeredAt ? fmtDate(r.registeredAt) : "",

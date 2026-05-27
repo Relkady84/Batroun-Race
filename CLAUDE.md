@@ -76,7 +76,7 @@ competitions/{competitionId}/config/{configId}   // public read except /access
   └─ access:   { admins: [email], viewers: [email] }   // authenticated read only
 
 competitions/{competitionId}/registrations/{regId}    // doc ID = normalizePhone(phone)
-  ├─ firstName, lastName, email, phone, dob, gender, nationality, city
+  ├─ firstName, lastName, email, phone, dob, gender, nationality, country, city
   ├─ categoryId, categoryName, subQuestionAnswer
   ├─ tshirtSize, bloodType, club, medicalNotes
   ├─ emergencyContactName, emergencyContactPhone
