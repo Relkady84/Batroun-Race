@@ -94,7 +94,11 @@ service cloud.firestore {
       // Soft-delete = setting deletedAt on the doc; the row is hidden from
       // the main dashboard but kept for admin backup review.
       match /registrations/{regId} {
-        allow read:   if canReadDashboard();
+        // get-by-known-id is public so the "sign in with mobile + ref" flow
+        // on the public page can look up a single registration by its ref.
+        // listing all registrations is still locked to admin / viewer.
+        allow get:    if true;
+        allow list:   if canReadDashboard();
         allow create: if isValidNewRegistration() && registrationOpen(competitionId);
         allow update: if canReadDashboard();
         allow delete: if isAdmin();
