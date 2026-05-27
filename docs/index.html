@@ -1360,14 +1360,28 @@ const PUBLIC_FORM_DEFAULTS = {
 function applyPublicFormConfig(builtIn) {
   Object.entries(PUBLIC_FORM_DEFAULTS).forEach(([key, defaults]) => {
     const cfg = { ...defaults, ...(builtIn[key] || {}) };
+    const isHidden = cfg.deleted || !cfg.visible;
     document.querySelectorAll(`[data-field="${key}"]`).forEach(wrap => {
-      wrap.hidden = !cfg.visible;
+      wrap.hidden = isHidden;
       wrap.querySelectorAll("input, select, textarea").forEach(el => {
         if (el.type === "hidden") return;
-        if (cfg.required && cfg.visible) el.setAttribute("required", "");
+        if (cfg.required && !isHidden) el.setAttribute("required", "");
         else el.removeAttribute("required");
       });
-      wrap.querySelectorAll(".req-star").forEach(s => { s.hidden = !cfg.required; });
+      wrap.querySelectorAll(".req-star").forEach(s => { s.hidden = !cfg.required || isHidden; });
+      if (cfg.label) {
+        const labelEl = wrap.querySelector("label");
+        if (labelEl) {
+          const star = labelEl.querySelector(".req-star");
+          [...labelEl.childNodes].forEach(n => { if (n.nodeType === Node.TEXT_NODE) n.remove(); });
+          if (star) {
+            labelEl.insertBefore(document.createTextNode(cfg.label + " "), star);
+            star.textContent = "*";
+          } else {
+            labelEl.textContent = cfg.label;
+          }
+        }
+      }
     });
   });
 }
