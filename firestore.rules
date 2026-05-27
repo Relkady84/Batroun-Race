@@ -103,6 +103,18 @@ service cloud.firestore {
         allow update: if canReadDashboard();
         allow delete: if isAdmin();
       }
+
+      // Per-phone index of registration refs. Lets a signed-in runner
+      // pull every registration filed under their mobile in one go,
+      // without granting public list access on the registrations
+      // collection. Public can read and append; only admins can delete.
+      match /phoneIndex/{phoneId} {
+        allow read: if true;
+        allow create, update:
+          if request.resource.data.refs is list
+          && request.resource.data.refs.size() <= 50;
+        allow delete: if isAdmin();
+      }
     }
 
     // Everything else: deny by default
