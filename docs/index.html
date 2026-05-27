@@ -1074,7 +1074,9 @@ function renderSubQuestion(cat) {
       sel.appendChild(o);
     });
   }
-  fill(document.getElementById("nationality"), NATIONALITIES);
+  const natSel = document.getElementById("nationality");
+  fill(natSel, NATIONALITIES);
+  natSel.value = "Lebanese";
   fill(document.getElementById("country"), COUNTRIES);
 
   const citySel = document.getElementById("city");
