@@ -398,8 +398,13 @@
         </div>
         <div class="row two">
           <div>
-            <label for="dob">Date of birth *</label>
-            <input id="dob" name="dob" required type="date">
+            <label for="dobDay">Date of birth *</label>
+            <div class="dob-row" style="display:flex;gap:8px">
+              <select id="dobDay" required style="flex:1;min-width:0" aria-label="Day"><option value="">Day</option></select>
+              <select id="dobMonth" required style="flex:1.4;min-width:0" aria-label="Month"><option value="">Month</option></select>
+              <select id="dobYear" required style="flex:1.1;min-width:0" aria-label="Year"><option value="">Year</option></select>
+            </div>
+            <input type="hidden" id="dob" name="dob">
             <div class="err" id="dobErr"></div>
           </div>
           <div>
@@ -760,6 +765,58 @@ function renderSubQuestion(cat) {
     <div class="help">Auto-filled from your date of birth.</div>
   `;
 }
+
+// DOB tap-picker: three dropdowns (Day / Month / Year) feed a hidden #dob input
+// in ISO format (YYYY-MM-DD) so all downstream age / bracket logic keeps working.
+(function initDobPicker() {
+  const dayEl = document.getElementById("dobDay");
+  const monthEl = document.getElementById("dobMonth");
+  const yearEl = document.getElementById("dobYear");
+  const hidden = document.getElementById("dob");
+  const MONTHS = ["January","February","March","April","May","June",
+                  "July","August","September","October","November","December"];
+
+  MONTHS.forEach((name, i) => {
+    const o = document.createElement("option");
+    o.value = String(i + 1).padStart(2, "0");
+    o.textContent = name;
+    monthEl.appendChild(o);
+  });
+
+  const thisYear = new Date().getFullYear();
+  for (let y = thisYear; y >= 1920; y--) {
+    const o = document.createElement("option");
+    o.value = String(y);
+    o.textContent = String(y);
+    yearEl.appendChild(o);
+  }
+
+  function rebuildDays() {
+    const prev = dayEl.value;
+    const m = parseInt(monthEl.value, 10);
+    const y = parseInt(yearEl.value, 10);
+    const max = m ? new Date(y || 2000, m, 0).getDate() : 31;
+    dayEl.innerHTML = '<option value="">Day</option>';
+    for (let d = 1; d <= max; d++) {
+      const o = document.createElement("option");
+      o.value = String(d).padStart(2, "0");
+      o.textContent = String(d);
+      dayEl.appendChild(o);
+    }
+    if (prev && parseInt(prev, 10) <= max) dayEl.value = prev;
+  }
+  rebuildDays();
+
+  function syncHidden() {
+    const d = dayEl.value, m = monthEl.value, y = yearEl.value;
+    hidden.value = (d && m && y) ? `${y}-${m}-${d}` : "";
+    hidden.dispatchEvent(new Event("change"));
+  }
+
+  dayEl.addEventListener("change", syncHidden);
+  monthEl.addEventListener("change", () => { rebuildDays(); syncHidden(); });
+  yearEl.addEventListener("change", () => { rebuildDays(); syncHidden(); });
+})();
 
 // DOB changes → re-render the sub-question (re-computes the bracket)
 document.getElementById("dob").addEventListener("change", () => {
