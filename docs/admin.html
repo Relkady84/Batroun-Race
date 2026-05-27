@@ -444,7 +444,7 @@ Masters Men-Women 35-39
         <div id="builtInFieldsList"></div>
         <div style="margin-top:14px;display:flex;gap:10px;align-items:center">
           <button id="bifSaveBtn" class="btn">Save</button>
-          <button id="bifResetBtn" class="btn" style="background:transparent;border:1px solid var(--border);color:var(--ink)">Reset to defaults</button>
+          <button id="bifResetBtn" class="btn" style="background:transparent;border:1px solid var(--line);color:var(--ink)">Reset to defaults</button>
           <span class="muted" id="bifStatus"></span>
         </div>
       </div>
@@ -2187,7 +2187,7 @@ function renderBuiltInFields() {
   const list = $("#builtInFieldsList");
   list.innerHTML = `
     <table style="width:100%;border-collapse:collapse">
-      <thead><tr style="text-align:left;border-bottom:1px solid var(--border)">
+      <thead><tr style="text-align:left;border-bottom:1px solid var(--line)">
         <th style="padding:8px 4px">Field</th>
         <th style="padding:8px 4px;width:90px;text-align:center">Visible</th>
         <th style="padding:8px 4px;width:90px;text-align:center">Required</th>
@@ -2195,7 +2195,7 @@ function renderBuiltInFields() {
       <tbody>
         ${BUILT_IN_FIELDS.map(f => {
           const cfg = effectiveBuiltIn(f.key);
-          return `<tr style="border-bottom:1px solid var(--border)">
+          return `<tr style="border-bottom:1px solid var(--line)">
             <td style="padding:10px 4px">${escapeHtml(f.label)}</td>
             <td style="padding:10px 4px;text-align:center">
               <input type="checkbox" data-bif="visible" data-key="${f.key}" ${cfg.visible?"checked":""}

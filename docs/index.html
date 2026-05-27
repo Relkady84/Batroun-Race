@@ -313,18 +313,25 @@
     color:#ffd9d9;padding:14px;border-radius:12px;text-align:center;font-weight:700}
 
   /* ── Custom date-of-birth picker ── */
-  .dob-input{cursor:pointer;background-image:none}
+  /* Override the generic input[readonly] styles so the DOB field looks tappable */
+  input.dob-input[readonly]{
+    cursor:pointer!important;
+    border-style:solid!important;
+    background:rgba(255,255,255,.04)!important;
+    color:var(--ink)!important;
+    font-weight:500
+  }
   .dob-input::placeholder{color:var(--muted)}
-  .dp-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;
+  .dp-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;
     display:flex;align-items:center;justify-content:center;padding:16px;
-    animation:dpFadeIn .15s ease-out}
+    animation:dpFadeIn .15s ease-out;backdrop-filter:blur(4px)}
   .dp-overlay[hidden]{display:none}
   @keyframes dpFadeIn{from{opacity:0}to{opacity:1}}
-  .dp-modal{background:var(--card);border:1px solid var(--border);border-radius:16px;
+  .dp-modal{background:var(--bg2);border:1px solid var(--line);border-radius:16px;
     width:100%;max-width:380px;max-height:92vh;display:flex;flex-direction:column;
     box-shadow:0 24px 48px rgba(0,0,0,.5);overflow:hidden}
   .dp-header{display:flex;align-items:center;gap:8px;padding:12px 14px;
-    border-bottom:1px solid var(--border)}
+    border-bottom:1px solid var(--line)}
   .dp-title{flex:1;font-weight:800;font-size:1.05rem;text-align:center}
   .dp-back,.dp-close{background:transparent;border:0;color:var(--ink);
     width:36px;height:36px;border-radius:10px;cursor:pointer;font-size:1.2rem;
@@ -335,7 +342,7 @@
   .dp-grid-year{grid-template-columns:repeat(4,1fr)}
   .dp-grid-month{grid-template-columns:repeat(3,1fr)}
   .dp-grid-day{grid-template-columns:repeat(7,1fr);gap:4px}
-  .dp-cell{background:rgba(255,255,255,.04);border:1px solid var(--border);
+  .dp-cell{background:rgba(255,255,255,.04);border:1px solid var(--line);
     color:var(--ink);border-radius:10px;padding:14px 4px;font-weight:700;
     cursor:pointer;font-size:.95rem;transition:transform .05s,background .15s}
   .dp-cell:hover{background:rgba(255,255,255,.1)}
@@ -346,8 +353,8 @@
   .dp-dow{text-align:center;font-size:.72rem;color:var(--muted);font-weight:700;
     padding:6px 0;text-transform:uppercase;letter-spacing:.04em}
   .dp-footer{display:flex;align-items:center;justify-content:space-between;
-    padding:10px 14px;border-top:1px solid var(--border);gap:8px}
-  .dp-nav{background:transparent;border:1px solid var(--border);color:var(--ink);
+    padding:10px 14px;border-top:1px solid var(--line);gap:8px}
+  .dp-nav{background:transparent;border:1px solid var(--line);color:var(--ink);
     width:36px;height:36px;border-radius:10px;cursor:pointer;font-size:1.2rem;
     display:flex;align-items:center;justify-content:center}
   .dp-nav:hover{background:rgba(255,255,255,.08)}
