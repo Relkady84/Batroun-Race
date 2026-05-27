@@ -601,8 +601,8 @@
       </div>
 
       <!-- Safety -->
-      <div class="card">
-        <h3 class="title">Safety &amp; consent</h3>
+      <div class="card" id="safetyCard">
+        <h3 class="title">Emergency contact</h3>
         <div class="row two" data-field="emergency">
           <div>
             <label for="emgName">Emergency contact <span class="req-star">*</span></label>
@@ -614,7 +614,37 @@
                    inputmode="tel" pattern="^[+]?[\d\s()-]{7,}$">
           </div>
         </div>
-        <div class="row">
+      </div>
+
+      <!-- Honeypot -->
+      <div aria-hidden="true" style="position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden">
+        <label for="hp">Leave empty</label>
+        <input id="hp" name="hp" autocomplete="off">
+      </div>
+
+      <!-- "Proceed" button — validates and reveals the waiver step below -->
+      <button type="button" class="btn" id="proceedBtn">Proceed</button>
+
+      <!-- Waiver step (hidden until Proceed is clicked) -->
+      <div class="card" id="waiverStep" hidden style="margin-top:14px">
+        <h2 class="title" style="margin-bottom:6px">Participant liability waiver &amp; responsibility agreement</h2>
+        <p class="muted" style="margin:0 0 14px">Please review and accept the terms below to complete your registration.</p>
+
+        <h3 style="margin:14px 0 8px;font-size:1rem">Declaration &amp; Terms</h3>
+        <ol style="padding-left:1.2rem;line-height:1.55;font-size:.95rem">
+          <li>I confirm that my participation in Batroun Race is voluntary and entirely at my own risk.</li>
+          <li>I confirm that I am physically and medically fit to participate in this sporting event.</li>
+          <li>I accept full responsibility for any injury, illness, accident, disability, loss, or damage that may occur before, during, or after the race.</li>
+          <li>I confirm that I am NOT participating under the influence of alcohol, drugs, doping substances, or any medication affecting my physical or mental abilities.</li>
+          <li>I accept responsibility for any undisclosed medical condition or health information.</li>
+          <li>I release and discharge the organizers, management, staff, volunteers, sponsors, partners, and associated entities from any legal, medical, civil, or financial liability related to my participation.</li>
+          <li>I agree to follow all race rules, organizer instructions, and safety procedures throughout the event.</li>
+          <li>I understand organizers may stop or refuse my participation for safety reasons.</li>
+          <li>I authorize the use of photos, videos, interviews, and media content involving me for marketing, communication, and promotional purposes related to Batroun Race.</li>
+          <li>By submitting this form, I confirm that I have read, understood, and accepted all terms and conditions stated in this document.</li>
+        </ol>
+
+        <div class="row" style="margin-top:14px">
           <label class="inline">
             <input type="checkbox" name="waiver" required
               style="width:auto;min-height:auto;accent-color:#27cbbb;margin-top:5px">
@@ -631,15 +661,12 @@
             <span>Email me race updates.</span>
           </label>
         </div>
-      </div>
 
-      <!-- Honeypot -->
-      <div aria-hidden="true" style="position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden">
-        <label for="hp">Leave empty</label>
-        <input id="hp" name="hp" autocomplete="off">
+        <div style="display:flex;gap:10px;justify-content:space-between;flex-wrap:wrap;margin-top:14px">
+          <button type="button" class="btn sec" id="backToFormBtn">← Back to edit</button>
+          <button type="submit" class="btn" id="submitBtn">Register</button>
+        </div>
       </div>
-
-      <button type="submit" class="btn" id="submitBtn">Register</button>
     </form>
 
     <!-- DOB picker modal -->
@@ -1494,6 +1521,58 @@ populateCategorySelect();
 renderCustomFields();
 // …then ask Firestore for live data and re-render on top.
 loadFromFirestore();
+
+// ============================================================
+// Proceed → waiver step
+// ============================================================
+const proceedBtn    = document.getElementById("proceedBtn");
+const backToFormBtn = document.getElementById("backToFormBtn");
+const waiverStep    = document.getElementById("waiverStep");
+
+function validateBeforeProceed() {
+  let firstBad = null;
+  document.querySelectorAll("[required]").forEach(el => {
+    if (waiverStep.contains(el)) return;     // consent checkboxes live on the waiver step
+    if (el.closest("[hidden]")) return;      // hidden fields don't need to be valid
+    let msg = "";
+    if (el.type === "checkbox") {
+      if (!el.checked) msg = "Please check this box to continue.";
+    } else {
+      const v = (el.value || "").trim();
+      if (!v) msg = "This field is required.";
+      else if (el.type === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) msg = "Please enter a valid email address.";
+      else if (el.pattern && !(new RegExp("^(?:" + el.pattern + ")$").test(v))) msg = "Please enter a valid value (check the format).";
+    }
+    setFieldError(el, msg);
+    if (msg && !firstBad) firstBad = el;
+  });
+  if (firstBad) {
+    firstBad.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (firstBad.type !== "checkbox") {
+      try { firstBad.focus({ preventScroll: true }); } catch (_) {}
+    }
+  }
+  return !firstBad;
+}
+
+function showWaiverStep(show) {
+  Array.from(form.children).forEach(child => {
+    if (child === waiverStep) child.hidden = !show;
+    else child.style.display = show ? "none" : "";
+  });
+  if (!show) renderCustomFields();
+}
+
+proceedBtn.addEventListener("click", () => {
+  if (!validateBeforeProceed()) return;
+  showWaiverStep(true);
+  waiverStep.scrollIntoView({ behavior: "smooth", block: "start" });
+});
+
+backToFormBtn.addEventListener("click", () => {
+  showWaiverStep(false);
+  document.getElementById("category").scrollIntoView({ behavior: "smooth", block: "start" });
+});
 
 // ============================================================
 // Submit
