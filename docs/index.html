@@ -311,6 +311,46 @@
 
   .closed-banner{background:rgba(255,107,107,.12);border:1px solid rgba(255,107,107,.4);
     color:#ffd9d9;padding:14px;border-radius:12px;text-align:center;font-weight:700}
+
+  /* ── Custom date-of-birth picker ── */
+  .dob-input{cursor:pointer;background-image:none}
+  .dob-input::placeholder{color:var(--muted)}
+  .dp-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;
+    display:flex;align-items:center;justify-content:center;padding:16px;
+    animation:dpFadeIn .15s ease-out}
+  @keyframes dpFadeIn{from{opacity:0}to{opacity:1}}
+  .dp-modal{background:var(--card);border:1px solid var(--border);border-radius:16px;
+    width:100%;max-width:380px;max-height:92vh;display:flex;flex-direction:column;
+    box-shadow:0 24px 48px rgba(0,0,0,.5);overflow:hidden}
+  .dp-header{display:flex;align-items:center;gap:8px;padding:12px 14px;
+    border-bottom:1px solid var(--border)}
+  .dp-title{flex:1;font-weight:800;font-size:1.05rem;text-align:center}
+  .dp-back,.dp-close{background:transparent;border:0;color:var(--ink);
+    width:36px;height:36px;border-radius:10px;cursor:pointer;font-size:1.2rem;
+    display:flex;align-items:center;justify-content:center}
+  .dp-back:hover,.dp-close:hover{background:rgba(255,255,255,.08)}
+  .dp-body{padding:14px;overflow-y:auto;flex:1}
+  .dp-grid{display:grid;gap:8px}
+  .dp-grid-year{grid-template-columns:repeat(4,1fr)}
+  .dp-grid-month{grid-template-columns:repeat(3,1fr)}
+  .dp-grid-day{grid-template-columns:repeat(7,1fr);gap:4px}
+  .dp-cell{background:rgba(255,255,255,.04);border:1px solid var(--border);
+    color:var(--ink);border-radius:10px;padding:14px 4px;font-weight:700;
+    cursor:pointer;font-size:.95rem;transition:transform .05s,background .15s}
+  .dp-cell:hover{background:rgba(255,255,255,.1)}
+  .dp-cell:active{transform:scale(.96)}
+  .dp-cell.selected{background:var(--accent);border-color:var(--accent);color:#062028}
+  .dp-cell.disabled{opacity:.3;cursor:not-allowed;pointer-events:none}
+  .dp-cell.empty{background:transparent;border:0;cursor:default;pointer-events:none}
+  .dp-dow{text-align:center;font-size:.72rem;color:var(--muted);font-weight:700;
+    padding:6px 0;text-transform:uppercase;letter-spacing:.04em}
+  .dp-footer{display:flex;align-items:center;justify-content:space-between;
+    padding:10px 14px;border-top:1px solid var(--border);gap:8px}
+  .dp-nav{background:transparent;border:1px solid var(--border);color:var(--ink);
+    width:36px;height:36px;border-radius:10px;cursor:pointer;font-size:1.2rem;
+    display:flex;align-items:center;justify-content:center}
+  .dp-nav:hover{background:rgba(255,255,255,.08)}
+  .dp-range{font-weight:700;color:var(--muted)}
 </style>
 </head>
 <body>
@@ -398,13 +438,10 @@
         </div>
         <div class="row two">
           <div>
-            <label for="dobDay">Date of birth *</label>
-            <div class="dob-row" style="display:flex;gap:8px">
-              <select id="dobDay" required style="flex:1;min-width:0" aria-label="Day"><option value="">Day</option></select>
-              <select id="dobMonth" required style="flex:1.4;min-width:0" aria-label="Month"><option value="">Month</option></select>
-              <select id="dobYear" required style="flex:1.1;min-width:0" aria-label="Year"><option value="">Year</option></select>
-            </div>
-            <input type="hidden" id="dob" name="dob">
+            <label for="dob">Date of birth *</label>
+            <input id="dob" name="dob" class="dob-input" required readonly
+                   placeholder="Tap to choose your date of birth"
+                   aria-haspopup="dialog" autocomplete="bday">
             <div class="err" id="dobErr"></div>
           </div>
           <div>
@@ -443,9 +480,21 @@
             </select>
           </div>
           <div>
-            <label for="club">Club / Team</label>
-            <input id="club" name="club" placeholder="Batroun Runners">
+            <label for="blood">Blood type *</label>
+            <select id="blood" name="blood" required>
+              <option value="">Select…</option>
+              <option>A+</option><option>A-</option>
+              <option>B+</option><option>B-</option>
+              <option>AB+</option><option>AB-</option>
+              <option>O+</option><option>O-</option>
+              <option value="Unknown">Don't know</option>
+            </select>
+            <div class="help">Used only by medics in case of emergency.</div>
           </div>
+        </div>
+        <div class="row">
+          <label for="club">Club / Team</label>
+          <input id="club" name="club" placeholder="Batroun Runners">
         </div>
         <div class="row">
           <label for="note">Medical / notes</label>
@@ -500,6 +549,23 @@
 
       <button type="submit" class="btn" id="submitBtn">Register</button>
     </form>
+
+    <!-- DOB picker modal -->
+    <div id="dobPicker" class="dp-overlay" hidden>
+      <div class="dp-modal" role="dialog" aria-modal="true" aria-labelledby="dpTitle">
+        <div class="dp-header">
+          <button type="button" class="dp-back" id="dpBack" hidden aria-label="Back">←</button>
+          <div class="dp-title" id="dpTitle">Select year</div>
+          <button type="button" class="dp-close" id="dpClose" aria-label="Close">×</button>
+        </div>
+        <div class="dp-body" id="dpBody"></div>
+        <div class="dp-footer" id="dpFooter" hidden>
+          <button type="button" class="dp-nav" id="dpPrev" aria-label="Previous years">‹</button>
+          <span class="dp-range" id="dpRange"></span>
+          <button type="button" class="dp-nav" id="dpNext" aria-label="Next years">›</button>
+        </div>
+      </div>
+    </div>
 
     <!-- Confirmation -->
     <div class="confirm" id="confirmPanel">
@@ -766,56 +832,174 @@ function renderSubQuestion(cat) {
   `;
 }
 
-// DOB tap-picker: three dropdowns (Day / Month / Year) feed a hidden #dob input
-// in ISO format (YYYY-MM-DD) so all downstream age / bracket logic keeps working.
+// DOB picker: tap field → year grid → month grid → day grid.
+// Writes ISO YYYY-MM-DD to #dob.value and dispatches a change event so the
+// existing sub-question / age-bracket logic keeps working unchanged.
 (function initDobPicker() {
-  const dayEl = document.getElementById("dobDay");
-  const monthEl = document.getElementById("dobMonth");
-  const yearEl = document.getElementById("dobYear");
-  const hidden = document.getElementById("dob");
   const MONTHS = ["January","February","March","April","May","June",
                   "July","August","September","October","November","December"];
+  const MONTHS_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const DOW = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+  const MIN_YEAR = 1920;
+  const MAX_YEAR = new Date().getFullYear();
+  const YEARS_PER_PAGE = 20;
 
-  MONTHS.forEach((name, i) => {
-    const o = document.createElement("option");
-    o.value = String(i + 1).padStart(2, "0");
-    o.textContent = name;
-    monthEl.appendChild(o);
-  });
+  const field = document.getElementById("dob");
+  const overlay = document.getElementById("dobPicker");
+  const body = document.getElementById("dpBody");
+  const title = document.getElementById("dpTitle");
+  const backBtn = document.getElementById("dpBack");
+  const closeBtn = document.getElementById("dpClose");
+  const footer = document.getElementById("dpFooter");
+  const range = document.getElementById("dpRange");
+  const prev = document.getElementById("dpPrev");
+  const next = document.getElementById("dpNext");
 
-  const thisYear = new Date().getFullYear();
-  for (let y = thisYear; y >= 1920; y--) {
-    const o = document.createElement("option");
-    o.value = String(y);
-    o.textContent = String(y);
-    yearEl.appendChild(o);
-  }
+  const state = { view: "year", year: null, month: null, day: null, yearPage: 0 };
 
-  function rebuildDays() {
-    const prev = dayEl.value;
-    const m = parseInt(monthEl.value, 10);
-    const y = parseInt(yearEl.value, 10);
-    const max = m ? new Date(y || 2000, m, 0).getDate() : 31;
-    dayEl.innerHTML = '<option value="">Day</option>';
-    for (let d = 1; d <= max; d++) {
-      const o = document.createElement("option");
-      o.value = String(d).padStart(2, "0");
-      o.textContent = String(d);
-      dayEl.appendChild(o);
+  function open() {
+    if (field.value && /^\d{4}-\d{2}-\d{2}$/.test(field.value)) {
+      const [y, m, d] = field.value.split("-").map(Number);
+      state.year = y; state.month = m; state.day = d;
+      state.view = "day";
+    } else {
+      state.year = state.month = state.day = null;
+      state.view = "year";
     }
-    if (prev && parseInt(prev, 10) <= max) dayEl.value = prev;
+    state.yearPage = Math.floor((MAX_YEAR - (state.year ?? MAX_YEAR - 30)) / YEARS_PER_PAGE);
+    overlay.hidden = false;
+    document.body.style.overflow = "hidden";
+    render();
   }
-  rebuildDays();
-
-  function syncHidden() {
-    const d = dayEl.value, m = monthEl.value, y = yearEl.value;
-    hidden.value = (d && m && y) ? `${y}-${m}-${d}` : "";
-    hidden.dispatchEvent(new Event("change"));
+  function close() {
+    overlay.hidden = true;
+    document.body.style.overflow = "";
   }
 
-  dayEl.addEventListener("change", syncHidden);
-  monthEl.addEventListener("change", () => { rebuildDays(); syncHidden(); });
-  yearEl.addEventListener("change", () => { rebuildDays(); syncHidden(); });
+  function setValue(y, m, d) {
+    field.value = `${y}-${String(m).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+    field.dispatchEvent(new Event("change", { bubbles: true }));
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
+  function pageYears() {
+    const top = MAX_YEAR - state.yearPage * YEARS_PER_PAGE;
+    const bottom = Math.max(MIN_YEAR, top - YEARS_PER_PAGE + 1);
+    const years = [];
+    for (let y = top; y >= bottom; y--) years.push(y);
+    return { top, bottom, years };
+  }
+
+  function render() {
+    body.innerHTML = "";
+    backBtn.hidden = (state.view === "year");
+    footer.hidden = (state.view !== "year");
+
+    if (state.view === "year") {
+      title.textContent = "Select year";
+      const { top, bottom, years } = pageYears();
+      range.textContent = `${bottom} – ${top}`;
+      prev.disabled = (top >= MAX_YEAR);
+      next.disabled = (bottom <= MIN_YEAR);
+      const grid = document.createElement("div");
+      grid.className = "dp-grid dp-grid-year";
+      years.forEach(y => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "dp-cell" + (y === state.year ? " selected" : "");
+        btn.textContent = String(y);
+        btn.addEventListener("click", () => {
+          state.year = y;
+          state.view = "month";
+          render();
+        });
+        grid.appendChild(btn);
+      });
+      body.appendChild(grid);
+      return;
+    }
+
+    if (state.view === "month") {
+      title.textContent = String(state.year);
+      const grid = document.createElement("div");
+      grid.className = "dp-grid dp-grid-month";
+      MONTHS_SHORT.forEach((mShort, i) => {
+        const m = i + 1;
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "dp-cell" + (m === state.month ? " selected" : "");
+        btn.textContent = mShort;
+        btn.addEventListener("click", () => {
+          state.month = m;
+          state.view = "day";
+          render();
+        });
+        grid.appendChild(btn);
+      });
+      body.appendChild(grid);
+      return;
+    }
+
+    // day view
+    title.textContent = `${MONTHS[state.month - 1]} ${state.year}`;
+    const dowRow = document.createElement("div");
+    dowRow.className = "dp-grid dp-grid-day";
+    DOW.forEach(d => {
+      const el = document.createElement("div");
+      el.className = "dp-dow";
+      el.textContent = d;
+      dowRow.appendChild(el);
+    });
+    body.appendChild(dowRow);
+
+    const grid = document.createElement("div");
+    grid.className = "dp-grid dp-grid-day";
+    // JS getDay(): 0 = Sunday … 6 = Saturday. We want Mon=0 … Sun=6.
+    const firstDow = (new Date(state.year, state.month - 1, 1).getDay() + 6) % 7;
+    for (let i = 0; i < firstDow; i++) {
+      const empty = document.createElement("button");
+      empty.type = "button";
+      empty.className = "dp-cell empty";
+      empty.tabIndex = -1;
+      grid.appendChild(empty);
+    }
+    const daysInMonth = new Date(state.year, state.month, 0).getDate();
+    for (let d = 1; d <= daysInMonth; d++) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "dp-cell" + (d === state.day ? " selected" : "");
+      btn.textContent = String(d);
+      btn.addEventListener("click", () => {
+        state.day = d;
+        setValue(state.year, state.month, state.day);
+        close();
+      });
+      grid.appendChild(btn);
+    }
+    body.appendChild(grid);
+  }
+
+  // Event wiring
+  field.addEventListener("click", open);
+  field.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); }
+  });
+  closeBtn.addEventListener("click", close);
+  backBtn.addEventListener("click", () => {
+    if (state.view === "day") state.view = "month";
+    else if (state.view === "month") state.view = "year";
+    render();
+  });
+  prev.addEventListener("click", () => { state.yearPage = Math.max(0, state.yearPage - 1); render(); });
+  next.addEventListener("click", () => {
+    const maxPage = Math.ceil((MAX_YEAR - MIN_YEAR + 1) / YEARS_PER_PAGE) - 1;
+    state.yearPage = Math.min(maxPage, state.yearPage + 1);
+    render();
+  });
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+  document.addEventListener("keydown", (e) => {
+    if (!overlay.hidden && e.key === "Escape") close();
+  });
 })();
 
 // DOB changes → re-render the sub-question (re-computes the bracket)
@@ -1149,6 +1333,7 @@ form.addEventListener("submit", async (e) => {
     categoryId: data.category,
     categoryName: cat.name,
     tshirtSize: data.shirt,
+    bloodType: data.blood,
     club: data.club?.trim() || null,
     medicalNotes: data.note?.trim() || null,
     emergencyContactName: data.emgName?.trim(),

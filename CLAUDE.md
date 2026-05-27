@@ -78,7 +78,7 @@ competitions/{competitionId}/config/{configId}   // public read except /access
 competitions/{competitionId}/registrations/{regId}    // doc ID = normalizePhone(phone)
   ├─ firstName, lastName, email, phone, dob, gender, nationality, city
   ├─ categoryId, categoryName, subQuestionAnswer
-  ├─ tshirtSize, club, medicalNotes
+  ├─ tshirtSize, bloodType, club, medicalNotes
   ├─ emergencyContactName, emergencyContactPhone
   ├─ consents: { waiver, dataUsage, newsletter }
   ├─ priceUSD, whishReference   // "BTN-2026-A4K9"

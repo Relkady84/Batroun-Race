@@ -275,6 +275,7 @@
               <th class="sortable col-ageOnRaceDay"      data-sort="ageOnRaceDay">Age</th>
               <th class="sortable col-gender"            data-sort="gender">Gender</th>
               <th class="sortable col-tshirtSize"        data-sort="tshirtSize">T-shirt</th>
+              <th class="sortable col-bloodType"         data-sort="bloodType">Blood</th>
               <th class="sortable col-club"              data-sort="club">Club</th>
               <th class="sortable col-city"              data-sort="city">City</th>
               <th class="sortable col-priceUSD"          data-sort="priceUSD">Price</th>
@@ -285,7 +286,7 @@
               <th class="sortable col-checkedInAt"       data-sort="checkedInAt">Checked in</th>
               <th></th>
             </tr></thead>
-            <tbody><tr><td colspan="19" class="empty">Loading…</td></tr></tbody>
+            <tbody><tr><td colspan="20" class="empty">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -1028,6 +1029,7 @@ const DASHBOARD_COLUMNS = [
   { key:"ageOnRaceDay",      label:"Age" },
   { key:"gender",            label:"Gender" },
   { key:"tshirtSize",        label:"T-shirt" },
+  { key:"bloodType",         label:"Blood" },
   { key:"club",              label:"Club" },
   { key:"city",              label:"City" },
   { key:"priceUSD",          label:"Price" },
@@ -1048,6 +1050,7 @@ const SCANNER_FIELDS = [
   { key: "ageOnRaceDay",      label: "Age" },
   { key: "gender",            label: "Gender" },
   { key: "tshirtSize",        label: "T-shirt" },
+  { key: "bloodType",         label: "Blood" },
   { key: "club",              label: "Club" },
   { key: "nationality",       label: "Nationality" },
   { key: "city",              label: "City" },
@@ -1069,7 +1072,7 @@ const DEFAULT_PREFS = {
              subQuestionAnswer:true, ageOnRaceDay:true, priceUSD:true,
              paymentStatus:true, bibNumber:true, registeredAt:true, checkedInAt:true,
              email:false, phone:false, gender:false, tshirtSize:false,
-             club:false, city:false, paymentMethod:false }
+             bloodType:true, club:false, city:false, paymentMethod:false }
 };
 const PREFS_KEY = "br-dashboard-prefs-v1";
 
@@ -1330,6 +1333,7 @@ function renderRegTable() {
       <td class="col-ageOnRaceDay">${r.ageOnRaceDay ?? "—"}</td>
       <td class="col-gender">${escapeHtml(r.gender || "—")}</td>
       <td class="col-tshirtSize">${escapeHtml(r.tshirtSize || "—")}</td>
+      <td class="col-bloodType">${escapeHtml(r.bloodType || "—")}</td>
       <td class="col-club">${escapeHtml(r.club || "—")}</td>
       <td class="col-city">${escapeHtml(r.city || "—")}</td>
       <td class="col-priceUSD">${fmtMoney(r.priceUSD || 0)}</td>
@@ -1387,6 +1391,7 @@ function openRegDetails(r) {
       ${k("Status", r.paymentStatus)}
       ${k("Bib", r.bibNumber)}
       ${k("T-shirt", r.tshirtSize)}
+      ${k("Blood type", r.bloodType)}
       ${k("Club", r.club)}
       ${k("Medical notes", r.medicalNotes)}
       ${k("Emergency contact", `${r.emergencyContactName || ""} — ${r.emergencyContactPhone || ""}`)}
@@ -1881,12 +1886,12 @@ $("#exportCsvBtn").addEventListener("click", () => {
   if (!rows.length) { toast("Nothing to export", true); return; }
   const headers = ["reference","firstName","lastName","email","phone","dob","gender",
                    "nationality","city","category","subCategory","price","status","bibNumber",
-                   "tshirt","club","medicalNotes","emergencyName","emergencyPhone",
+                   "tshirt","bloodType","club","medicalNotes","emergencyName","emergencyPhone",
                    "registeredAt","paidAt","checkedInAt","checkedInBy"];
   const csv = [headers.join(",")].concat(rows.map(r => [
     r.whishReference, r.firstName, r.lastName, r.email, r.phone, r.dob, r.gender,
     r.nationality, r.city, r.categoryName, r.subQuestionAnswer, r.priceUSD,
-    r.paymentStatus, r.bibNumber, r.tshirtSize, r.club, r.medicalNotes,
+    r.paymentStatus, r.bibNumber, r.tshirtSize, r.bloodType, r.club, r.medicalNotes,
     r.emergencyContactName, r.emergencyContactPhone,
     r.registeredAt ? fmtDate(r.registeredAt) : "",
     r.paidAt ? fmtDate(r.paidAt) : "",
