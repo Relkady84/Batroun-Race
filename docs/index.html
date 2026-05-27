@@ -109,6 +109,7 @@
   input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:var(--ring)}
 
   .row{display:grid;gap:10px}
+  .row[hidden]{display:none}
   .two{grid-template-columns:1fr}
   @media(min-width:720px){.two{grid-template-columns:1fr 1fr}}
 
@@ -314,6 +315,36 @@
   .closed-banner{background:rgba(255,107,107,.12);border:1px solid rgba(255,107,107,.4);
     color:#ffd9d9;padding:14px;border-radius:12px;text-align:center;font-weight:700}
 
+  /* ── Sign-in cart / Whish invoice ── */
+  .whish-badge{display:inline-flex;align-items:center;gap:0;background:#e6204e;
+    color:#fff;border-radius:8px;padding:6px 12px;font-weight:900;font-style:italic;
+    font-size:.95rem;line-height:1;letter-spacing:.01em;box-shadow:0 2px 6px rgba(0,0,0,.3)}
+  .whish-badge .w{display:inline-flex;width:18px;height:18px;border-radius:4px;
+    background:#fff;color:#e6204e;font-weight:900;font-style:italic;align-items:center;
+    justify-content:center;margin-right:6px;font-size:.8rem;transform:translateY(-1px)}
+  .whish-badge .m{font-style:normal;font-weight:700;font-size:.66em;letter-spacing:.18em;margin-left:6px;align-self:center}
+  .invoice{background:#fff;color:#1a2b3d;border-radius:14px;padding:16px;
+    box-shadow:0 14px 32px rgba(0,0,0,.35);position:relative;overflow:hidden}
+  .invoice::before{content:"";position:absolute;top:0;left:0;right:0;height:6px;
+    background:linear-gradient(90deg,#e6204e,#ff5a8b)}
+  .invoice h3{margin:0 0 4px;color:#1a2b3d;font-size:1.05rem}
+  .invoice .row{display:flex;justify-content:space-between;gap:10px;padding:6px 0;
+    border-bottom:1px dashed #e2e8f0;font-size:.92rem}
+  .invoice .row:last-of-type{border-bottom:0}
+  .invoice .row .k{color:#5b6c80;font-weight:600}
+  .invoice .row .v{font-weight:800;color:#1a2b3d;text-align:right;word-break:break-word}
+  .invoice .amount{font-size:1.6rem;font-weight:900;color:#e6204e;letter-spacing:.5px}
+  .invoice .ref-pill{display:inline-block;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-weight:900;color:#e6204e;letter-spacing:1.5px;background:rgba(230,32,78,.08);
+    border:1px dashed rgba(230,32,78,.45);padding:6px 12px;border-radius:8px;user-select:all}
+  .cart-item{background:rgba(0,0,0,.18);border:1px solid var(--line);border-radius:14px;
+    padding:14px;margin-bottom:12px}
+  .cart-item h4{margin:0 0 6px;font-size:1rem}
+  .cart-item .status-pill{display:inline-block;padding:3px 10px;border-radius:999px;
+    font-size:.75rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;margin-left:8px}
+  .cart-item .status-pending{background:rgba(255,196,0,.18);color:#ffd34d;border:1px solid rgba(255,196,0,.4)}
+  .cart-item .status-paid{background:rgba(61,214,198,.18);color:var(--accent);border:1px solid rgba(61,214,198,.4)}
+
   /* ── Custom date-of-birth picker ── */
   /* Override the generic input[readonly] styles so the DOB field looks tappable */
   input.dob-input[readonly]{
@@ -377,6 +408,12 @@
     <div class="top-banner" id="topBanner" style="display:none">
       <span id="topBannerText"></span>
     </div>
+
+    <p style="margin:12px 0 0;font-size:.95rem">
+      Already registered?
+      <a href="#" id="signinLink" style="color:var(--accent);font-weight:700;text-decoration:underline;cursor:pointer">Sign in with your mobile + reference code</a>
+      to view your invoice and ticket.
+    </p>
   </div>
 
   <div class="wrap">
@@ -671,6 +708,42 @@
         </div>
       </div>
     </form>
+
+    <!-- Sign-in modal (reuses .dp-overlay / .dp-modal styling) -->
+    <div id="signinModal" class="dp-overlay" hidden>
+      <div class="dp-modal" role="dialog" aria-modal="true" aria-labelledby="siTitle" style="max-width:420px">
+        <div class="dp-header">
+          <div class="dp-title" id="siTitle">Sign in</div>
+          <button type="button" class="dp-close" id="siClose" aria-label="Close">×</button>
+        </div>
+        <div class="dp-body" style="text-align:left">
+          <p class="muted" style="margin:0 0 14px;font-size:.92rem">
+            Enter the mobile number you registered with and the reference code we generated for you. You'll see your invoice and ticket.
+          </p>
+          <label for="siPhone">Mobile</label>
+          <input id="siPhone" type="tel" placeholder="+961 3 123 456" inputmode="tel"
+                 style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font:inherit">
+          <label for="siRef" style="margin-top:10px;display:block">Reference code</label>
+          <input id="siRef" type="text" placeholder="BTN-2026-XXXX" autocapitalize="characters"
+                 style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font:inherit;font-family:ui-monospace,Menlo,monospace;letter-spacing:1px">
+          <div class="err" id="siErr" style="margin-top:10px;display:none"></div>
+          <div style="display:flex;gap:10px;margin-top:14px">
+            <button type="button" id="siSubmit" class="btn" style="flex:1">Sign in</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Shopping cart (shown after successful sign-in) -->
+    <div id="cartPanel" hidden style="margin-top:14px">
+      <div class="card" style="background:var(--card);border:1px solid var(--line);border-radius:18px;padding:22px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+          <h2 style="margin:0;font-size:1.25rem">Welcome back, <span id="cartName">runner</span></h2>
+          <button type="button" id="cartSignOut" class="btn sec" style="padding:8px 14px;font-size:.9rem">Sign out</button>
+        </div>
+        <div id="cartItems"></div>
+      </div>
+    </div>
 
     <!-- DOB picker modal -->
     <div id="dobPicker" class="dp-overlay" hidden>
@@ -1327,6 +1400,7 @@ function renderExtraParticipants(count) {
             </select>
           </div>
         </div>
+        <div class="row" id="${p}subq"></div>
         <div class="row two">
           <div>
             <label for="${p}shirt">T-shirt size *</label>
@@ -1358,14 +1432,48 @@ function renderExtraParticipants(count) {
     if (el) el.value = v;
   });
 
-  // Wire per-participant category change → recompute total.
-  extraContainer.querySelectorAll('select[id$="_cat"]').forEach(sel => {
-    sel.addEventListener("change", recomputeMultiTotal);
-  });
+  // Wire per-participant category + DOB changes → recompute total + sub-question.
+  for (let n = 2; n <= count; n++) {
+    const catEl = document.getElementById(`p${n}_cat`);
+    const dobEl = document.getElementById(`p${n}_dob`);
+    if (catEl) catEl.addEventListener("change", () => { recomputeMultiTotal(); renderParticipantSubQ(n); });
+    if (dobEl) dobEl.addEventListener("change", () => renderParticipantSubQ(n));
+    renderParticipantSubQ(n);
+  }
 
   // Attach inline-error divs + clear-on-edit listeners to the new required fields.
   initFieldErrors();
   recomputeMultiTotal();
+}
+
+function renderParticipantSubQ(n) {
+  const wrap = document.getElementById(`p${n}_subq`);
+  if (!wrap) return;
+  const catId = document.getElementById(`p${n}_cat`)?.value;
+  const dob   = document.getElementById(`p${n}_dob`)?.value;
+  const c = CATEGORIES[catId];
+  if (!c?.subQuestion?.options?.length) { wrap.innerHTML = ""; return; }
+  const labelHtml = escHtml(c.subQuestion.label || "Sub-category") + " *";
+  if (!dob) {
+    wrap.innerHTML = `
+      <label>${labelHtml}</label>
+      <input type="text" id="p${n}_sq" name="p${n}_sq" readonly value=""
+             placeholder="Auto-fills once you enter the date of birth above">
+      <div class="help">This is determined from the date of birth — no need to choose.</div>`;
+    return;
+  }
+  const match = c.subQuestion.options.find(o => bracketMatches(o, dob));
+  if (!match) {
+    wrap.innerHTML = `
+      <label>${labelHtml}</label>
+      <input type="text" id="p${n}_sq" name="p${n}_sq" readonly value="">
+      <div class="err show" style="margin-top:6px">Date of birth doesn't fit any age bracket for ${escHtml(c.name)}.</div>`;
+    return;
+  }
+  wrap.innerHTML = `
+    <label>${labelHtml}</label>
+    <input type="text" id="p${n}_sq" name="p${n}_sq" readonly value="${escHtml(match)}">
+    <div class="help">Auto-filled from the date of birth.</div>`;
 }
 
 function recomputeMultiTotal() {
@@ -1531,8 +1639,10 @@ function collectCustomValues() {
 // ============================================================
 // Theme + copy (from Firestore /config/theme)
 // ============================================================
+let WHISH_LOGO_URL = null;
 function applyTheme(t) {
   t = t || {};
+  WHISH_LOGO_URL = t.whishLogo || null;
   const root = document.documentElement.style;
   if (t.accent)   root.setProperty("--accent", t.accent);
   if (t.accent2)  root.setProperty("--accent2", t.accent2);
@@ -1877,6 +1987,9 @@ form.addEventListener("submit", async (e) => {
       if (cat_i.ageLimitMax > 0 && age_i !== null && age_i > cat_i.ageLimitMax) {
         throw new Error(`Participant ${i}: maximum age for ${cat_i.name} is ${cat_i.ageLimitMax} on race day. Their age on race day: ${age_i}.`);
       }
+      if (cat_i.subQuestion?.options?.length && !data[`p${i}_sq`]) {
+        throw new Error(`Participant ${i}: date of birth doesn't fit any age bracket for ${cat_i.name}. Please verify their DOB or contact us.`);
+      }
     }
 
     // Generate N unique refs.
@@ -1887,7 +2000,7 @@ form.addEventListener("submit", async (e) => {
       if (!seen.has(r)) { seen.add(r); refs.push(r); }
     }
 
-    const colRef = collection(db, "competitions", COMPETITION_ID, "registrations");
+    const regsCol = collection(db, "competitions", COMPETITION_ID, "registrations");
     const created = [];
 
     for (let i = 1; i <= N; i++) {
@@ -1911,13 +2024,15 @@ form.addEventListener("submit", async (e) => {
           priceUSD:     cat_i.price ?? 0,
           paymentStatus: (cat_i.price ?? 0) === 0 ? "free" : "pending",
           paymentMethod: (cat_i.price ?? 0) === 0 ? "free" : "manual",
-          subQuestionAnswer: null,   // sub-question auto-fill not currently extended to extras
+          subQuestionAnswer: data[`p${i}_sq`] || null,
           whishReference: refs[i - 1],
           teammate: null,
           groupSize: N
         };
       }
-      await addDoc(colRef, docPayload);
+      // Doc ID = whish reference so the "sign in with mobile + ref" flow
+      // can look up a registration by ref via getDoc().
+      await setDoc(doc(db, "competitions", COMPETITION_ID, "registrations", refs[i - 1]), docPayload);
       created.push({ ref: refs[i - 1], name: `${docPayload.firstName} ${docPayload.lastName}`.trim() });
     }
 
@@ -1972,6 +2087,178 @@ function showConfirmation(created, total, cat) {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, 220);
 }
+
+// ============================================================
+// Sign in (mobile + ref) → shopping cart with Whish invoice / ticket
+// ============================================================
+const signinLink   = document.getElementById("signinLink");
+const signinModal  = document.getElementById("signinModal");
+const siClose      = document.getElementById("siClose");
+const siSubmit     = document.getElementById("siSubmit");
+const siPhoneInput = document.getElementById("siPhone");
+const siRefInput   = document.getElementById("siRef");
+const siErr        = document.getElementById("siErr");
+const cartPanel    = document.getElementById("cartPanel");
+const cartName     = document.getElementById("cartName");
+const cartItems    = document.getElementById("cartItems");
+const cartSignOut  = document.getElementById("cartSignOut");
+
+function openSignin() {
+  siErr.style.display = "none";
+  siErr.textContent = "";
+  signinModal.hidden = false;
+  document.body.style.overflow = "hidden";
+  setTimeout(() => siPhoneInput.focus(), 50);
+}
+function closeSignin() {
+  signinModal.hidden = true;
+  document.body.style.overflow = "";
+}
+signinLink.addEventListener("click", (e) => { e.preventDefault(); openSignin(); });
+siClose.addEventListener("click", closeSignin);
+signinModal.addEventListener("click", (e) => { if (e.target === signinModal) closeSignin(); });
+document.addEventListener("keydown", (e) => {
+  if (!signinModal.hidden && e.key === "Escape") closeSignin();
+});
+
+function showSigninError(msg) {
+  siErr.textContent = msg;
+  siErr.style.display = "block";
+  siErr.classList.add("show");
+}
+
+siSubmit.addEventListener("click", async () => {
+  siErr.style.display = "none";
+  const phoneRaw = siPhoneInput.value.trim();
+  const refRaw   = siRefInput.value.trim().toUpperCase();
+  if (!phoneRaw || !refRaw) {
+    showSigninError("Please enter both your mobile number and reference code.");
+    return;
+  }
+  const phoneNorm = normalizePhone(phoneRaw);
+  if (!phoneNorm || phoneNorm.length < 8) {
+    showSigninError("That mobile number doesn't look right. Please double-check.");
+    return;
+  }
+  siSubmit.disabled = true;
+  const _orig = siSubmit.textContent;
+  siSubmit.textContent = "Signing in…";
+  try {
+    const snap = await getDoc(doc(db, "competitions", COMPETITION_ID, "registrations", refRaw));
+    if (!snap.exists()) {
+      showSigninError("We couldn't find a registration with that reference code.");
+      return;
+    }
+    const r = snap.data();
+    const storedPhoneNorm = normalizePhone(r.phone || "");
+    if (storedPhoneNorm !== phoneNorm) {
+      showSigninError("That mobile number doesn't match the one on the registration.");
+      return;
+    }
+    closeSignin();
+    renderCart(r);
+  } catch (err) {
+    console.error(err);
+    showSigninError("Couldn't sign you in. Please try again or contact batrounrace@gmail.com.");
+  } finally {
+    siSubmit.disabled = false;
+    siSubmit.textContent = _orig;
+  }
+});
+siRefInput.addEventListener("keydown", (e) => { if (e.key === "Enter") siSubmit.click(); });
+siPhoneInput.addEventListener("keydown", (e) => { if (e.key === "Enter") siSubmit.click(); });
+
+function fmtRaceDate(s) {
+  if (!s) return "TBA";
+  try { return new Date(s).toLocaleDateString("en-GB", { weekday:"long", day:"numeric", month:"long", year:"numeric" }); }
+  catch (_) { return s; }
+}
+
+function buildTicketUrlFor(r) {
+  const params = new URLSearchParams({
+    ref: r.whishReference || "",
+    name: `${r.firstName || ""} ${r.lastName || ""}`.trim(),
+    bib: String(r.bibNumber || ""),
+    cat: (r.categoryName || "") + (r.subQuestionAnswer ? " — " + r.subQuestionAnswer : ""),
+    date: RACE_DAY || "",
+    amount: (r.priceUSD ?? 0) ? `$${r.priceUSD}` : "Free",
+    status: r.paymentStatus || ""
+  });
+  return `${location.origin}${location.pathname.replace(/index\.html$/, "")}ticket.html?${params}`;
+}
+
+function renderCart(r) {
+  cartName.textContent = `${r.firstName || ""} ${r.lastName || ""}`.trim() || "runner";
+
+  const status = (r.paymentStatus || "pending").toLowerCase();
+  const fullName = `${r.firstName || ""} ${r.lastName || ""}`.trim();
+  const isPaid = status === "paid" || status === "free";
+
+  const whishBadge = WHISH_LOGO_URL
+    ? `<img src="${escHtml(WHISH_LOGO_URL)}" alt="Whish Money" style="height:40px;width:auto;border-radius:8px;background:#fff;padding:4px;box-shadow:0 2px 6px rgba(0,0,0,.2)">`
+    : `<span class="whish-badge" aria-label="Whish Money"><span class="w">W</span>whish<span class="m">MONEY</span></span>`;
+
+  let block = "";
+  if (!isPaid) {
+    // Pending: show the Whish invoice.
+    block = `
+      <div class="invoice" role="region" aria-label="Whish payment invoice">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px">
+          <h3>Payment invoice</h3>
+          ${whishBadge}
+        </div>
+        <div class="row"><span class="k">Participant</span><span class="v">${escHtml(fullName)}</span></div>
+        <div class="row"><span class="k">Category</span><span class="v">${escHtml(r.categoryName || "—")}${r.subQuestionAnswer ? " · " + escHtml(r.subQuestionAnswer) : ""}</span></div>
+        <div class="row"><span class="k">Race day</span><span class="v">${escHtml(fmtRaceDate(RACE_DAY))}</span></div>
+        <div class="row"><span class="k">Amount due</span><span class="v amount">$${r.priceUSD ?? 0} USD</span></div>
+        <div class="row"><span class="k">Reference</span><span class="v"><span class="ref-pill">${escHtml(r.whishReference || "—")}</span></span></div>
+        <div style="margin-top:12px;padding:10px 12px;background:#fff5f7;border:1px solid #ffd6e0;border-radius:10px;font-size:.85rem;color:#5b6c80">
+          <strong style="color:#1a2b3d">How to pay.</strong>
+          Open Whish Money, send <strong style="color:#e6204e">$${r.priceUSD ?? 0}</strong> to <strong style="color:#1a2b3d">Batroun Race</strong>,
+          and write <strong style="color:#e6204e">${escHtml(r.whishReference || "")}</strong> in the transfer note. Once we confirm the payment,
+          your bib + QR ticket are sent to you on WhatsApp.
+        </div>
+      </div>`;
+  } else {
+    // Paid / free: show the ticket access card.
+    block = `
+      <div style="background:rgba(61,214,198,.07);border:1px solid rgba(61,214,198,.4);border-radius:14px;padding:14px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <strong style="color:var(--accent);font-size:1rem">✓ Confirmed</strong>
+          ${r.bibNumber ? `<span style="margin-left:auto;font-weight:900;color:var(--accent);font-size:1.1rem">Bib ${r.bibNumber}</span>` : ""}
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin:8px 0">
+          <div><div class="muted" style="font-size:.72rem;text-transform:uppercase;letter-spacing:.08em">Participant</div><div style="font-weight:700">${escHtml(fullName)}</div></div>
+          <div><div class="muted" style="font-size:.72rem;text-transform:uppercase;letter-spacing:.08em">Category</div><div style="font-weight:700">${escHtml(r.categoryName || "—")}</div></div>
+          <div><div class="muted" style="font-size:.72rem;text-transform:uppercase;letter-spacing:.08em">Race day</div><div style="font-weight:700">${escHtml(fmtRaceDate(RACE_DAY))}</div></div>
+        </div>
+        <a href="${buildTicketUrlFor(r)}" target="_blank" rel="noopener" class="btn" style="display:inline-block;text-decoration:none;margin-top:8px">Open race ticket</a>
+      </div>`;
+  }
+
+  cartItems.innerHTML = `
+    <div class="cart-item">
+      <h4>${escHtml(fullName) || "Participant"}
+        <span class="status-pill ${isPaid ? "status-paid" : "status-pending"}">${isPaid ? "Confirmed" : "Payment pending"}</span>
+      </h4>
+      ${block}
+    </div>`;
+
+  // Hide the form, show the cart.
+  form.style.display = "none";
+  document.getElementById("confirmPanel").classList.remove("show");
+  cartPanel.hidden = false;
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+cartSignOut.addEventListener("click", () => {
+  cartPanel.hidden = true;
+  form.style.display = "";
+  form.classList.remove("is-hiding");
+  siPhoneInput.value = "";
+  siRefInput.value = "";
+  window.scrollTo({ top: 0, behavior: "smooth" });
+});
 </script>
 </body>
 </html>

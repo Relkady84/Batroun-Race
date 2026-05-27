@@ -72,7 +72,7 @@ competitions/{competitionId}/categories/{categoryId}
   └─ subQuestion: { label, options[] } | null   // e.g. age-bracket dropdown
 
 competitions/{competitionId}/config/{configId}   // public read except /access
-  ├─ theme:      { accent, accent2, ink, bg1, bg2, bgImage, logoImage, logoText, logoHeight, heading, subtitle, bannerText }
+  ├─ theme:      { accent, accent2, ink, bg1, bg2, bgImage, logoImage, logoText, logoHeight, whishLogo, heading, subtitle, bannerText }
   ├─ form:       { fields: [{ key, label, type, required, options }] }   // extra public-form fields
   ├─ publicForm: { builtIn: { <key>: { visible, required, label, deleted } }, includes: [string] }   // toggles + label overrides for built-in fields (email, gender, nationality, country, city, tshirt, blood, club, note, emergency) and the "Registration includes" list shown on the price card
   ├─ scanner:    { fields: [...] }    // which fields the hostess scanner shows
@@ -96,8 +96,10 @@ competitions/{competitionId}/registrations/{regId}    // doc ID = normalizePhone
 
 ## Critical conventions
 
-### Phone-based registration uniqueness
-Each registration's Firestore document ID **is** `normalizePhone(phone)` (canonical "961XXXXXXXX" form). Because rules allow public `create` but not public `update`, a second submission with the same phone is treated as an `update` and rejected by the server. No client-side check needed.
+### Registration doc ID is the Whish reference
+Each new registration's Firestore document ID **is** its `whishReference` (e.g. `BTN-2026-A4K9`). This unlocks two things:
+- A single mobile can register **multiple participants** — each gets its own doc (the old phone-as-ID model is gone).
+- The public **sign-in flow** (`index.html` → "Already registered? Sign in") looks up a registration via `getDoc(refs/<ref>)`. Firestore rules allow public `get` on `/registrations/{regId}` for this exact pattern; `list` is still locked to admin/viewer so we don't leak the whole table. The client verifies that the stored `phone` (normalised) matches what the user typed before exposing the doc's contents.
 
 ### Whish reference codes
 - Format: `BTN-2026-XXXX` (4 chars, no confusing 0/O/1/I/L)
