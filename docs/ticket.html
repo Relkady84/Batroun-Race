@@ -3,100 +3,187 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Race Ticket — Batroun Race 2026</title>
+<title>Race Ticket — Batroun Race</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap">
 <style>
   :root{
     --bg1:#08172b; --bg2:#0d2140;
-    --ink:#ecf6ff; --muted:#9fb2c8; --line:rgba(255,255,255,.16);
-    --accent:#3dd6c6; --accent2:#21b3a7;
-    --card:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.03));
+    --ink:#0b1726; --paper:#ffffff; --muted:#5b6c80; --line:#e0e6ee;
+    --accent:#21b3a7; --accent2:#3dd6c6;
   }
   *{box-sizing:border-box}
   html,body{margin:0;padding:0;min-height:100%;
-            background:linear-gradient(180deg,var(--bg1),var(--bg2));color:var(--ink);
-            font:16px/1.55 'Inter',system-ui,-apple-system,Segoe UI,Roboto;
+            background:linear-gradient(180deg,var(--bg1),var(--bg2));
+            color:var(--ink);
+            font:15px/1.55 'Inter',system-ui,-apple-system,Segoe UI,Roboto;
             -webkit-font-smoothing:antialiased}
-  .wrap{max-width:520px;margin:0 auto;padding:24px 16px;min-height:100vh;
-        display:flex;flex-direction:column;justify-content:center}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:18px;
-        box-shadow:0 24px 60px rgba(0,0,0,.55);padding:22px;text-align:center}
+  .page{max-width:640px;margin:0 auto;padding:18px 12px 40px}
+
+  .toolbar{display:flex;justify-content:flex-end;gap:8px;margin-bottom:10px}
+  .btn{appearance:none;border:0;border-radius:10px;padding:10px 16px;
+       font:inherit;font-weight:700;cursor:pointer;color:#062028;
+       background:linear-gradient(180deg,var(--accent2),var(--accent));
+       box-shadow:0 6px 18px rgba(33,179,167,.35)}
+  .btn:hover{transform:translateY(-1px)}
+  .btn.sec{background:rgba(255,255,255,.92);color:#1a2b3d}
+
+  .ticket{background:var(--paper);color:var(--ink);border-radius:18px;
+          overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.45);
+          border:1px solid rgba(0,0,0,.04)}
+
+  .ticket-header{background:linear-gradient(135deg,#08172b 0%,#11365e 100%);
+                 color:#ecf6ff;padding:22px 22px 18px;text-align:center;position:relative}
+  .ticket-header::after{content:"";position:absolute;left:-10px;right:-10px;bottom:-10px;height:20px;
+                        background:radial-gradient(circle at 10px 10px, var(--paper) 9px, transparent 10px) 0 0/20px 20px}
   .brand{font-weight:900;font-size:.78rem;letter-spacing:.22em;
-         text-transform:uppercase;color:var(--accent);margin:0 0 6px}
-  h1{margin:0 0 4px;font-size:clamp(22px,5vw,30px);font-weight:900;letter-spacing:-.01em;
-     background:linear-gradient(180deg, #ffffff 0%, #d8efea 70%, var(--accent) 100%);
-     -webkit-background-clip:text;background-clip:text;color:transparent}
-  .sub{color:var(--muted);margin:0 0 18px;font-size:.95rem}
+         text-transform:uppercase;color:var(--accent2);margin:0 0 4px}
+  .ticket-title{margin:0;font-size:clamp(20px,4.6vw,28px);font-weight:900;letter-spacing:-.01em;
+                color:#ffffff}
+  .ticket-sub{color:#a9c5dd;margin:6px 0 0;font-size:.92rem}
 
-  .qr-wrap{background:#ffffff;padding:14px;border-radius:14px;
-           display:inline-block;margin:6px 0 18px}
-  .qr-wrap > div, .qr-wrap canvas, .qr-wrap img{
-    display:block;width:240px!important;height:240px!important;max-width:60vw;max-height:60vw
+  .ticket-body{padding:26px 22px 18px}
+
+  .qr-row{display:flex;gap:16px;align-items:center;flex-wrap:wrap;justify-content:center;
+          padding:14px 0 6px}
+  .qr-card{background:#ffffff;padding:10px;border-radius:14px;border:1px solid var(--line);
+           display:inline-block}
+  .qr-card > div, .qr-card canvas, .qr-card img{
+    display:block;width:200px!important;height:200px!important;max-width:55vw;max-height:55vw
   }
-
+  .qr-side{flex:1;min-width:200px;text-align:left}
+  .qr-label{font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);
+            font-weight:700;margin:0 0 4px}
   .ref{display:inline-block;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
-       font-size:1.4rem;font-weight:900;color:var(--accent);letter-spacing:2px;
-       background:rgba(0,0,0,.25);border:1px dashed rgba(61,214,198,.5);
-       padding:8px 18px;border-radius:10px;user-select:all;margin-bottom:14px}
+       font-size:1.15rem;font-weight:900;color:var(--accent);letter-spacing:1.5px;
+       background:rgba(33,179,167,.08);border:1px dashed rgba(33,179,167,.4);
+       padding:8px 14px;border-radius:10px;user-select:all;margin:0 0 12px}
 
-  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:8px 0 14px;text-align:left}
-  .grid > div{background:rgba(0,0,0,.18);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
-  .grid label{display:block;font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;
-              color:var(--muted);margin:0 0 3px;font-weight:700}
-  .grid .v{font-weight:800;font-size:1rem;word-break:break-word}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0 4px}
+  .grid > div{background:#f4f7fb;border:1px solid var(--line);border-radius:12px;padding:10px 12px;min-width:0}
+  .grid.three{grid-template-columns:repeat(3,1fr)}
+  .grid label{display:block;font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;
+              color:var(--muted);margin:0 0 4px;font-weight:700}
+  .grid .v{font-weight:800;font-size:1rem;word-break:break-word;color:var(--ink)}
+  .grid .v.big{font-size:1.55rem;letter-spacing:.5px;color:var(--accent)}
 
-  .hint{color:var(--muted);font-size:.85rem;margin:14px 0 0;line-height:1.5}
+  .stub{margin-top:18px;border-top:2px dashed var(--line);padding-top:14px;
+        display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;
+        font-size:.85rem;color:var(--muted)}
+  .stub strong{color:var(--ink)}
+
+  .hint{margin:16px 22px 22px;padding:12px;background:#f8fafc;border:1px solid var(--line);
+        border-radius:12px;color:#36495e;font-size:.85rem;line-height:1.5}
   .hint strong{color:var(--ink)}
+
+  @media print{
+    html,body{background:#fff!important}
+    .toolbar{display:none!important}
+    .ticket{box-shadow:none;border:1px solid #d0d6df;page-break-inside:avoid}
+    .page{max-width:none;margin:0;padding:0}
+    a[href]:after{content:""}
+  }
 </style>
 </head>
 <body>
-<main class="wrap">
-  <div class="card">
-    <div class="brand">Batroun Race · 2026</div>
-    <h1>Race Ticket</h1>
-    <p class="sub" id="subName">Show this at pickup</p>
+<main class="page">
+  <div class="toolbar">
+    <button class="btn sec" onclick="window.print()">Save as PDF / Print</button>
+  </div>
 
-    <div class="qr-wrap"><div id="qr" aria-label="QR code"></div>
-    <div class="ref" id="ref">—</div>
-
-    <div class="grid">
-      <div><label>Name</label><div class="v" id="name">—</div></div>
-      <div><label>Bib number</label><div class="v" id="bib">—</div></div>
-      <div><label>Category</label><div class="v" id="cat">—</div></div>
-      <div><label>Race day</label><div class="v" id="date">—</div></div>
+  <article class="ticket" id="ticket">
+    <div class="ticket-header">
+      <p class="brand">Batroun Race</p>
+      <h1 class="ticket-title">Official Race Ticket</h1>
+      <p class="ticket-sub" id="subName">Present this ticket on race day</p>
     </div>
 
-    <p class="hint">Present this ticket at the pickup desk on race day. The hostess will scan the QR code (or read the reference) to verify your registration and hand you your bib + race pack.</p>
-  </div>
+    <div class="ticket-body">
+      <div class="qr-row">
+        <div class="qr-card"><div id="qr" aria-label="QR code"></div></div>
+        <div class="qr-side">
+          <p class="qr-label">Reference code</p>
+          <div class="ref" id="ref">—</div>
+          <p class="qr-label">Bib number</p>
+          <div class="v big" id="bib">—</div>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div><label>Participant</label><div class="v" id="name">—</div></div>
+        <div><label>Category</label><div class="v" id="cat">—</div></div>
+      </div>
+      <div class="grid three">
+        <div><label>Race day</label><div class="v" id="date">—</div></div>
+        <div><label>Start time</label><div class="v" id="start">—</div></div>
+        <div><label>Amount paid</label><div class="v" id="amount">—</div></div>
+      </div>
+      <div class="grid">
+        <div style="grid-column:1/-1"><label>Location</label><div class="v" id="loc">Lycée Montaigne, Beit Chabab</div></div>
+      </div>
+
+      <div class="stub">
+        <div><strong>Status:</strong> <span id="status">Confirmed</span></div>
+        <div>Batroun Race · <span id="year"></span></div>
+      </div>
+    </div>
+
+    <p class="hint">
+      <strong>How to use this ticket.</strong> Show this page (or its printed copy) at the pickup desk on race day.
+      The hostess scans the QR code — or reads the reference code — to verify your registration and hand you your bib &amp; race pack.
+    </p>
+  </article>
 </main>
 
 <script>
 const params = new URLSearchParams(location.search);
-const ref  = (params.get("ref") || "").trim();
-const name = (params.get("name") || "").trim();
-const bib  = (params.get("bib") || "").trim();
-const cat  = (params.get("cat") || "").trim();
-const date = (params.get("date") || "").trim();
+const get = (k) => (params.get(k) || "").trim();
+
+const ref    = get("ref");
+const name   = get("name");
+const bib    = get("bib");
+const cat    = get("cat");
+const date   = get("date");
+const start  = get("start");
+const loc    = get("loc");
+const amount = get("amount");
+const status = get("status");
 
 function set(id, v, fallback = "—") {
-  document.getElementById(id).textContent = v || fallback;
+  const el = document.getElementById(id);
+  if (el) el.textContent = v || fallback;
 }
-set("ref",  ref);
-set("name", name);
-set("bib",  bib);
-set("cat",  cat);
-set("date", date ? new Date(date).toLocaleDateString("en-GB", { day:"numeric", month:"long", year:"numeric" }) : "");
+set("ref",    ref);
+set("name",   name);
+set("bib",    bib);
+set("cat",    cat);
+set("amount", amount);
+
+if (date) {
+  try {
+    set("date", new Date(date).toLocaleDateString("en-GB", { weekday:"short", day:"numeric", month:"long", year:"numeric" }));
+    document.getElementById("year").textContent = new Date(date).getFullYear();
+  } catch (_) { set("date", date); }
+} else {
+  document.getElementById("year").textContent = new Date().getFullYear();
+}
+if (start) set("start", start);
+if (loc)   set("loc",   loc);
+if (status) {
+  const s = status.toLowerCase();
+  set("status", s === "free" ? "Free entry (confirmed)" : s === "paid" ? "Paid · Confirmed" : status);
+}
 
 if (name) document.getElementById("subName").textContent = name + " — show this at pickup";
+
+document.title = name ? `Race Ticket — ${name}` : "Race Ticket — Batroun Race";
 </script>
-<!-- Client-side QR generation: no external API call, no rate limit, no third-party dependency at runtime. -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
   new QRCode(document.getElementById("qr"), {
     text: (new URLSearchParams(location.search)).get("ref") || "BATROUN-RACE",
-    width: 240, height: 240, correctLevel: QRCode.CorrectLevel.M,
+    width: 200, height: 200, correctLevel: QRCode.CorrectLevel.M,
     colorDark: "#000000", colorLight: "#ffffff"
   });
 </script>

@@ -60,7 +60,7 @@ batroun-race/
 
 ```
 competitions/{competitionId}                    // "batroun-race-2026"
-  ├─ name, year, registrationOpens, registrationCloses, raceDay
+  ├─ name, year, registrationOpens, registrationCloses, raceDay, raceStartTime, raceLocation
 
 competitions/{competitionId}/categories/{categoryId}
   ├─ name, distanceKm, timed

@@ -593,6 +593,10 @@ Masters Men-Women 35-39
           <div><label>Registration closes</label><input id="cpCloses" type="datetime-local"></div>
           <div><label>Race day</label><input id="cpRaceDay" type="date"></div>
         </div>
+        <div class="row two">
+          <div><label>Race start time</label><input id="cpStartTime" type="time" placeholder="e.g. 07:00"></div>
+          <div><label>Race location</label><input id="cpLocation" placeholder="Lycée Montaigne, Beit Chabab"></div>
+        </div>
       </div>
 
       <div><button id="competitionSaveBtn" class="btn">Save event info</button></div>
@@ -688,6 +692,7 @@ const db = getFirestore(app);
 // State
 let regs = [];
 let cats = [];
+let competition = {};
 let formFields = [];
 let builtInConfig = {};
 let includesConfig = null; // null = use defaults; array = explicit list
@@ -1020,7 +1025,11 @@ function startListeners() {
   // Competition doc
   onSnapshot(
     doc(db, "competitions", COMPETITION_ID),
-    snap => loadCompetitionIntoEditor(snap.exists() ? snap.data() : {}),
+    snap => {
+      const c = snap.exists() ? snap.data() : {};
+      competition = c;
+      loadCompetitionIntoEditor(c);
+    },
     err => toast("Competition listener: " + err.message, true)
   );
 }
@@ -1871,7 +1880,11 @@ function buildTicketUrl(r) {
     name: `${r.firstName || ""} ${r.lastName || ""}`.trim(),
     bib: String(r.bibNumber || ""),
     cat: (r.categoryName || "") + (r.subQuestionAnswer ? " — " + r.subQuestionAnswer : ""),
-    date: r.raceDay || ""
+    date:    competition.raceDay       || "",
+    start:   competition.raceStartTime || "",
+    loc:     competition.raceLocation  || "",
+    amount:  (r.priceUSD ?? 0) ? `$${r.priceUSD}` : "Free",
+    status:  r.paymentStatus || ""
   });
   return `${location.origin}${location.pathname.replace(/admin\.html$/, "")}ticket.html?${params}`;
 }
@@ -1893,9 +1906,10 @@ function buildWhatsAppUrl(r) {
     `Category: ${r.categoryName || ""}${r.subQuestionAnswer ? " - " + r.subQuestionAnswer : ""}`,
     r.priceUSD ? `Amount paid: $${r.priceUSD}` : `Entry: Free`,
     ``,
-    `Your race ticket (with QR code to show at pickup):`,
+    `Open your official race ticket below (with QR code, all your details, and a "Save as PDF" button):`,
     ticketUrl,
     ``,
+    `Bring it printed or on your phone to pick up your bib on race day.`,
     `See you at the start line!`
   ];
   return `https://wa.me/${phone}?text=${encodeURIComponent(lines.join("\n"))}`;
@@ -2738,6 +2752,8 @@ function loadCompetitionIntoEditor(c) {
   $("#cpOpens").value  = tsToLocal(c.registrationOpens);
   $("#cpCloses").value = tsToLocal(c.registrationCloses);
   $("#cpRaceDay").value = c.raceDay ? c.raceDay.slice(0,10) : "";
+  $("#cpStartTime").value = c.raceStartTime || "";
+  $("#cpLocation").value = c.raceLocation || "";
 }
 
 function tsToLocal(ts) {
@@ -2759,7 +2775,9 @@ $("#competitionSaveBtn").addEventListener("click", async () => {
     year: parseInt($("#cpYear").value, 10) || null,
     registrationOpens:  opens,
     registrationCloses: closes,
-    raceDay: $("#cpRaceDay").value || null
+    raceDay: $("#cpRaceDay").value || null,
+    raceStartTime: $("#cpStartTime").value || null,
+    raceLocation: $("#cpLocation").value.trim() || null
   };
 
   console.log("[competition] saving:", {
