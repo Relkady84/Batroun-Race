@@ -1448,6 +1448,7 @@ async function loadFromFirestore() {
           distance: x.distanceKm || null,
           capacity: x.capacity || null,
           registeredCount: x.registeredCount || 0,
+          isRelay: !!x.isRelay,
           price: (typeof x.price === "number") ? x.price : (x.prices?.wave1 ?? 0)
         };
       });
