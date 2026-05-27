@@ -1412,6 +1412,12 @@ function renderExtraParticipants(count) {
             <input id="${p}last" name="${p}last" placeholder="Family name" required autocomplete="off">
           </div>
         </div>
+        <div class="row">
+          <label for="${p}email">Email</label>
+          <input id="${p}email" name="${p}email" type="email" inputmode="email" autocomplete="off"
+                 placeholder="Leave empty to use Person 1's email">
+          <div class="help">Optional. Each participant can have their own email; otherwise the email from Person 1 is reused.</div>
+        </div>
         <div class="row two">
           <div>
             <label for="${p}dob">Date of birth *</label>
@@ -2036,10 +2042,15 @@ form.addEventListener("submit", async (e) => {
         docPayload = { ...payload, whishReference: refs[0] };
         if (N > 1) docPayload.groupSize = N;
       } else {
+        const ownEmail = (data[`p${i}_email`] || "").trim().toLowerCase();
+        if (ownEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ownEmail)) {
+          throw new Error(`Participant ${i}: please enter a valid email address, or leave it empty to reuse Person 1's.`);
+        }
         docPayload = {
           ...payload,
           firstName: data[`p${i}_first`]?.trim() || "",
           lastName:  data[`p${i}_last`]?.trim()  || "",
+          email:     ownEmail || payload.email,
           dob:       data[`p${i}_dob`] || null,
           ageOnRaceDay: ageOnRaceDay(data[`p${i}_dob`]),
           gender:    data[`p${i}_gender`] || null,
