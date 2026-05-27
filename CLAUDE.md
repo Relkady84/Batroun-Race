@@ -4,7 +4,7 @@ Project context for Claude Code. This file is auto-read on every session. **Keep
 
 ## What this is
 
-A complete registration system for the **Batroun Race** annual running event in Lebanon (Lycée Montaigne, Beit Chabab). Public registration page + admin dashboard + race-day QR scanner. Built reusable each year — never hardcode "2026" anywhere; always use `competitionId` (e.g. `batroun-race-2026`).
+A complete registration system for the **Batroun Race** annual running event in Lebanon (Lycée Montaigne, Beit Chabab). Public registration page + admin dashboard + race-day QR scanner. Built reusable each year — never hardcode "2026" anywhere; always use `competitionId` (e.g. `batroun-race-2026`). One deliberate exception: the Whish reference code format (see Critical conventions).
 
 ## Tech stack (locked — don't change without asking)
 
@@ -25,8 +25,10 @@ batroun-race/
 ├── README.md              (human-facing — points at user guide)
 ├── WORKFLOW.md            (historical build plan — kept for reference)
 ├── firestore.rules        (Firestore security rules — re-publish manually in Firebase console after edits)
+├── storage.rules          (Firebase Storage rules — deny-by-default; we don't use Storage, see Tech stack)
 ├── firebase.json          (Firebase CLI config)
 ├── .firebaserc            (Firebase project link → "batroun-race")
+├── .gitignore             (ignores build artifacts and local zips)
 ├── .devcontainer/         (GitHub Codespaces config — auto-installs Claude Code + Firebase CLI)
 └── docs/                  (served by GitHub Pages)
     ├── index.html         (public registration page)
@@ -96,6 +98,7 @@ Each registration's Firestore document ID **is** `normalizePhone(phone)` (canoni
 
 ### Whish reference codes
 - Format: `BTN-2026-XXXX` (4 chars, no confusing 0/O/1/I/L)
+- **Deliberate exception to the "no hardcoded year" rule** — keeping the year in the ref code lets admins instantly tell a current-year payment apart from a stale one from a prior edition. When rolling over to the next race, bump the literal in `docs/index.html` (search `BTN-2026-`) alongside the `competitionId`.
 - Generated client-side at submit time
 - Shown prominently on the confirmation panel
 - Runner must include in Whish note/comment — admin matches manually
@@ -133,7 +136,7 @@ Confirmed tab has a **↩ Revert** button per row that clears `paymentStatus`/`b
 - **GitHub Pages folder must be `/docs`** — Pages only supports root or `/docs`, not `/public`. The folder is named `docs/` for this reason.
 - **`firestore.rules` changes require manual re-publish** in Firebase Console → Firestore → Rules tab. Pushing to GitHub doesn't deploy rules.
 - **Don't reintroduce `api.qrserver.com`** — was the only external dependency at runtime, swapped for client-side `qrcodejs` so 1000+ registrations don't hit any rate limit.
-- **WhatsApp messages: no emojis** — some Android devices render unknown emojis as "?" in WhatsApp. Use plain text labels.
+- **WhatsApp messages: no emojis** — some Android devices render unknown emojis as "?" in WhatsApp. Use plain text labels. (Rule is WhatsApp-specific; admin UI and docs can use emojis freely.)
 
 ## How to test locally
 
@@ -159,6 +162,12 @@ git add . && git commit -m "..." && git push
 Updates within 1–2 minutes. Hard-reload to bypass cache.
 
 If `firestore.rules` changed, also re-publish manually in Firebase Console.
+
+## Branch conventions
+
+- `main` — production. GitHub Pages deploys from `/docs` on this branch, so every push is live within 1–2 minutes.
+- `claude/...` — feature branches used by Claude Code on the web. Develop and push here; merge to `main` via PR (or fast-forward locally) only when you're ready to ship to production.
+- Never push directly to `main` from a Claude Code session unless explicitly asked — the deploy is immediate and irreversible from the user's perspective.
 
 ## Status — what's built
 
