@@ -2044,7 +2044,7 @@ function renderCategoryList() {
           <div style="flex:1;min-width:240px">
             <h2 style="margin:0">${escapeHtml(c.name || c.id)} <span class="muted" style="font-weight:400">#${escapeHtml(c.id)}</span></h2>
             <div class="muted" style="margin-top:4px">
-              ${c.distanceKm ?? "?"} km · ${c.timed ? "Timed" : "Untimed"} · ${formatAgeRange(c.ageLimit, c.ageLimitMax)} · ${(typeof c.price === "number") ? (c.price === 0 ? "Free" : "$" + c.price) : "$" + (c.prices?.wave1 ?? 0)}${(c.bibRangeStart && c.bibRangeEnd) ? ` · BIB ${c.bibRangeStart}–${c.bibRangeEnd}` : ""}${c.isRelay ? " · Relay (2 runners)" : ""}
+              ${c.distanceKm ?? "?"} km · ${c.timed ? "Timed" : "Untimed"} · ${formatAgeRange(c.ageLimit, c.ageLimitMax)} · ${(typeof c.price === "number") ? (c.price === 0 ? "Free" : "$" + c.price) : "$" + (c.prices?.wave1 ?? 0)}${(c.bibRangeStart && c.bibRangeEnd) ? ` · BIB ${c.bibRangeStart}–${c.bibRangeEnd}` : ""}${c.isRelay ? " · Relay (2 runners)" : ""}${c.allowMultiParticipant ? " · Multi-participant" : ""}
             </div>
             <div style="margin-top:8px;font-size:.9rem">
               <strong>Capacity:</strong> ${cap ? `${reg} / ${cap}` : `${reg} (no limit)`}
@@ -2173,6 +2173,12 @@ function openEditCategory(c) {
       <span>Team relay — registration collects a teammate (2 runners share the same phone)</span>
     </label>
 
+    <label class="inline" style="margin-top:6px;display:flex;align-items:center;gap:8px">
+      <input type="checkbox" id="ec_multi" ${c.allowMultiParticipant ? "checked" : ""}
+        style="width:auto;min-height:auto;accent-color:var(--accent)">
+      <span>Allow multiple participants in one submission (typically 5 KM &amp; 10 KM family entries)</span>
+    </label>
+
     <details style="margin-top:14px;padding:10px 12px;background:rgba(0,0,0,.18);border-radius:8px" ${c.subQuestion?.label ? "open" : ""}>
       <summary style="cursor:pointer;font-weight:700;color:var(--muted)">Optional extra dropdown (e.g. age bracket)</summary>
       <p class="muted" style="margin:8px 0;font-size:.85rem">Shown to the runner when they pick this category. Leave label blank to remove.</p>
@@ -2226,6 +2232,7 @@ Masters Men-Women 35-39
         bibRangeStart: parseInt($("#ec_bibStart").value, 10) || null,
         bibRangeEnd:   parseInt($("#ec_bibEnd").value,   10) || null,
         isRelay: $("#ec_isRelay").checked,
+        allowMultiParticipant: $("#ec_multi").checked,
         subQuestion
       });
       closeModal();

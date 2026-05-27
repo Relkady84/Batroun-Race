@@ -407,6 +407,18 @@
 
         <div class="row" id="subQuestionWrap"></div>
 
+        <div class="row" id="participantCountWrap" hidden>
+          <label for="participantCount">How many participants under this mobile number?</label>
+          <select id="participantCount" name="participantCount">
+            <option value="1">1 participant</option>
+            <option value="2">2 participants</option>
+            <option value="3">3 participants</option>
+            <option value="4">4 participants</option>
+            <option value="5">5 participants</option>
+          </select>
+          <div class="help">Each runner registers under the same mobile but gets their own bib, QR ticket, and reference code.</div>
+        </div>
+
         <div class="card price-card" id="priceCard" style="margin:14px 0 0">
           <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap">
             <div>
@@ -522,6 +534,9 @@
           <textarea id="note" name="note" rows="3" placeholder="Allergies, conditions, medication…"></textarea>
         </div>
       </div>
+
+      <!-- Extra participants (rendered when multi-participant is enabled and count > 1) -->
+      <div id="extraParticipantsContainer"></div>
 
       <!-- Teammate (shown only when relay category is selected) -->
       <div class="card" id="teammateCard" hidden>
@@ -1194,6 +1209,7 @@ catSelect.addEventListener("change", () => {
   const cat = CATEGORIES[catSelect.value];
   renderSubQuestion(cat);
   toggleTeammateCard(!!cat?.isRelay);
+  toggleParticipantCount(!!cat?.allowMultiParticipant && !cat?.isRelay);
   if (!cat) { priceCard.classList.remove("show"); return; }
 
   const price = cat.price ?? 0;
@@ -1231,6 +1247,99 @@ function syncTeammatePhone() {
   if (src && dst) dst.value = src.value;
 }
 document.getElementById("phone").addEventListener("input", syncTeammatePhone);
+
+// ============================================================
+// Multi-participant (extra Person N cards)
+// ============================================================
+const participantCountWrap = document.getElementById("participantCountWrap");
+const participantCountSel  = document.getElementById("participantCount");
+const extraContainer       = document.getElementById("extraParticipantsContainer");
+
+function toggleParticipantCount(show) {
+  if (show) {
+    participantCountWrap.hidden = false;
+  } else {
+    participantCountWrap.hidden = true;
+    participantCountSel.value = "1";
+    renderExtraParticipants(1);
+  }
+}
+
+participantCountSel.addEventListener("change", () => {
+  renderExtraParticipants(parseInt(participantCountSel.value, 10) || 1);
+});
+
+function renderExtraParticipants(count) {
+  // Preserve current values keyed by id before re-rendering.
+  const prev = {};
+  extraContainer.querySelectorAll("input, select").forEach(el => { if (el.id) prev[el.id] = el.value; });
+
+  const cards = [];
+  for (let n = 2; n <= count; n++) {
+    const p = `p${n}_`;
+    cards.push(`
+      <div class="card extra-participant" data-person="${n}">
+        <h3 class="title">Participant ${n}</h3>
+        <p class="muted" style="margin:0 0 12px">Shared with Person 1: mobile, email, address, club, emergency contact.</p>
+        <div class="row two">
+          <div>
+            <label for="${p}first">First name *</label>
+            <input id="${p}first" name="${p}first" placeholder="Given name" required autocomplete="off">
+          </div>
+          <div>
+            <label for="${p}last">Last name *</label>
+            <input id="${p}last" name="${p}last" placeholder="Family name" required autocomplete="off">
+          </div>
+        </div>
+        <div class="row two">
+          <div>
+            <label for="${p}dob">Date of birth *</label>
+            <input id="${p}dob" name="${p}dob" class="dob-input" required readonly
+                   placeholder="Tap to choose date of birth" aria-haspopup="dialog" autocomplete="bday">
+          </div>
+          <div>
+            <label for="${p}gender">Gender *</label>
+            <select id="${p}gender" name="${p}gender" required>
+              <option value="">Select…</option>
+              <option>Female</option><option>Male</option>
+              <option>Non-binary</option><option>Prefer not to say</option>
+            </select>
+          </div>
+        </div>
+        <div class="row two">
+          <div>
+            <label for="${p}shirt">T-shirt size *</label>
+            <select id="${p}shirt" name="${p}shirt" required>
+              <option value="">Select…</option>
+              <option>XS</option><option>S</option><option>M</option>
+              <option>L</option><option>XL</option><option>XXL</option>
+            </select>
+          </div>
+          <div>
+            <label for="${p}blood">Blood type *</label>
+            <select id="${p}blood" name="${p}blood" required>
+              <option value="">Select…</option>
+              <option>A+</option><option>A-</option>
+              <option>B+</option><option>B-</option>
+              <option>AB+</option><option>AB-</option>
+              <option>O+</option><option>O-</option>
+              <option value="Unknown">Don't know</option>
+            </select>
+          </div>
+        </div>
+      </div>`);
+  }
+  extraContainer.innerHTML = cards.join("");
+
+  // Restore preserved values where the same id still exists.
+  Object.entries(prev).forEach(([id, v]) => {
+    const el = document.getElementById(id);
+    if (el) el.value = v;
+  });
+
+  // Attach inline-error divs + clear-on-edit listeners to the new required fields.
+  initFieldErrors();
+}
 
 // ============================================================
 // Inline required-field validation
@@ -1274,6 +1383,10 @@ initFieldErrors();
 function validateRequiredFields() {
   let firstBad = null;
   document.querySelectorAll("[required]").forEach(el => {
+    if (el.closest("[hidden]")) return;
+    // Skip fields hidden via display:none — they were already validated on
+    // the way to the waiver step and shouldn't trip the final submit.
+    if (el.type !== "checkbox" && el.offsetParent === null) return;
     let msg = "";
     if (el.type === "checkbox") {
       if (!el.checked) msg = "Please check this box to continue.";
@@ -1436,6 +1549,7 @@ async function loadFromFirestore() {
           capacity: x.capacity || null,
           registeredCount: x.registeredCount || 0,
           isRelay: !!x.isRelay,
+          allowMultiParticipant: !!x.allowMultiParticipant,
           price: (typeof x.price === "number") ? x.price : (x.prices?.wave1 ?? 0)
         };
       });
@@ -1670,24 +1784,69 @@ form.addEventListener("submit", async (e) => {
   };
 
   try {
-    const phoneId = normalizePhone(payload.phone);
-    if (!phoneId || phoneId.length < 8) throw new Error("Invalid phone number.");
-    const regRef = doc(db, "competitions", COMPETITION_ID, "registrations", phoneId);
-    // setDoc with the phone-as-ID. Firestore rules allow `create` for the
-    // public, but `update` only for admins — so a second submit with the
-    // same phone is treated as an update and rejected by the server.
-    await setDoc(regRef, payload);
-    showConfirmation(ref, price, cat);
+    const phoneNorm = normalizePhone(payload.phone);
+    if (!phoneNorm || phoneNorm.length < 8) throw new Error("Invalid phone number.");
+    payload.phone = phoneNorm;
+
+    // How many separate registrations (each gets own ref + bib)?
+    const eligible = !!(cat.allowMultiParticipant && !cat.isRelay);
+    const N = eligible ? Math.max(1, parseInt(participantCountSel.value, 10) || 1) : 1;
+
+    // Per-participant age validation (Person 2..N use their own DOB).
+    for (let i = 2; i <= N; i++) {
+      const dob_i = data[`p${i}_dob`];
+      const age_i = ageOnRaceDay(dob_i);
+      if (cat.ageLimit > 0 && (age_i === null || age_i < cat.ageLimit)) {
+        throw new Error(`Participant ${i}: minimum age for ${cat.name} is ${cat.ageLimit} on race day. Their age on race day: ${age_i ?? "—"}.`);
+      }
+      if (cat.ageLimitMax > 0 && age_i !== null && age_i > cat.ageLimitMax) {
+        throw new Error(`Participant ${i}: maximum age for ${cat.name} is ${cat.ageLimitMax} on race day. Their age on race day: ${age_i}.`);
+      }
+    }
+
+    // Generate N unique refs.
+    const refs = [];
+    const seen = new Set();
+    while (refs.length < N) {
+      const r = generateRef();
+      if (!seen.has(r)) { seen.add(r); refs.push(r); }
+    }
+
+    const colRef = collection(db, "competitions", COMPETITION_ID, "registrations");
+    const created = [];
+
+    for (let i = 1; i <= N; i++) {
+      let docPayload;
+      if (i === 1) {
+        docPayload = { ...payload, whishReference: refs[0] };
+        if (N > 1) docPayload.groupSize = N;     // breadcrumb for admins
+      } else {
+        docPayload = {
+          ...payload,
+          firstName: data[`p${i}_first`]?.trim() || "",
+          lastName:  data[`p${i}_last`]?.trim()  || "",
+          dob:       data[`p${i}_dob`] || null,
+          ageOnRaceDay: ageOnRaceDay(data[`p${i}_dob`]),
+          gender:    data[`p${i}_gender`] || null,
+          tshirtSize:data[`p${i}_shirt`]  || null,
+          bloodType: data[`p${i}_blood`]  || null,
+          subQuestionAnswer: null,   // sub-question is per-DOB, not auto-filled for extras
+          whishReference: refs[i - 1],
+          teammate: null,
+          groupSize: N
+        };
+      }
+      await addDoc(colRef, docPayload);
+      created.push({ ref: refs[i - 1], name: `${docPayload.firstName} ${docPayload.lastName}`.trim() });
+    }
+
+    showConfirmation(created, price, cat);
   } catch (err) {
     console.error(err);
     let msg;
     if (err?.code === "permission-denied") {
-      // Almost always means: phone already registered (the rule rejects the
-      // second create as an update). Could also be a validation failure.
-      msg = "This phone number is already registered for Batroun Race 2026, " +
-            "or one of the required fields is invalid.\n\nIf you already registered, " +
-            "we'll be in touch — no need to register again. If this is a mistake, " +
-            "double-check your details or contact batrounrace@gmail.com.";
+      msg = "We couldn't save your registration — one of the required fields may be invalid, " +
+            "or registration is closed. Please double-check your details, or contact batrounrace@gmail.com.";
     } else {
       msg = "Sorry, something went wrong submitting your registration. Please try again or contact batrounrace@gmail.com" + (err?.message ? ("\n\nDetails: " + err.message) : "");
     }
@@ -1698,20 +1857,34 @@ form.addEventListener("submit", async (e) => {
   }
 });
 
-function showConfirmation(ref, price, cat) {
-  // Pre-populate the confirmation content before revealing
-  document.getElementById("refCode").textContent = ref;
-  document.getElementById("amountDue").textContent = price === 0 ? "Free" : `$${price} USD`;
+function showConfirmation(created, price, cat) {
+  const N = created.length;
+  const totalDue = price * N;
+  const refEl = document.getElementById("refCode");
+
+  if (N === 1) {
+    refEl.textContent = created[0].ref;
+    refEl.style.fontSize = "";
+  } else {
+    refEl.innerHTML = `<div style="font-size:.9rem;color:var(--muted);font-weight:600;margin-bottom:8px">${N} participants registered:</div>` +
+      created.map(p => `
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 10px;background:rgba(0,0,0,.2);border:1px dashed rgba(61,214,198,.4);border-radius:10px;margin-bottom:6px;font-family:ui-monospace,Menlo,monospace;font-size:.95rem">
+          <span style="text-align:left;font-family:'Inter',system-ui;font-weight:600;color:var(--ink)">${escHtml(p.name)}</span>
+          <span style="font-weight:900;color:var(--accent);letter-spacing:1px">${escHtml(p.ref)}</span>
+        </div>`).join("");
+  }
+
+  document.getElementById("amountDue").textContent = totalDue === 0 ? "Free" : `$${totalDue} USD`;
   const whishAmt = document.getElementById("whishAmount");
-  if (whishAmt) whishAmt.textContent = `$${price}`;
+  if (whishAmt) whishAmt.textContent = `$${totalDue}`;
   const refInline = document.getElementById("refInline");
-  if (refInline) refInline.textContent = ref;
+  if (refInline) refInline.textContent = N === 1 ? created[0].ref : created.map(p => p.ref).join(" , ");
+
   if (price === 0) {
     document.getElementById("paymentBlock").style.display = "none";
     document.getElementById("freeBlock").style.display = "block";
   }
 
-  // Smooth handoff: fade the form out, then reveal the confirmation panel
   form.classList.add("is-hiding");
   setTimeout(() => {
     form.style.display = "none";
