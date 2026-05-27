@@ -288,6 +288,8 @@
   .includes{margin:8px 0 0;padding:0;list-style:none;font-size:.88rem;color:#cfe4f5}
   .includes li{padding:3px 0;padding-left:18px;position:relative}
   .includes li::before{content:"✓";position:absolute;left:0;color:var(--accent);font-weight:900}
+  .includes li.includes-title{padding-left:0;font-weight:700;color:var(--ink)}
+  .includes li.includes-title::before{content:none}
 
   /* Confirmation panel */
   .confirm{display:none}
@@ -570,27 +572,17 @@
             </select>
           </div>
         </div>
-        <div class="row two">
-          <div>
-            <label for="t_blood">Blood type *</label>
-            <select id="t_blood" name="t_blood">
-              <option value="">Select…</option>
-              <option>A+</option><option>A-</option>
-              <option>B+</option><option>B-</option>
-              <option>AB+</option><option>AB-</option>
-              <option>O+</option><option>O-</option>
-              <option value="Unknown">Don't know</option>
-            </select>
-          </div>
-          <div>
-            <label for="t_emgName">Emergency contact *</label>
-            <input id="t_emgName" name="t_emgName" placeholder="Full name">
-          </div>
-        </div>
         <div class="row">
-          <label for="t_emgPhone">Emergency phone *</label>
-          <input id="t_emgPhone" name="t_emgPhone" placeholder="+961 …"
-                 inputmode="tel" pattern="^[+]?[\d\s()-]{7,}$">
+          <label for="t_blood">Blood type *</label>
+          <select id="t_blood" name="t_blood">
+            <option value="">Select…</option>
+            <option>A+</option><option>A-</option>
+            <option>B+</option><option>B-</option>
+            <option>AB+</option><option>AB-</option>
+            <option>O+</option><option>O-</option>
+            <option value="Unknown">Don't know</option>
+          </select>
+          <div class="help">Emergency contact is shared with Person 1 (filled below).</div>
         </div>
       </div>
 
@@ -654,11 +646,6 @@
             <input type="checkbox" name="dataConsent" required
               style="width:auto;min-height:auto;accent-color:#27cbbb;margin-top:5px">
             <span>I consent to my data being used for registration. *</span>
-          </label>
-          <label class="inline" data-field="newsletter">
-            <input type="checkbox" name="newsletter"
-              style="width:auto;min-height:auto;accent-color:#27cbbb;margin-top:5px">
-            <span>Email me race updates.</span>
           </label>
         </div>
 
@@ -1219,13 +1206,13 @@ catSelect.addEventListener("change", () => {
     : `Untimed · ${formatAgeRange(cat.ageLimit, cat.ageLimitMax) ? "Age " + formatAgeRange(cat.ageLimit, cat.ageLimitMax) : "All ages"}`;
   priceLadder.innerHTML = "";
 
-  includesEl.innerHTML = `<li style="font-weight:700;color:var(--ink);list-style:none;padding-left:0">Registration includes:</li>` +
+  includesEl.innerHTML = `<li class="includes-title">Registration includes:</li>` +
     INCLUDES.map(i => `<li>${i}</li>`).join("");
 
   priceCard.classList.add("show");
 });
 
-const TEAMMATE_REQUIRED_IDS = ["t_first","t_last","t_dob","t_gender","t_shirt","t_blood","t_emgName","t_emgPhone"];
+const TEAMMATE_REQUIRED_IDS = ["t_first","t_last","t_dob","t_gender","t_shirt","t_blood"];
 function toggleTeammateCard(show) {
   const card = document.getElementById("teammateCard");
   if (!card) return;
@@ -1463,7 +1450,11 @@ async function loadFromFirestore() {
     }
 
     const pfSnap = await getDoc(doc(db, "competitions", COMPETITION_ID, "config", "publicForm"));
-    if (pfSnap.exists()) applyPublicFormConfig(pfSnap.data().builtIn || {});
+    if (pfSnap.exists()) {
+      const pf = pfSnap.data();
+      applyPublicFormConfig(pf.builtIn || {});
+      if (Array.isArray(pf.includes) && pf.includes.length) INCLUDES = pf.includes;
+    }
   } catch (err) {
     console.warn("Firestore load failed, using fallback constants:", err);
   }
@@ -1486,7 +1477,6 @@ const PUBLIC_FORM_DEFAULTS = {
   club:        { visible: true,  required: false },
   note:        { visible: true,  required: false },
   emergency:   { visible: true,  required: true  },
-  newsletter:  { visible: true,  required: false },
 };
 function applyPublicFormConfig(builtIn) {
   Object.entries(PUBLIC_FORM_DEFAULTS).forEach(([key, defaults]) => {
@@ -1657,8 +1647,7 @@ form.addEventListener("submit", async (e) => {
     emergencyContactPhone: data.emgPhone?.trim() || null,
     consents: {
       waiver: !!data.waiver,
-      dataUsage: !!data.dataConsent,
-      newsletter: !!data.newsletter
+      dataUsage: !!data.dataConsent
     },
     priceUSD: price,
     subQuestionAnswer: data.subQuestion || null,
@@ -1676,9 +1665,7 @@ form.addEventListener("submit", async (e) => {
       ageOnRaceDay: ageOnRaceDay(data.t_dob),
       gender:    data.t_gender || null,
       tshirtSize:data.t_shirt  || null,
-      bloodType: data.t_blood  || null,
-      emergencyContactName:  data.t_emgName?.trim()  || null,
-      emergencyContactPhone: data.t_emgPhone?.trim() || null
+      bloodType: data.t_blood  || null
     } : null
   };
 
