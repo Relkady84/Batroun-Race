@@ -2503,6 +2503,12 @@ cartAddBtn?.addEventListener("click", () => {
           <input id="ca_last" type="text" required placeholder="Family name">
         </div>
       </div>
+      <div class="row">
+        <label for="ca_email">Email</label>
+        <input id="ca_email" type="email" inputmode="email" autocomplete="email"
+               value="${escHtml(lead.email || "")}" placeholder="participant@example.com">
+        <div class="help">Pre-filled from your first registration. Edit if this participant uses a different one.</div>
+      </div>
       <div class="row two">
         <div>
           <label for="ca_dob">Date of birth *</label>
@@ -2586,6 +2592,7 @@ async function submitCartAdd() {
   const cat    = CATEGORIES[catId];
   const first  = document.getElementById("ca_first").value.trim();
   const last   = document.getElementById("ca_last").value.trim();
+  const email  = (document.getElementById("ca_email")?.value.trim() || "").toLowerCase();
   const dob    = document.getElementById("ca_dob").value;
   const gender = document.getElementById("ca_gender").value;
   const shirt  = document.getElementById("ca_shirt").value;
@@ -2594,6 +2601,7 @@ async function submitCartAdd() {
 
   if (!cat) return showCAErr(err, "Pick a race / category.");
   if (!first || !last) return showCAErr(err, "First and last name are required.");
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return showCAErr(err, "Please enter a valid email address (or leave it empty).");
   if (!dob) return showCAErr(err, "Date of birth is required.");
   if (!gender || !shirt || !blood) return showCAErr(err, "Gender, t-shirt size, and blood type are required.");
 
@@ -2620,7 +2628,7 @@ async function submitCartAdd() {
       competitionId: COMPETITION_ID,
       firstName: first,
       lastName: last,
-      email: lead.email || "",
+      email: email || lead.email || "",
       phone: phoneNorm,
       dob,
       ageOnRaceDay: age,
