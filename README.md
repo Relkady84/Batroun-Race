@@ -1,38 +1,49 @@
 # Batroun Race Registration
 
-Annual running competition registration system. Public registration page + admin dashboard, deployed on GitHub Pages with Firebase Firestore backend.
+Registration system for the annual **Batroun Race** in Lebanon. Public registration page, admin dashboard, race-day QR scanner — all running on a free-tier Firebase + GitHub Pages stack.
 
-## Quick start
+## Live URLs
 
-1. **Set up Firebase**: see `WORKFLOW.md` → Phase 0
-2. **Configure**: replace `firebaseConfig` placeholder in `docs/index.html`
-3. **Seed the database**: run `scripts/seed-competition.js` (after Phase 3)
-4. **Deploy**: push to `main`, GitHub Pages serves `/docs`
-
-## Stack
-
-- Vanilla HTML/CSS/JS — no build step
-- Firebase Firestore — database
-- Firebase Auth (Microsoft provider) — admin only
-- GitHub Pages — hosting
-- Whish Money — payments (manual reconciliation)
+| Page | URL | Audience |
+|---|---|---|
+| Registration | https://relkady84.github.io/Batroun-Race/ | Runners (any browser) |
+| Admin | https://relkady84.github.io/Batroun-Race/admin.html | Staff / admins (**Chrome only**) |
+| Race-day scanner | https://relkady84.github.io/Batroun-Race/scan.html | Hostesses (Chrome / Safari on phone) |
 
 ## Docs
 
-- `CLAUDE.md` — full project context (read this first)
-- `WORKFLOW.md` — phase-by-phase build plan with ready-to-use prompts
+- **[docs/USER_GUIDE.md](docs/USER_GUIDE.md)** — everything a runner, staff, admin, or hostess needs to know
+- **CLAUDE.md** — project context for AI-assisted development
+- **WORKFLOW.md** — historical build plan (kept for reference)
 
-## Status
+## Features
 
-| Phase | Status |
-|-------|--------|
-| 1. Public registration page | ✅ Done |
-| 0. Firebase + GitHub setup | ⏳ Pending |
-| 2. Security rules + capacity gate | ⏳ Pending |
-| 3. Seed competition data | ⏳ Pending |
-| 4. Admin dashboard | ⏳ Pending |
-| 5. WhatsApp confirmation flow | ⏳ Pending |
-| 6. Testing + polish | ⏳ Pending |
+- Public registration with category + sub-category (age-bracket) auto-fill from DOB, age-range validation, phone-number uniqueness, customizable form fields, customizable theme/logo/banner.
+- Admin dashboard with role-based access (super admin · admin · staff), registration management, payment confirmation with auto-WhatsApp ticket, soft-delete with 10s undo, Backup tab for restoration.
+- Per-category sub-question dropdowns (e.g. age brackets for 10K and 5K) — auto-filled from runner's DOB.
+- Race-day QR scanner — staff sign in, scan runner tickets, check them in.
+- Settings tab to add/remove user access without touching code.
+
+## Stack
+
+- Vanilla HTML/CSS/JS — no build step, runs straight from `/docs` on GitHub Pages
+- Firebase Firestore (free Spark plan) for data
+- Firebase Auth (Google) for staff sign-in
+- Client-side QR generation (no third-party API)
+- Inter font · custom dark/teal theme
+
+## Local dev
+
+```bash
+cd docs && python3 -m http.server 8000
+# then open http://localhost:8000
+```
+
+## Deploy
+
+Just push to `main`. GitHub Pages serves `/docs` automatically. After a push wait ~1 min, then hard-reload (`Ctrl+Shift+R`).
+
+If `firestore.rules` was changed, also paste the new rules into Firebase Console → Firestore → Rules → Publish.
 
 ## Contact
 
