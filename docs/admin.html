@@ -653,6 +653,19 @@ Masters Men-Women 35-39
           this same list). The added user just needs to sign in.
         </p>
       </div>
+
+      <div class="card">
+        <h2>Maintenance</h2>
+        <p class="muted" style="margin:0 0 10px">
+          Rebuilds the per-mobile index so a runner who signs in with their mobile + ref
+          sees every registration filed under that phone. Run this once after enabling
+          the sign-in feature, or any time the live data and the index drift apart.
+        </p>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <button id="rebuildIndexBtn" class="btn">Rebuild phone indexes</button>
+          <span class="muted" id="rebuildIndexStatus"></span>
+        </div>
+      </div>
     </section>
 
   </main>
@@ -1682,6 +1695,59 @@ async function removeUser(role, email) {
 
 document.getElementById("addAdminBtn")?.addEventListener("click", () => addUser("admin"));
 document.getElementById("addViewerBtn")?.addEventListener("click", () => addUser("viewer"));
+
+// Same normalization the public page uses for the phone-as-index key.
+function normalizePhoneForIndex(raw) {
+  if (!raw) return "";
+  let d = String(raw).replace(/\D/g, "");
+  if (d.startsWith("00")) d = d.slice(2);
+  if (d.startsWith("0"))  d = d.slice(1);
+  if (!d.startsWith("961")) d = "961" + d;
+  return d;
+}
+
+document.getElementById("rebuildIndexBtn")?.addEventListener("click", async () => {
+  const btn = document.getElementById("rebuildIndexBtn");
+  const status = document.getElementById("rebuildIndexStatus");
+  if (!regs || !regs.length) { toast("No registrations to index yet.", true); return; }
+  if (!confirm(`Rebuild the phone index from ${regs.length} registrations? This is safe — it only adds entries, never removes anyone.`)) return;
+
+  // Group existing registrations by normalised phone.
+  const byPhone = new Map();
+  regs.forEach(r => {
+    if (r.deletedAt) return;
+    const p = normalizePhoneForIndex(r.phone);
+    if (!p || p.length < 8) return;
+    const ref = r.whishReference || r.id;
+    if (!ref) return;
+    if (!byPhone.has(p)) byPhone.set(p, new Set());
+    byPhone.get(p).add(ref);
+  });
+
+  btn.disabled = true;
+  const _orig = btn.textContent;
+  btn.textContent = "Rebuilding…";
+  let written = 0, failed = 0;
+  for (const [phone, refsSet] of byPhone) {
+    try {
+      const ref = doc(db, "competitions", COMPETITION_ID, "phoneIndex", phone);
+      const snap = await getDoc(ref);
+      const existing = snap.exists() ? (snap.data().refs || []) : [];
+      const merged = Array.from(new Set([...existing, ...Array.from(refsSet)])).slice(0, 50);
+      await setDoc(ref, { refs: merged, updatedAt: serverTimestamp() }, { merge: true });
+      status.textContent = `Rebuilt ${++written} / ${byPhone.size} phone${byPhone.size === 1 ? "" : "s"}…`;
+    } catch (e) {
+      failed++;
+      console.warn("phoneIndex rebuild failed for", phone, e);
+    }
+  }
+  btn.disabled = false;
+  btn.textContent = _orig;
+  status.textContent = failed
+    ? `Rebuilt ${written}, failed ${failed} (check console).`
+    : `Done — ${written} phone${written === 1 ? "" : "s"} indexed.`;
+  toast(failed ? `Rebuild done with ${failed} failure(s)` : "Phone index rebuilt", !!failed);
+});
 
 // Undo an approved payment — moves a runner back to Registrations as pending.
 // Use this when payment was confirmed by mistake.
