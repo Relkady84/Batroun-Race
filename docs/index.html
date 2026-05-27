@@ -521,6 +521,79 @@
         </div>
       </div>
 
+      <!-- Teammate (shown only when relay category is selected) -->
+      <div class="card" id="teammateCard" hidden>
+        <h3 class="title">Teammate — Person 2</h3>
+        <p class="muted" style="margin:0 0 12px">
+          This category is a team relay. Please fill in your teammate's details below.
+          The mobile number is shared between both of you.
+        </p>
+        <div class="row two">
+          <div>
+            <label for="t_first">First name *</label>
+            <input id="t_first" name="t_first" placeholder="Aya" autocomplete="given-name">
+          </div>
+          <div>
+            <label for="t_last">Last name *</label>
+            <input id="t_last" name="t_last" placeholder="Haddad" autocomplete="family-name">
+          </div>
+        </div>
+        <div class="row two">
+          <div>
+            <label for="t_phone">Shared mobile</label>
+            <input id="t_phone" name="t_phone" disabled placeholder="(uses Person 1's phone)" inputmode="tel">
+            <div class="help">Auto-filled from Person 1.</div>
+          </div>
+          <div>
+            <label for="t_dob">Date of birth *</label>
+            <input id="t_dob" name="t_dob" class="dob-input" readonly placeholder="Tap to choose date of birth"
+                   aria-haspopup="dialog" autocomplete="bday">
+          </div>
+        </div>
+        <div class="row two">
+          <div>
+            <label for="t_gender">Gender *</label>
+            <select id="t_gender" name="t_gender">
+              <option value="">Select…</option>
+              <option>Female</option>
+              <option>Male</option>
+              <option>Non-binary</option>
+              <option>Prefer not to say</option>
+            </select>
+          </div>
+          <div>
+            <label for="t_shirt">T-shirt size *</label>
+            <select id="t_shirt" name="t_shirt">
+              <option value="">Select…</option>
+              <option>XS</option><option>S</option><option>M</option>
+              <option>L</option><option>XL</option><option>XXL</option>
+            </select>
+          </div>
+        </div>
+        <div class="row two">
+          <div>
+            <label for="t_blood">Blood type *</label>
+            <select id="t_blood" name="t_blood">
+              <option value="">Select…</option>
+              <option>A+</option><option>A-</option>
+              <option>B+</option><option>B-</option>
+              <option>AB+</option><option>AB-</option>
+              <option>O+</option><option>O-</option>
+              <option value="Unknown">Don't know</option>
+            </select>
+          </div>
+          <div>
+            <label for="t_emgName">Emergency contact *</label>
+            <input id="t_emgName" name="t_emgName" placeholder="Full name">
+          </div>
+        </div>
+        <div class="row">
+          <label for="t_emgPhone">Emergency phone *</label>
+          <input id="t_emgPhone" name="t_emgPhone" placeholder="+961 …"
+                 inputmode="tel" pattern="^[+]?[\d\s()-]{7,}$">
+        </div>
+      </div>
+
       <!-- Custom fields (rendered from Firestore /config/form) -->
       <div class="card" id="customFieldsCard" style="display:none">
         <h3 class="title">Additional info</h3>
@@ -648,7 +721,7 @@ const COMPETITION_ID = "batroun-race-2026";
 let RACE_DAY = "2026-11-22";
 
 let INCLUDES = [
-  "Race Registration", "BIB & Tag", "Finisher T-shirt",
+  "Race Registration", "BIB & Tag",
   "Finisher Medal", "Goody Bag", "Finish Time Certificate", "LAF Fees"
 ];
 
@@ -863,7 +936,7 @@ function renderSubQuestion(cat) {
   const MAX_YEAR = new Date().getFullYear();
   const YEARS_PER_PAGE = 20;
 
-  const field = document.getElementById("dob");
+  let field = null;
   const overlay = document.getElementById("dobPicker");
   const body = document.getElementById("dpBody");
   const title = document.getElementById("dpTitle");
@@ -876,7 +949,8 @@ function renderSubQuestion(cat) {
 
   const state = { view: "year", year: null, month: null, day: null, yearPage: 0 };
 
-  function open() {
+  function open(target) {
+    field = target;
     if (field.value && /^\d{4}-\d{2}-\d{2}$/.test(field.value)) {
       const [y, m, d] = field.value.split("-").map(Number);
       state.year = y; state.month = m; state.day = d;
@@ -896,6 +970,7 @@ function renderSubQuestion(cat) {
   }
 
   function setValue(y, m, d) {
+    if (!field) return;
     field.value = `${y}-${String(m).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
     field.dispatchEvent(new Event("change", { bubbles: true }));
     field.dispatchEvent(new Event("input", { bubbles: true }));
@@ -998,10 +1073,15 @@ function renderSubQuestion(cat) {
     body.appendChild(grid);
   }
 
-  // Event wiring
-  field.addEventListener("click", open);
-  field.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); }
+  // Event wiring — delegate to any .dob-input element on the page
+  document.addEventListener("click", (e) => {
+    const t = e.target.closest(".dob-input");
+    if (t && !t.disabled) open(t);
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    const t = document.activeElement;
+    if (t && t.classList?.contains("dob-input") && !t.disabled) { e.preventDefault(); open(t); }
   });
   closeBtn.addEventListener("click", close);
   backBtn.addEventListener("click", () => {
@@ -1099,6 +1179,7 @@ document.getElementById("dob").addEventListener("change", () => {
 catSelect.addEventListener("change", () => {
   const cat = CATEGORIES[catSelect.value];
   renderSubQuestion(cat);
+  toggleTeammateCard(!!cat?.isRelay);
   if (!cat) { priceCard.classList.remove("show"); return; }
 
   const price = cat.price ?? 0;
@@ -1116,6 +1197,26 @@ catSelect.addEventListener("change", () => {
 
   priceCard.classList.add("show");
 });
+
+const TEAMMATE_REQUIRED_IDS = ["t_first","t_last","t_dob","t_gender","t_shirt","t_blood","t_emgName","t_emgPhone"];
+function toggleTeammateCard(show) {
+  const card = document.getElementById("teammateCard");
+  if (!card) return;
+  card.hidden = !show;
+  TEAMMATE_REQUIRED_IDS.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (show) el.setAttribute("required", "");
+    else el.removeAttribute("required");
+  });
+  if (show) syncTeammatePhone();
+}
+function syncTeammatePhone() {
+  const src = document.getElementById("phone");
+  const dst = document.getElementById("t_phone");
+  if (src && dst) dst.value = src.value;
+}
+document.getElementById("phone").addEventListener("input", syncTeammatePhone);
 
 // ============================================================
 // Inline required-field validation
@@ -1487,7 +1588,18 @@ form.addEventListener("submit", async (e) => {
     bibNumber: null,
     registeredAt: serverTimestamp(),
     paidAt: null,
-    custom: collectCustomValues()
+    custom: collectCustomValues(),
+    teammate: cat.isRelay ? {
+      firstName: data.t_first?.trim() || null,
+      lastName:  data.t_last?.trim()  || null,
+      dob:       data.t_dob || null,
+      ageOnRaceDay: ageOnRaceDay(data.t_dob),
+      gender:    data.t_gender || null,
+      tshirtSize:data.t_shirt  || null,
+      bloodType: data.t_blood  || null,
+      emergencyContactName:  data.t_emgName?.trim()  || null,
+      emergencyContactPhone: data.t_emgPhone?.trim() || null
+    } : null
   };
 
   try {

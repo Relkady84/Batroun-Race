@@ -1431,6 +1431,18 @@ function openRegDetails(r) {
       ${k("Newsletter", r.consents?.newsletter ? "Yes" : "No")}
       ${k("Registered at", fmtDate(r.registeredAt))}
       ${customRows}
+      ${r.teammate ? `
+        <div style="grid-column:1/-1;margin-top:14px;padding-top:12px;border-top:1px solid var(--line)">
+          <strong>Teammate (Person 2)</strong>
+        </div>
+        ${k("Name",   `${r.teammate.firstName || ""} ${r.teammate.lastName || ""}`.trim() || "—")}
+        ${k("DOB",    r.teammate.dob)}
+        ${k("Age",    r.teammate.ageOnRaceDay)}
+        ${k("Gender", r.teammate.gender)}
+        ${k("T-shirt",r.teammate.tshirtSize)}
+        ${k("Blood",  r.teammate.bloodType)}
+        ${k("Emergency contact", `${r.teammate.emergencyContactName || ""} — ${r.teammate.emergencyContactPhone || ""}`)}
+      ` : ""}
     </div>
     <div class="modal-actions">
       <button class="btn sec" onclick="document.getElementById('modalBg').classList.remove('open')">Close</button>
@@ -1976,7 +1988,7 @@ function renderCategoryList() {
           <div style="flex:1;min-width:240px">
             <h2 style="margin:0">${escapeHtml(c.name || c.id)} <span class="muted" style="font-weight:400">#${escapeHtml(c.id)}</span></h2>
             <div class="muted" style="margin-top:4px">
-              ${c.distanceKm ?? "?"} km · ${c.timed ? "Timed" : "Untimed"} · ${formatAgeRange(c.ageLimit, c.ageLimitMax)} · ${(typeof c.price === "number") ? (c.price === 0 ? "Free" : "$" + c.price) : "$" + (c.prices?.wave1 ?? 0)}
+              ${c.distanceKm ?? "?"} km · ${c.timed ? "Timed" : "Untimed"} · ${formatAgeRange(c.ageLimit, c.ageLimitMax)} · ${(typeof c.price === "number") ? (c.price === 0 ? "Free" : "$" + c.price) : "$" + (c.prices?.wave1 ?? 0)}${c.isRelay ? " · Relay (2 runners)" : ""}
             </div>
             <div style="margin-top:8px;font-size:.9rem">
               <strong>Capacity:</strong> ${cap ? `${reg} / ${cap}` : `${reg} (no limit)`}
@@ -2093,6 +2105,12 @@ function openEditCategory(c) {
       <input id="ec_price" type="number" value="${(typeof c.price === 'number') ? c.price : (c.prices?.wave1 ?? 0)}">
     </div>
 
+    <label class="inline" style="margin-top:10px;display:flex;align-items:center;gap:8px">
+      <input type="checkbox" id="ec_isRelay" ${c.isRelay ? "checked" : ""}
+        style="width:auto;min-height:auto;accent-color:var(--accent)">
+      <span>Team relay — registration collects a teammate (2 runners share the same phone)</span>
+    </label>
+
     <details style="margin-top:14px;padding:10px 12px;background:rgba(0,0,0,.18);border-radius:8px" ${c.subQuestion?.label ? "open" : ""}>
       <summary style="cursor:pointer;font-weight:700;color:var(--muted)">Optional extra dropdown (e.g. age bracket)</summary>
       <p class="muted" style="margin:8px 0;font-size:.85rem">Shown to the runner when they pick this category. Leave label blank to remove.</p>
@@ -2143,6 +2161,7 @@ Masters Men-Women 35-39
         timed: $("#ec_timed").value === "true",
         capacity: parseInt($("#ec_cap").value, 10) || null,
         price: parseFloat($("#ec_price").value) || 0,
+        isRelay: $("#ec_isRelay").checked,
         subQuestion
       });
       closeModal();
