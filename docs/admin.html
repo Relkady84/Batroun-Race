@@ -436,6 +436,20 @@ Masters Men-Women 35-39
     <!-- ============ Form fields ============ -->
     <section id="tab-formFields" class="tab">
       <div class="card">
+        <h2>Built-in fields — visibility &amp; required</h2>
+        <p class="muted" style="margin:0 0 12px">
+          Toggle which built-in fields appear on the public registration form, and which ones must be filled.
+          Some fields are always required (first/last name, phone, date of birth, category, waiver, data-usage consent) and aren't listed here.
+        </p>
+        <div id="builtInFieldsList"></div>
+        <div style="margin-top:14px;display:flex;gap:10px;align-items:center">
+          <button id="bifSaveBtn" class="btn">Save</button>
+          <button id="bifResetBtn" class="btn" style="background:transparent;border:1px solid var(--border);color:var(--ink)">Reset to defaults</button>
+          <span class="muted" id="bifStatus"></span>
+        </div>
+      </div>
+
+      <div class="card">
         <h2>Add custom field</h2>
         <p class="muted" style="margin:0 0 10px">These fields appear on the public registration form, below the built-in fields.</p>
         <div class="row two">
@@ -652,6 +666,7 @@ const db = getFirestore(app);
 let regs = [];
 let cats = [];
 let formFields = [];
+let builtInConfig = {};
 
 // ===== Helpers =====
 const $ = s => document.querySelector(s);
@@ -958,6 +973,16 @@ function startListeners() {
     err => toast("Form-fields listener: " + err.message, true)
   );
 
+  // Built-in fields visibility/required config doc
+  onSnapshot(
+    doc(db, "competitions", COMPETITION_ID, "config", "publicForm"),
+    snap => {
+      builtInConfig = snap.exists() ? (snap.data().builtIn || {}) : {};
+      renderBuiltInFields();
+    },
+    err => toast("Built-in fields listener: " + err.message, true)
+  );
+
   // Theme config doc
   onSnapshot(
     doc(db, "competitions", COMPETITION_ID, "config", "theme"),
@@ -1053,6 +1078,7 @@ const SCANNER_FIELDS = [
   { key: "bloodType",         label: "Blood" },
   { key: "club",              label: "Club" },
   { key: "nationality",       label: "Nationality" },
+  { key: "country",           label: "Country" },
   { key: "city",              label: "City" },
   { key: "email",             label: "Email" },
   { key: "phone",             label: "Phone" },
@@ -1384,6 +1410,7 @@ function openRegDetails(r) {
       ${k("DOB", r.dob)}
       ${k("Gender", r.gender)}
       ${k("Nationality", r.nationality)}
+      ${k("Country", r.country)}
       ${k("City", r.city)}
       ${k("Category", r.categoryName)}
       ${r.subQuestionAnswer ? k(cats.find(c => c.id === r.categoryId)?.subQuestion?.label || "Sub-category", r.subQuestionAnswer) : ""}
@@ -1885,12 +1912,12 @@ $("#exportCsvBtn").addEventListener("click", () => {
   const rows = applySort(filteredRegs());
   if (!rows.length) { toast("Nothing to export", true); return; }
   const headers = ["reference","firstName","lastName","email","phone","dob","gender",
-                   "nationality","city","category","subCategory","price","status","bibNumber",
+                   "nationality","country","city","category","subCategory","price","status","bibNumber",
                    "tshirt","bloodType","club","medicalNotes","emergencyName","emergencyPhone",
                    "registeredAt","paidAt","checkedInAt","checkedInBy"];
   const csv = [headers.join(",")].concat(rows.map(r => [
     r.whishReference, r.firstName, r.lastName, r.email, r.phone, r.dob, r.gender,
-    r.nationality, r.city, r.categoryName, r.subQuestionAnswer, r.priceUSD,
+    r.nationality, r.country, r.city, r.categoryName, r.subQuestionAnswer, r.priceUSD,
     r.paymentStatus, r.bibNumber, r.tshirtSize, r.bloodType, r.club, r.medicalNotes,
     r.emergencyContactName, r.emergencyContactPhone,
     r.registeredAt ? fmtDate(r.registeredAt) : "",
@@ -2130,6 +2157,90 @@ async function deleteCategory(c) {
     toast("Category deleted");
   } catch (e) { toast(e.message, true); }
 }
+
+// ===== Built-in form fields (visibility + required) =====
+const BUILT_IN_FIELDS = [
+  { key: "email",       label: "Email" },
+  { key: "gender",      label: "Gender" },
+  { key: "nationality", label: "Nationality" },
+  { key: "country",     label: "Country of residence" },
+  { key: "city",        label: "City" },
+  { key: "tshirt",      label: "T-shirt size" },
+  { key: "blood",       label: "Blood type" },
+  { key: "club",        label: "Club / Team" },
+  { key: "note",        label: "Medical / notes" },
+  { key: "emergency",   label: "Emergency contact (name + phone)" },
+  { key: "newsletter",  label: "Newsletter consent" },
+];
+const BUILT_IN_DEFAULTS = {
+  email:{visible:true,required:true},      gender:{visible:true,required:true},
+  nationality:{visible:true,required:false}, country:{visible:true,required:false},
+  city:{visible:true,required:false},      tshirt:{visible:true,required:true},
+  blood:{visible:true,required:true},      club:{visible:true,required:false},
+  note:{visible:true,required:false},      emergency:{visible:true,required:true},
+  newsletter:{visible:true,required:false}
+};
+function effectiveBuiltIn(key) {
+  return { ...BUILT_IN_DEFAULTS[key], ...(builtInConfig[key] || {}) };
+}
+function renderBuiltInFields() {
+  const list = $("#builtInFieldsList");
+  list.innerHTML = `
+    <table style="width:100%;border-collapse:collapse">
+      <thead><tr style="text-align:left;border-bottom:1px solid var(--border)">
+        <th style="padding:8px 4px">Field</th>
+        <th style="padding:8px 4px;width:90px;text-align:center">Visible</th>
+        <th style="padding:8px 4px;width:90px;text-align:center">Required</th>
+      </tr></thead>
+      <tbody>
+        ${BUILT_IN_FIELDS.map(f => {
+          const cfg = effectiveBuiltIn(f.key);
+          return `<tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:10px 4px">${escapeHtml(f.label)}</td>
+            <td style="padding:10px 4px;text-align:center">
+              <input type="checkbox" data-bif="visible" data-key="${f.key}" ${cfg.visible?"checked":""}
+                style="width:auto;min-height:auto;accent-color:var(--accent)">
+            </td>
+            <td style="padding:10px 4px;text-align:center">
+              <input type="checkbox" data-bif="required" data-key="${f.key}" ${cfg.required?"checked":""}
+                style="width:auto;min-height:auto;accent-color:var(--accent)">
+            </td>
+          </tr>`;
+        }).join("")}
+      </tbody>
+    </table>`;
+}
+async function saveBuiltInFields() {
+  const next = {};
+  BUILT_IN_FIELDS.forEach(f => {
+    const visible  = $(`input[data-bif="visible"][data-key="${f.key}"]`).checked;
+    const required = $(`input[data-bif="required"][data-key="${f.key}"]`).checked;
+    next[f.key] = { visible, required: visible && required };
+  });
+  try {
+    await setDoc(
+      doc(db, "competitions", COMPETITION_ID, "config", "publicForm"),
+      { builtIn: next },
+      { merge: true }
+    );
+    $("#bifStatus").textContent = "Saved.";
+    setTimeout(() => { $("#bifStatus").textContent = ""; }, 2500);
+    toast("Built-in fields updated");
+  } catch (e) { toast(e.message, true); }
+}
+async function resetBuiltInFields() {
+  if (!confirm("Reset all built-in fields to their defaults?")) return;
+  try {
+    await setDoc(
+      doc(db, "competitions", COMPETITION_ID, "config", "publicForm"),
+      { builtIn: BUILT_IN_DEFAULTS },
+      { merge: true }
+    );
+    toast("Built-in fields reset");
+  } catch (e) { toast(e.message, true); }
+}
+$("#bifSaveBtn")?.addEventListener("click", saveBuiltInFields);
+$("#bifResetBtn")?.addEventListener("click", resetBuiltInFields);
 
 // ===== Form fields =====
 function renderFormFields() {

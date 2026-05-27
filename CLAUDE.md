@@ -70,13 +70,14 @@ competitions/{competitionId}/categories/{categoryId}
   └─ subQuestion: { label, options[] } | null   // e.g. age-bracket dropdown
 
 competitions/{competitionId}/config/{configId}   // public read except /access
-  ├─ theme:    { accent, accent2, ink, bg1, bg2, bgImage, logoImage, logoText, logoHeight, heading, subtitle, bannerText }
-  ├─ form:     { fields: [{ key, label, type, required, options }] }   // extra public-form fields
-  ├─ scanner:  { fields: [...] }    // which fields the hostess scanner shows
-  └─ access:   { admins: [email], viewers: [email] }   // authenticated read only
+  ├─ theme:      { accent, accent2, ink, bg1, bg2, bgImage, logoImage, logoText, logoHeight, heading, subtitle, bannerText }
+  ├─ form:       { fields: [{ key, label, type, required, options }] }   // extra public-form fields
+  ├─ publicForm: { builtIn: { <key>: { visible, required } } }           // toggles for built-in fields (email, gender, nationality, country, city, tshirt, blood, club, note, emergency, newsletter)
+  ├─ scanner:    { fields: [...] }    // which fields the hostess scanner shows
+  └─ access:     { admins: [email], viewers: [email] }   // authenticated read only
 
 competitions/{competitionId}/registrations/{regId}    // doc ID = normalizePhone(phone)
-  ├─ firstName, lastName, email, phone, dob, gender, nationality, city
+  ├─ firstName, lastName, email, phone, dob, gender, nationality, country, city
   ├─ categoryId, categoryName, subQuestionAnswer
   ├─ tshirtSize, bloodType, club, medicalNotes
   ├─ emergencyContactName, emergencyContactPhone
