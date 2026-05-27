@@ -1937,17 +1937,23 @@ function nextBibFor(categoryId) {
 function openConfirmPay(r) {
   const priceFree = (r.priceUSD || 0) === 0;
   const next = nextBibFor(r.categoryId);
-  const bibBlock = next.error
-    ? `<p style="margin-top:14px;color:var(--err);font-weight:600">${escapeHtml(next.error)}</p>`
-    : `<p style="margin-top:14px">Bib to assign: <strong style="font-size:1.2rem;color:var(--accent)">${next.bib}</strong>
+  const autoOk = !next.error;
+  const bibBlock = autoOk
+    ? `<p style="margin-top:14px">Bib to assign: <strong style="font-size:1.2rem;color:var(--accent)">${next.bib}</strong>
          <span class="muted" style="margin-left:8px;font-size:.85rem">(from range ${next.start}–${next.end})</span>
-       </p>`;
+       </p>`
+    : `<div style="margin-top:14px;padding:10px 12px;background:rgba(255,153,51,.12);border:1px solid rgba(255,153,51,.5);border-radius:10px;color:#ffd28a;font-size:.9rem">
+         <strong style="color:#ffae50">No automatic bib available.</strong> ${escapeHtml(next.error)}
+         <br><span style="color:#cfd8e2">Enter a bib number manually below to continue, or set a BIB range in admin → Categories.</span>
+       </div>
+       <label style="margin-top:14px">Bib number (manual)</label>
+       <input id="bibInput" type="number" min="1" placeholder="e.g. 142">`;
   openModal(`
     <h3>Confirm payment — ${escapeHtml(r.firstName)} ${escapeHtml(r.lastName)}</h3>
     <p class="muted">Reference: <code>${escapeHtml(r.whishReference)}</code> · Amount: ${fmtMoney(r.priceUSD || 0)}</p>
     <p class="muted" style="margin:8px 0 0;font-size:.85rem">${priceFree
       ? "This is a free entry. The runner will be confirmed and we'll WhatsApp them."
-      : "Confirm the Whish payment matched this reference. The next bib in this category's range will be auto-assigned, and the runner will receive a WhatsApp message with their QR ticket."}
+      : "Confirm the Whish payment matched this reference. The runner will receive a WhatsApp message with their QR ticket."}
     </p>
     ${bibBlock}
     <label class="inline" style="display:flex;align-items:center;gap:8px;margin-top:10px;cursor:pointer">
@@ -1956,13 +1962,18 @@ function openConfirmPay(r) {
     </label>
     <div class="modal-actions">
       <button class="btn sec" id="cancelPay">Cancel</button>
-      <button class="btn" id="okPay" ${next.error ? "disabled" : ""}>Mark as paid</button>
+      <button class="btn" id="okPay">Mark as paid</button>
     </div>
   `);
   $("#cancelPay").onclick = closeModal;
   $("#okPay").onclick = async () => {
-    if (next.error) return;
-    const bib = next.bib;
+    let bib;
+    if (autoOk) {
+      bib = next.bib;
+    } else {
+      bib = parseInt(($("#bibInput")?.value || "").trim(), 10);
+      if (!bib) { toast("Enter a bib number to continue", true); return; }
+    }
     const sendWa = $("#sendWaCb").checked;
     try {
       await updateDoc(
@@ -1979,6 +1990,7 @@ function openConfirmPay(r) {
       }
     } catch (e) { toast(e.message, true); }
   };
+  if (!autoOk) setTimeout(() => $("#bibInput")?.focus(), 50);
 }
 
 // ===== CSV export =====
