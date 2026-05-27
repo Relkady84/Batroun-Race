@@ -425,8 +425,8 @@
           </div>
         </div>
         <div class="row two">
-          <div>
-            <label for="email">Email *</label>
+          <div data-field="email">
+            <label for="email">Email <span class="req-star">*</span></label>
             <input id="email" name="email" placeholder="you@example.com" required
                    inputmode="email" autocomplete="email" type="email">
           </div>
@@ -445,8 +445,8 @@
                    aria-haspopup="dialog" autocomplete="bday">
             <div class="err" id="dobErr"></div>
           </div>
-          <div>
-            <label for="gender">Gender *</label>
+          <div data-field="gender">
+            <label for="gender">Gender <span class="req-star">*</span></label>
             <select id="gender" name="gender" required>
               <option value="">Select…</option>
               <option>Female</option>
@@ -457,21 +457,21 @@
           </div>
         </div>
         <div class="row two">
-          <div>
-            <label for="nationality">Nationality</label>
+          <div data-field="nationality">
+            <label for="nationality">Nationality<span class="req-star" hidden> *</span></label>
             <select id="nationality" name="nationality">
               <option value="">Select…</option>
             </select>
           </div>
-          <div>
-            <label for="country">Country of residence</label>
+          <div data-field="country">
+            <label for="country">Country of residence<span class="req-star" hidden> *</span></label>
             <select id="country" name="country">
               <option value="">Select…</option>
             </select>
           </div>
         </div>
-        <div class="row">
-          <label for="city">City</label>
+        <div class="row" data-field="city">
+          <label for="city">City<span class="req-star" hidden> *</span></label>
           <select id="city" name="city">
             <option value="">Select…</option>
           </select>
@@ -483,16 +483,16 @@
       <div class="card">
         <h3 class="title">Race extras</h3>
         <div class="row two">
-          <div>
-            <label for="shirt">T-shirt size *</label>
+          <div data-field="tshirt">
+            <label for="shirt">T-shirt size <span class="req-star">*</span></label>
             <select id="shirt" name="shirt" required>
               <option value="">Select…</option>
               <option>XS</option><option>S</option><option>M</option>
               <option>L</option><option>XL</option><option>XXL</option>
             </select>
           </div>
-          <div>
-            <label for="blood">Blood type *</label>
+          <div data-field="blood">
+            <label for="blood">Blood type <span class="req-star">*</span></label>
             <select id="blood" name="blood" required>
               <option value="">Select…</option>
               <option>A+</option><option>A-</option>
@@ -504,12 +504,12 @@
             <div class="help">Used only by medics in case of emergency.</div>
           </div>
         </div>
-        <div class="row">
-          <label for="club">Club / Team</label>
+        <div class="row" data-field="club">
+          <label for="club">Club / Team<span class="req-star" hidden> *</span></label>
           <input id="club" name="club" placeholder="Batroun Runners">
         </div>
-        <div class="row">
-          <label for="note">Medical / notes</label>
+        <div class="row" data-field="note">
+          <label for="note">Medical / notes<span class="req-star" hidden> *</span></label>
           <textarea id="note" name="note" rows="3" placeholder="Allergies, conditions, medication…"></textarea>
         </div>
       </div>
@@ -523,13 +523,13 @@
       <!-- Safety -->
       <div class="card">
         <h3 class="title">Safety &amp; consent</h3>
-        <div class="row two">
+        <div class="row two" data-field="emergency">
           <div>
-            <label for="emgName">Emergency contact *</label>
+            <label for="emgName">Emergency contact <span class="req-star">*</span></label>
             <input id="emgName" name="emgName" placeholder="Full name" required>
           </div>
           <div>
-            <label for="emgPhone">Emergency phone *</label>
+            <label for="emgPhone">Emergency phone <span class="req-star">*</span></label>
             <input id="emgPhone" name="emgPhone" placeholder="+961 …" required
                    inputmode="tel" pattern="^[+]?[\d\s()-]{7,}$">
           </div>
@@ -545,7 +545,7 @@
               style="width:auto;min-height:auto;accent-color:#27cbbb;margin-top:5px">
             <span>I consent to my data being used for registration. *</span>
           </label>
-          <label class="inline">
+          <label class="inline" data-field="newsletter">
             <input type="checkbox" name="newsletter"
               style="width:auto;min-height:auto;accent-color:#27cbbb;margin-top:5px">
             <span>Email me race updates.</span>
@@ -1323,6 +1323,9 @@ async function loadFromFirestore() {
     if (formSnap.exists() && Array.isArray(formSnap.data().fields)) {
       CUSTOM_FIELDS = formSnap.data().fields;
     }
+
+    const pfSnap = await getDoc(doc(db, "competitions", COMPETITION_ID, "config", "publicForm"));
+    if (pfSnap.exists()) applyPublicFormConfig(pfSnap.data().builtIn || {});
   } catch (err) {
     console.warn("Firestore load failed, using fallback constants:", err);
   }
@@ -1330,6 +1333,36 @@ async function loadFromFirestore() {
   renderRegistrationBanner();
   populateCategorySelect();
   renderCustomFields();
+}
+
+// Built-in field visibility / required toggles, driven by /config/publicForm.
+// Each entry: { visible: bool, required: bool }. Missing entries → defaults.
+const PUBLIC_FORM_DEFAULTS = {
+  email:       { visible: true,  required: true  },
+  gender:      { visible: true,  required: true  },
+  nationality: { visible: true,  required: false },
+  country:     { visible: true,  required: false },
+  city:        { visible: true,  required: false },
+  tshirt:      { visible: true,  required: true  },
+  blood:       { visible: true,  required: true  },
+  club:        { visible: true,  required: false },
+  note:        { visible: true,  required: false },
+  emergency:   { visible: true,  required: true  },
+  newsletter:  { visible: true,  required: false },
+};
+function applyPublicFormConfig(builtIn) {
+  Object.entries(PUBLIC_FORM_DEFAULTS).forEach(([key, defaults]) => {
+    const cfg = { ...defaults, ...(builtIn[key] || {}) };
+    document.querySelectorAll(`[data-field="${key}"]`).forEach(wrap => {
+      wrap.hidden = !cfg.visible;
+      wrap.querySelectorAll("input, select, textarea").forEach(el => {
+        if (el.type === "hidden") return;
+        if (cfg.required && cfg.visible) el.setAttribute("required", "");
+        else el.removeAttribute("required");
+      });
+      wrap.querySelectorAll(".req-star").forEach(s => { s.hidden = !cfg.required; });
+    });
+  });
 }
 
 // Render once with hardcoded fallbacks so the page is usable instantly…
@@ -1402,22 +1435,22 @@ form.addEventListener("submit", async (e) => {
     competitionId: COMPETITION_ID,
     firstName: data.first?.trim(),
     lastName: data.last?.trim(),
-    email: data.email?.trim().toLowerCase(),
+    email: (data.email?.trim() || "").toLowerCase(),
     phone: data.phone?.trim(),
     dob: data.dob,
     ageOnRaceDay: ageOnRaceDay(data.dob),
-    gender: data.gender,
+    gender: data.gender || null,
     nationality: data.nationality?.trim() || null,
     country: data.country?.trim() || null,
     city: (data.city === "Other" ? data.cityOther?.trim() : data.city?.trim()) || null,
     categoryId: data.category,
     categoryName: cat.name,
-    tshirtSize: data.shirt,
-    bloodType: data.blood,
+    tshirtSize: data.shirt || null,
+    bloodType: data.blood || null,
     club: data.club?.trim() || null,
     medicalNotes: data.note?.trim() || null,
-    emergencyContactName: data.emgName?.trim(),
-    emergencyContactPhone: data.emgPhone?.trim(),
+    emergencyContactName: data.emgName?.trim() || null,
+    emergencyContactPhone: data.emgPhone?.trim() || null,
     consents: {
       waiver: !!data.waiver,
       dataUsage: !!data.dataConsent,
