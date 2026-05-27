@@ -480,9 +480,21 @@
             </select>
           </div>
           <div>
-            <label for="club">Club / Team</label>
-            <input id="club" name="club" placeholder="Batroun Runners">
+            <label for="blood">Blood type *</label>
+            <select id="blood" name="blood" required>
+              <option value="">Select…</option>
+              <option>A+</option><option>A-</option>
+              <option>B+</option><option>B-</option>
+              <option>AB+</option><option>AB-</option>
+              <option>O+</option><option>O-</option>
+              <option value="Unknown">Don't know</option>
+            </select>
+            <div class="help">Used only by medics in case of emergency.</div>
           </div>
+        </div>
+        <div class="row">
+          <label for="club">Club / Team</label>
+          <input id="club" name="club" placeholder="Batroun Runners">
         </div>
         <div class="row">
           <label for="note">Medical / notes</label>
@@ -1321,6 +1333,7 @@ form.addEventListener("submit", async (e) => {
     categoryId: data.category,
     categoryName: cat.name,
     tshirtSize: data.shirt,
+    bloodType: data.blood,
     club: data.club?.trim() || null,
     medicalNotes: data.note?.trim() || null,
     emergencyContactName: data.emgName?.trim(),
