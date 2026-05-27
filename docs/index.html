@@ -109,6 +109,7 @@
   input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:var(--ring)}
 
   .row{display:grid;gap:10px}
+  .row[hidden]{display:none}
   .two{grid-template-columns:1fr}
   @media(min-width:720px){.two{grid-template-columns:1fr 1fr}}
 
@@ -1399,6 +1400,7 @@ function renderExtraParticipants(count) {
             </select>
           </div>
         </div>
+        <div class="row" id="${p}subq"></div>
         <div class="row two">
           <div>
             <label for="${p}shirt">T-shirt size *</label>
@@ -1430,14 +1432,48 @@ function renderExtraParticipants(count) {
     if (el) el.value = v;
   });
 
-  // Wire per-participant category change → recompute total.
-  extraContainer.querySelectorAll('select[id$="_cat"]').forEach(sel => {
-    sel.addEventListener("change", recomputeMultiTotal);
-  });
+  // Wire per-participant category + DOB changes → recompute total + sub-question.
+  for (let n = 2; n <= count; n++) {
+    const catEl = document.getElementById(`p${n}_cat`);
+    const dobEl = document.getElementById(`p${n}_dob`);
+    if (catEl) catEl.addEventListener("change", () => { recomputeMultiTotal(); renderParticipantSubQ(n); });
+    if (dobEl) dobEl.addEventListener("change", () => renderParticipantSubQ(n));
+    renderParticipantSubQ(n);
+  }
 
   // Attach inline-error divs + clear-on-edit listeners to the new required fields.
   initFieldErrors();
   recomputeMultiTotal();
+}
+
+function renderParticipantSubQ(n) {
+  const wrap = document.getElementById(`p${n}_subq`);
+  if (!wrap) return;
+  const catId = document.getElementById(`p${n}_cat`)?.value;
+  const dob   = document.getElementById(`p${n}_dob`)?.value;
+  const c = CATEGORIES[catId];
+  if (!c?.subQuestion?.options?.length) { wrap.innerHTML = ""; return; }
+  const labelHtml = escHtml(c.subQuestion.label || "Sub-category") + " *";
+  if (!dob) {
+    wrap.innerHTML = `
+      <label>${labelHtml}</label>
+      <input type="text" id="p${n}_sq" name="p${n}_sq" readonly value=""
+             placeholder="Auto-fills once you enter the date of birth above">
+      <div class="help">This is determined from the date of birth — no need to choose.</div>`;
+    return;
+  }
+  const match = c.subQuestion.options.find(o => bracketMatches(o, dob));
+  if (!match) {
+    wrap.innerHTML = `
+      <label>${labelHtml}</label>
+      <input type="text" id="p${n}_sq" name="p${n}_sq" readonly value="">
+      <div class="err show" style="margin-top:6px">Date of birth doesn't fit any age bracket for ${escHtml(c.name)}.</div>`;
+    return;
+  }
+  wrap.innerHTML = `
+    <label>${labelHtml}</label>
+    <input type="text" id="p${n}_sq" name="p${n}_sq" readonly value="${escHtml(match)}">
+    <div class="help">Auto-filled from the date of birth.</div>`;
 }
 
 function recomputeMultiTotal() {
@@ -1949,6 +1985,9 @@ form.addEventListener("submit", async (e) => {
       if (cat_i.ageLimitMax > 0 && age_i !== null && age_i > cat_i.ageLimitMax) {
         throw new Error(`Participant ${i}: maximum age for ${cat_i.name} is ${cat_i.ageLimitMax} on race day. Their age on race day: ${age_i}.`);
       }
+      if (cat_i.subQuestion?.options?.length && !data[`p${i}_sq`]) {
+        throw new Error(`Participant ${i}: date of birth doesn't fit any age bracket for ${cat_i.name}. Please verify their DOB or contact us.`);
+      }
     }
 
     // Generate N unique refs.
@@ -1983,7 +2022,7 @@ form.addEventListener("submit", async (e) => {
           priceUSD:     cat_i.price ?? 0,
           paymentStatus: (cat_i.price ?? 0) === 0 ? "free" : "pending",
           paymentMethod: (cat_i.price ?? 0) === 0 ? "free" : "manual",
-          subQuestionAnswer: null,   // sub-question auto-fill not currently extended to extras
+          subQuestionAnswer: data[`p${i}_sq`] || null,
           whishReference: refs[i - 1],
           teammate: null,
           groupSize: N
