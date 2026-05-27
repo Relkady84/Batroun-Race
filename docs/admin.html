@@ -456,6 +456,23 @@ Masters Men-Women 35-39
       </div>
 
       <div class="card">
+        <h2>Registration includes</h2>
+        <p class="muted" style="margin:0 0 10px">
+          Items listed under "Registration includes:" on the public price card. Add, edit, or remove.
+        </p>
+        <div id="includesList"></div>
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+          <input id="includesNew" placeholder="New item (e.g. Finisher Medal)" style="flex:1;min-width:220px">
+          <button id="includesAddBtn" class="btn tiny sec">+ Add</button>
+        </div>
+        <div style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <button id="includesSaveBtn" class="btn">Save</button>
+          <button id="includesResetBtn" class="btn" style="background:transparent;border:1px solid var(--line);color:var(--ink)">Reset to defaults</button>
+          <span class="muted" id="includesStatus"></span>
+        </div>
+      </div>
+
+      <div class="card">
         <h2>Add custom field</h2>
         <p class="muted" style="margin:0 0 10px">These fields appear on the public registration form, below the built-in fields.</p>
         <div class="row two">
@@ -673,6 +690,7 @@ let regs = [];
 let cats = [];
 let formFields = [];
 let builtInConfig = {};
+let includesConfig = null; // null = use defaults; array = explicit list
 
 // ===== Helpers =====
 const $ = s => document.querySelector(s);
@@ -979,14 +997,17 @@ function startListeners() {
     err => toast("Form-fields listener: " + err.message, true)
   );
 
-  // Built-in fields visibility/required config doc
+  // Built-in fields visibility/required + includes config doc
   onSnapshot(
     doc(db, "competitions", COMPETITION_ID, "config", "publicForm"),
     snap => {
-      builtInConfig = snap.exists() ? (snap.data().builtIn || {}) : {};
+      const data = snap.exists() ? snap.data() : {};
+      builtInConfig  = data.builtIn || {};
+      includesConfig = Array.isArray(data.includes) ? data.includes.slice() : null;
       renderBuiltInFields();
+      renderIncludes();
     },
-    err => toast("Built-in fields listener: " + err.message, true)
+    err => toast("Public-form config listener: " + err.message, true)
   );
 
   // Theme config doc
@@ -1428,7 +1449,6 @@ function openRegDetails(r) {
       ${k("Club", r.club)}
       ${k("Medical notes", r.medicalNotes)}
       ${k("Emergency contact", `${r.emergencyContactName || ""} — ${r.emergencyContactPhone || ""}`)}
-      ${k("Newsletter", r.consents?.newsletter ? "Yes" : "No")}
       ${k("Registered at", fmtDate(r.registeredAt))}
       ${customRows}
       ${r.teammate ? `
@@ -1441,7 +1461,6 @@ function openRegDetails(r) {
         ${k("Gender", r.teammate.gender)}
         ${k("T-shirt",r.teammate.tshirtSize)}
         ${k("Blood",  r.teammate.bloodType)}
-        ${k("Emergency contact", `${r.teammate.emergencyContactName || ""} — ${r.teammate.emergencyContactPhone || ""}`)}
       ` : ""}
     </div>
     <div class="modal-actions">
@@ -2195,7 +2214,6 @@ const BUILT_IN_FIELDS = [
   { key: "club",        label: "Club / Team" },
   { key: "note",        label: "Medical / notes" },
   { key: "emergency",   label: "Emergency contact (name + phone)" },
-  { key: "newsletter",  label: "Newsletter consent" },
 ];
 const BUILT_IN_DEFAULTS = {
   email:      { visible:true,  required:true,  deleted:false },
@@ -2208,7 +2226,6 @@ const BUILT_IN_DEFAULTS = {
   club:       { visible:true,  required:false, deleted:false },
   note:       { visible:true,  required:false, deleted:false },
   emergency:  { visible:true,  required:true,  deleted:false },
-  newsletter: { visible:true,  required:false, deleted:false },
 };
 function defaultLabel(key) {
   return (BUILT_IN_FIELDS.find(f => f.key === key) || {}).label || key;
@@ -2346,6 +2363,80 @@ async function resetBuiltInFields() {
 }
 $("#bifSaveBtn")?.addEventListener("click", saveBuiltInFields);
 $("#bifResetBtn")?.addEventListener("click", resetBuiltInFields);
+
+// ===== "Registration includes" CRUD =====
+const DEFAULT_INCLUDES = [
+  "Race Registration", "BIB & Tag",
+  "Finisher Medal", "Goody Bag", "Finish Time Certificate", "LAF Fees"
+];
+function currentIncludes() {
+  return Array.isArray(includesConfig) ? includesConfig : DEFAULT_INCLUDES.slice();
+}
+function renderIncludes() {
+  const list = $("#includesList");
+  if (!list) return;
+  const items = currentIncludes();
+  if (!items.length) {
+    list.innerHTML = `<div class="empty">No items yet. Add one below.</div>`;
+    return;
+  }
+  list.innerHTML = items.map((item, i) => `
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px" data-include-row="${i}">
+      <input type="text" data-include-input="${i}" value="${escapeHtml(item)}" style="flex:1">
+      <button class="btn tiny danger" data-include-remove="${i}" title="Remove">✕</button>
+    </div>
+  `).join("");
+  list.querySelectorAll('button[data-include-remove]').forEach(b => {
+    b.addEventListener("click", () => removeIncludesItem(parseInt(b.dataset.includeRemove, 10)));
+  });
+}
+function readIncludesFromUI() {
+  const inputs = $("#includesList").querySelectorAll('input[data-include-input]');
+  return Array.from(inputs).map(el => el.value.trim()).filter(Boolean);
+}
+function removeIncludesItem(i) {
+  const items = readIncludesFromUI();
+  items.splice(i, 1);
+  includesConfig = items;
+  renderIncludes();
+}
+$("#includesAddBtn")?.addEventListener("click", () => {
+  const input = $("#includesNew");
+  const v = input.value.trim();
+  if (!v) return;
+  const items = readIncludesFromUI();
+  items.push(v);
+  includesConfig = items;
+  input.value = "";
+  renderIncludes();
+});
+$("#includesNew")?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); $("#includesAddBtn").click(); }
+});
+$("#includesSaveBtn")?.addEventListener("click", async () => {
+  const items = readIncludesFromUI();
+  try {
+    await setDoc(
+      doc(db, "competitions", COMPETITION_ID, "config", "publicForm"),
+      { includes: items },
+      { merge: true }
+    );
+    $("#includesStatus").textContent = "Saved.";
+    setTimeout(() => { $("#includesStatus").textContent = ""; }, 2500);
+    toast("Registration includes saved");
+  } catch (e) { toast(e.message, true); }
+});
+$("#includesResetBtn")?.addEventListener("click", async () => {
+  if (!confirm("Reset the 'Registration includes' list to its defaults?")) return;
+  try {
+    await setDoc(
+      doc(db, "competitions", COMPETITION_ID, "config", "publicForm"),
+      { includes: DEFAULT_INCLUDES },
+      { merge: true }
+    );
+    toast("Registration includes reset");
+  } catch (e) { toast(e.message, true); }
+});
 
 // ===== Form fields =====
 function renderFormFields() {
