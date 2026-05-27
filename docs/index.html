@@ -427,7 +427,8 @@
             </div>
             <div style="text-align:right;font-size:.85rem;color:var(--muted)" id="priceMeta"></div>
           </div>
-          <div id="priceLadder" style="margin-top:10px"></div>
+            <div id="priceLadder" style="margin-top:10px"></div>
+          <div id="multiBreakdown" hidden style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);font-size:.88rem"></div>
           <ul class="includes" id="includes"></ul>
         </div>
       </div>
@@ -1226,6 +1227,7 @@ catSelect.addEventListener("change", () => {
     INCLUDES.map(i => `<li>${i}</li>`).join("");
 
   priceCard.classList.add("show");
+  recomputeMultiTotal();
 });
 
 const TEAMMATE_REQUIRED_IDS = ["t_first","t_last","t_dob","t_gender","t_shirt","t_blood"];
@@ -1269,11 +1271,22 @@ participantCountSel.addEventListener("change", () => {
   renderExtraParticipants(parseInt(participantCountSel.value, 10) || 1);
 });
 
+function multiCatOptions(selectedId) {
+  return Object.entries(CATEGORIES)
+    .filter(([id, c]) => c.allowMultiParticipant && !c.isRelay)
+    .map(([id, c]) => {
+      const price = (typeof c.price === "number") ? (c.price === 0 ? "Free" : `$${c.price}`) : `$${c.price ?? 0}`;
+      return `<option value="${id}"${id === selectedId ? " selected" : ""}>${escHtml(c.name)} — ${price}</option>`;
+    })
+    .join("");
+}
+
 function renderExtraParticipants(count) {
   // Preserve current values keyed by id before re-rendering.
   const prev = {};
   extraContainer.querySelectorAll("input, select").forEach(el => { if (el.id) prev[el.id] = el.value; });
 
+  const leadCatId = catSelect.value;
   const cards = [];
   for (let n = 2; n <= count; n++) {
     const p = `p${n}_`;
@@ -1281,6 +1294,14 @@ function renderExtraParticipants(count) {
       <div class="card extra-participant" data-person="${n}">
         <h3 class="title">Participant ${n}</h3>
         <p class="muted" style="margin:0 0 12px">Shared with Person 1: mobile, email, address, club, emergency contact.</p>
+        <div class="row">
+          <label for="${p}cat">Race / Category *</label>
+          <select id="${p}cat" name="${p}cat" required>
+            <option value="">Select…</option>
+            ${multiCatOptions(leadCatId)}
+          </select>
+          <div class="help">Each participant can choose their own race.</div>
+        </div>
         <div class="row two">
           <div>
             <label for="${p}first">First name *</label>
@@ -1337,8 +1358,54 @@ function renderExtraParticipants(count) {
     if (el) el.value = v;
   });
 
+  // Wire per-participant category change → recompute total.
+  extraContainer.querySelectorAll('select[id$="_cat"]').forEach(sel => {
+    sel.addEventListener("change", recomputeMultiTotal);
+  });
+
   // Attach inline-error divs + clear-on-edit listeners to the new required fields.
   initFieldErrors();
+  recomputeMultiTotal();
+}
+
+function recomputeMultiTotal() {
+  const breakdown = document.getElementById("multiBreakdown");
+  const N = parseInt(participantCountSel.value, 10) || 1;
+  const leadCat = CATEGORIES[catSelect.value];
+
+  if (N <= 1 || !leadCat) {
+    breakdown.hidden = true;
+    breakdown.innerHTML = "";
+    if (leadCat) {
+      const lp = leadCat.price ?? 0;
+      priceBig.innerHTML = lp === 0
+        ? `Free <span class="free-badge">${leadCat.name.toLowerCase().includes("para") ? "Para" : "Free"}</span>`
+        : `$${lp} USD`;
+      priceLabel.textContent = "Registration fee";
+    }
+    return;
+  }
+
+  const rows = [{ label: "Person 1", cat: leadCat }];
+  for (let n = 2; n <= N; n++) {
+    const id = document.getElementById(`p${n}_cat`)?.value;
+    rows.push({ label: `Person ${n}`, cat: CATEGORIES[id] || null });
+  }
+  const total = rows.reduce((s, r) => s + (r.cat?.price ?? 0), 0);
+
+  priceLabel.textContent = `Total for ${N} participants`;
+  priceBig.innerHTML = total === 0 ? `Free` : `$${total} USD`;
+
+  breakdown.hidden = false;
+  breakdown.innerHTML = `<div class="muted" style="margin-bottom:6px">Per participant:</div>` +
+    rows.map(r => {
+      const right = r.cat
+        ? `${escHtml(r.cat.name)} — ${r.cat.price === 0 ? "Free" : "$" + (r.cat.price ?? 0)}`
+        : `<em>not chosen</em>`;
+      return `<div style="display:flex;justify-content:space-between;gap:8px;padding:3px 0">
+        <span>${r.label}</span><span style="color:var(--ink)">${right}</span>
+      </div>`;
+    }).join("");
 }
 
 // ============================================================
@@ -1792,15 +1859,23 @@ form.addEventListener("submit", async (e) => {
     const eligible = !!(cat.allowMultiParticipant && !cat.isRelay);
     const N = eligible ? Math.max(1, parseInt(participantCountSel.value, 10) || 1) : 1;
 
-    // Per-participant age validation (Person 2..N use their own DOB).
+    // Per-participant: resolve their own category, validate age, accumulate total.
+    const personCats = [cat]; // Person 1's category
+    let totalPrice = cat.price ?? 0;
     for (let i = 2; i <= N; i++) {
+      const catId_i = data[`p${i}_cat`];
+      const cat_i = CATEGORIES[catId_i];
+      if (!cat_i) throw new Error(`Participant ${i}: please pick a category.`);
+      personCats.push(cat_i);
+      totalPrice += cat_i.price ?? 0;
+
       const dob_i = data[`p${i}_dob`];
       const age_i = ageOnRaceDay(dob_i);
-      if (cat.ageLimit > 0 && (age_i === null || age_i < cat.ageLimit)) {
-        throw new Error(`Participant ${i}: minimum age for ${cat.name} is ${cat.ageLimit} on race day. Their age on race day: ${age_i ?? "—"}.`);
+      if (cat_i.ageLimit > 0 && (age_i === null || age_i < cat_i.ageLimit)) {
+        throw new Error(`Participant ${i}: minimum age for ${cat_i.name} is ${cat_i.ageLimit} on race day. Their age on race day: ${age_i ?? "—"}.`);
       }
-      if (cat.ageLimitMax > 0 && age_i !== null && age_i > cat.ageLimitMax) {
-        throw new Error(`Participant ${i}: maximum age for ${cat.name} is ${cat.ageLimitMax} on race day. Their age on race day: ${age_i}.`);
+      if (cat_i.ageLimitMax > 0 && age_i !== null && age_i > cat_i.ageLimitMax) {
+        throw new Error(`Participant ${i}: maximum age for ${cat_i.name} is ${cat_i.ageLimitMax} on race day. Their age on race day: ${age_i}.`);
       }
     }
 
@@ -1816,10 +1891,11 @@ form.addEventListener("submit", async (e) => {
     const created = [];
 
     for (let i = 1; i <= N; i++) {
+      const cat_i = personCats[i - 1];
       let docPayload;
       if (i === 1) {
         docPayload = { ...payload, whishReference: refs[0] };
-        if (N > 1) docPayload.groupSize = N;     // breadcrumb for admins
+        if (N > 1) docPayload.groupSize = N;
       } else {
         docPayload = {
           ...payload,
@@ -1830,7 +1906,12 @@ form.addEventListener("submit", async (e) => {
           gender:    data[`p${i}_gender`] || null,
           tshirtSize:data[`p${i}_shirt`]  || null,
           bloodType: data[`p${i}_blood`]  || null,
-          subQuestionAnswer: null,   // sub-question is per-DOB, not auto-filled for extras
+          categoryId:   data[`p${i}_cat`],
+          categoryName: cat_i.name,
+          priceUSD:     cat_i.price ?? 0,
+          paymentStatus: (cat_i.price ?? 0) === 0 ? "free" : "pending",
+          paymentMethod: (cat_i.price ?? 0) === 0 ? "free" : "manual",
+          subQuestionAnswer: null,   // sub-question auto-fill not currently extended to extras
           whishReference: refs[i - 1],
           teammate: null,
           groupSize: N
@@ -1840,7 +1921,7 @@ form.addEventListener("submit", async (e) => {
       created.push({ ref: refs[i - 1], name: `${docPayload.firstName} ${docPayload.lastName}`.trim() });
     }
 
-    showConfirmation(created, price, cat);
+    showConfirmation(created, totalPrice, cat);
   } catch (err) {
     console.error(err);
     let msg;
@@ -1857,9 +1938,8 @@ form.addEventListener("submit", async (e) => {
   }
 });
 
-function showConfirmation(created, price, cat) {
+function showConfirmation(created, total, cat) {
   const N = created.length;
-  const totalDue = price * N;
   const refEl = document.getElementById("refCode");
 
   if (N === 1) {
@@ -1874,13 +1954,13 @@ function showConfirmation(created, price, cat) {
         </div>`).join("");
   }
 
-  document.getElementById("amountDue").textContent = totalDue === 0 ? "Free" : `$${totalDue} USD`;
+  document.getElementById("amountDue").textContent = total === 0 ? "Free" : `$${total} USD`;
   const whishAmt = document.getElementById("whishAmount");
-  if (whishAmt) whishAmt.textContent = `$${totalDue}`;
+  if (whishAmt) whishAmt.textContent = `$${total}`;
   const refInline = document.getElementById("refInline");
   if (refInline) refInline.textContent = N === 1 ? created[0].ref : created.map(p => p.ref).join(" , ");
 
-  if (price === 0) {
+  if (total === 0) {
     document.getElementById("paymentBlock").style.display = "none";
     document.getElementById("freeBlock").style.display = "block";
   }
