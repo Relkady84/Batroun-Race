@@ -797,7 +797,7 @@
           <div style="background:rgba(61,214,198,.07);border:1px solid rgba(61,214,198,.35);border-radius:12px;padding:14px;margin-top:14px">
             <p style="margin:0 0 10px;font-weight:800;color:var(--accent)">📲 How to pay via Whish Money</p>
             <ol style="margin:0;padding-left:22px;line-height:1.7">
-              <li>Open the <strong>Whish Money</strong> app or visit any <strong>Whish Money</strong> store, send <strong id="whishAmount">$X</strong> to <strong style="color:#e6204e">81 300 625</strong> <span class="muted">(Nizar El Kady)</span>.</li>
+              <li id="whishConfirmStep">Send <strong>$X</strong> via <strong>Whish Money</strong> (app or any branch) to <strong style="color:#e6204e">81 300 625</strong> <span class="muted">(Nizar El Kady)</span>.</li>
               <li><strong>In the note / comment field of the transfer, write your reference code <span id="refInline" style="color:var(--accent);font-family:ui-monospace,Menlo,monospace">BTN-2026-XXXX</span></strong> exactly. Without it, we cannot match your payment and <strong>your registration will not be approved</strong>.</li>
               <li><strong>Save this reference</strong> — keep this page open, take a screenshot, or write it down.</li>
             </ol>
@@ -1695,9 +1695,19 @@ function collectCustomValues() {
 // Theme + copy (from Firestore /config/theme)
 // ============================================================
 let WHISH_LOGO_URL = null;
+// Whish payment defaults — admin-overridable via /config/theme.
+let WHISH_NUMBER       = "81 300 625";
+let WHISH_RECIPIENT    = "Nizar El Kady";
+let WHISH_CONFIRM_TEXT = null;   // null = use the default styled HTML below
+let WHISH_INVOICE_TEXT = null;   // null = same
+
 function applyTheme(t) {
   t = t || {};
-  WHISH_LOGO_URL = t.whishLogo || null;
+  WHISH_LOGO_URL     = t.whishLogo || null;
+  WHISH_NUMBER       = (t.whishNumber    || "").trim() || "81 300 625";
+  WHISH_RECIPIENT    = (t.whishRecipient || "").trim() || "Nizar El Kady";
+  WHISH_CONFIRM_TEXT = (t.whishConfirmText || "").trim() || null;
+  WHISH_INVOICE_TEXT = (t.whishInvoiceText || "").trim() || null;
   const root = document.documentElement.style;
   if (t.accent)   root.setProperty("--accent", t.accent);
   if (t.accent2)  root.setProperty("--accent2", t.accent2);
@@ -1742,6 +1752,32 @@ function applyLogo(url, text, heightPx) {
 }
 // Apply the default background image immediately, before Firestore loads.
 applyTheme({});
+
+// Render the Whish payment line on the post-submission confirmation panel.
+// Honours an admin-supplied custom template (plain text with {amount},
+// {number}, {recipient}, {ref} placeholders); falls back to the styled
+// default for the not-customised case.
+function whishConfirmHtml(vars) {
+  if (WHISH_CONFIRM_TEXT) {
+    return escHtml(WHISH_CONFIRM_TEXT)
+      .replace(/\{amount\}/g,    escHtml(vars.amount))
+      .replace(/\{number\}/g,    escHtml(vars.number))
+      .replace(/\{recipient\}/g, escHtml(vars.recipient))
+      .replace(/\{ref\}/g,       escHtml(vars.ref || ""));
+  }
+  return `Send <strong>${escHtml(vars.amount)}</strong> via <strong>Whish Money</strong> (app or any branch) to <strong style="color:#e6204e">${escHtml(vars.number)}</strong> <span class="muted">(${escHtml(vars.recipient)})</span>.`;
+}
+// Same for the signed-in cart's invoice card.
+function whishInvoiceHtml(vars) {
+  if (WHISH_INVOICE_TEXT) {
+    return escHtml(WHISH_INVOICE_TEXT)
+      .replace(/\{amount\}/g,    escHtml(vars.amount))
+      .replace(/\{number\}/g,    escHtml(vars.number))
+      .replace(/\{recipient\}/g, escHtml(vars.recipient))
+      .replace(/\{ref\}/g,       escHtml(vars.ref || ""));
+  }
+  return `Send <strong style="color:#e6204e">${escHtml(vars.amount)}</strong> via <strong style="color:#1a2b3d">Whish Money</strong> (app or any branch) to <strong style="color:#e6204e">${escHtml(vars.number)}</strong> (<em>${escHtml(vars.recipient)}</em>), then write <strong style="color:#e6204e">${escHtml(vars.ref)}</strong> in the transfer note. Once we confirm the payment, your bib + QR ticket are sent to you on WhatsApp.`;
+}
 
 // ============================================================
 // Load competition + categories + theme + custom fields from Firestore
@@ -2135,8 +2171,15 @@ function showConfirmation(created, total, cat) {
   }
 
   document.getElementById("amountDue").textContent = total === 0 ? "Free" : `$${total} USD`;
-  const whishAmt = document.getElementById("whishAmount");
-  if (whishAmt) whishAmt.textContent = `$${total}`;
+  const confirmStep = document.getElementById("whishConfirmStep");
+  if (confirmStep) {
+    confirmStep.innerHTML = whishConfirmHtml({
+      amount: `$${total}`,
+      number: WHISH_NUMBER,
+      recipient: WHISH_RECIPIENT,
+      ref: N === 1 ? created[0].ref : created.map(p => p.ref).join(", ")
+    });
+  }
   const refInline = document.getElementById("refInline");
   if (refInline) refInline.textContent = N === 1 ? created[0].ref : created.map(p => p.ref).join(" , ");
 
@@ -2339,10 +2382,15 @@ function renderCart(regs) {
           <div class="row"><span class="k">Race day</span><span class="v">${escHtml(fmtRaceDate(RACE_DAY))}</span></div>
           <div class="row"><span class="k">Amount due</span><span class="v amount">$${r.priceUSD ?? 0} USD</span></div>
           <div class="row"><span class="k">Reference</span><span class="v"><span class="ref-pill">${escHtml(r.whishReference || r.ref || "—")}</span></span></div>
-          <div class="row"><span class="k">Whish recipient</span><span class="v"><span class="ref-pill" style="color:#e6204e;background:rgba(230,32,78,.08);border-color:rgba(230,32,78,.4)">81 300 625</span></span></div>
+          <div class="row"><span class="k">Whish recipient</span><span class="v"><span class="ref-pill" style="color:#e6204e;background:rgba(230,32,78,.08);border-color:rgba(230,32,78,.4)">${escHtml(WHISH_NUMBER)}</span></span></div>
           <div style="margin-top:12px;padding:10px 12px;background:#fff5f7;border:1px solid #ffd6e0;border-radius:10px;font-size:.85rem;color:#5b6c80">
             <strong style="color:#1a2b3d">How to pay.</strong>
-            Open the <strong style="color:#1a2b3d">Whish Money</strong> app or visit any <strong style="color:#1a2b3d">Whish Money</strong> store, send <strong style="color:#e6204e">$${r.priceUSD ?? 0}</strong> to <strong style="color:#e6204e">81 300 625</strong> (<em>Nizar El Kady</em>), then write <strong style="color:#e6204e">${escHtml(r.whishReference || r.ref || "")}</strong> in the transfer note. Once we confirm the payment, your bib + QR ticket are sent to you on WhatsApp.
+            ${whishInvoiceHtml({
+              amount: `$${r.priceUSD ?? 0}`,
+              number: WHISH_NUMBER,
+              recipient: WHISH_RECIPIENT,
+              ref: r.whishReference || r.ref || ""
+            })}
           </div>
         </div>`;
     } else {

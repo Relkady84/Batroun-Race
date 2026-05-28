@@ -597,6 +597,27 @@ Masters Men-Women 35-39
         </div>
       </div>
 
+      <div class="card">
+        <h2>Whish Money payment</h2>
+        <p class="muted" style="margin:0 0 12px">
+          Shown on the post-submission confirmation panel and on the signed-in cart's invoice card.
+          Custom messages support these placeholders — type them inside curly braces and we substitute the live value:
+          <code>{amount}</code>, <code>{number}</code>, <code>{recipient}</code>, <code>{ref}</code>.
+        </p>
+        <div class="row two">
+          <div><label>Whish recipient number</label><input id="thWhishNum" placeholder="81 300 625"></div>
+          <div><label>Recipient name</label><input id="thWhishName" placeholder="Nizar El Kady"></div>
+        </div>
+        <div style="margin-top:8px">
+          <label>Custom confirmation message (shown right after a runner registers) — leave blank for the default</label>
+          <textarea id="thWhishConfirm" rows="2" placeholder="Send {amount} via Whish Money (app or any branch) to {number} ({recipient})."></textarea>
+        </div>
+        <div style="margin-top:8px">
+          <label>Custom invoice message (shown on the signed-in cart) — leave blank for the default</label>
+          <textarea id="thWhishInvoice" rows="3" placeholder="Send {amount} via Whish Money (app or any branch) to {number} ({recipient}), then write {ref} in the transfer note. Once we confirm the payment, your bib + QR ticket are sent to you on WhatsApp."></textarea>
+        </div>
+      </div>
+
       <div><button id="themeSaveBtn" class="btn">Save theme &amp; copy</button></div>
     </section>
 
@@ -2821,6 +2842,10 @@ function loadThemeIntoEditor(t) {
   updateWhishPreview(t.whishLogo);
   $("#thLogoText").value = t.logoText  || "";
   $("#thLogoSize").value = t.logoHeight || "";
+  $("#thWhishNum").value     = t.whishNumber       || "";
+  $("#thWhishName").value    = t.whishRecipient    || "";
+  $("#thWhishConfirm").value = t.whishConfirmText  || "";
+  $("#thWhishInvoice").value = t.whishInvoiceText  || "";
   updateBgPreview(t.bgImage);
   updateLogoPreview(t.logoImage);
   applyAdminLogo(t.logoImage);
@@ -3026,6 +3051,10 @@ $("#themeSaveBtn").addEventListener("click", async () => {
         logoText:   $("#thLogoText").value.trim() || null,
         logoHeight: parseInt($("#thLogoSize").value, 10) || null,
         whishLogo:  $("#thWhishUrl").value.trim() || null,
+        whishNumber:      $("#thWhishNum").value.trim()     || null,
+        whishRecipient:   $("#thWhishName").value.trim()    || null,
+        whishConfirmText: $("#thWhishConfirm").value.trim() || null,
+        whishInvoiceText: $("#thWhishInvoice").value.trim() || null,
         updatedAt:  serverTimestamp()
       },
       { merge: true }
