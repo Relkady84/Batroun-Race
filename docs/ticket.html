@@ -179,6 +179,7 @@ const start  = get("start");
 const loc    = get("loc");
 const amount = get("amount");
 const status = get("status");
+const color  = get("color");
 
 function set(id, v, fallback = "—") {
   const el = document.getElementById(id);
@@ -187,6 +188,12 @@ function set(id, v, fallback = "—") {
 set("ref",    ref);
 set("name",   name);
 set("bib",    bib);
+
+// Tint the bib number with the category colour if one was provided.
+if (color && /^#[0-9a-fA-F]{6}$/.test(color)) {
+  const bibEl = document.getElementById("bib");
+  if (bibEl) bibEl.style.color = color;
+}
 set("cat",    cat);
 set("amount", amount);
 

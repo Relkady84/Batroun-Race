@@ -616,6 +616,11 @@ Masters Men-Women 35-39
           <div><label>Race start time</label><input id="cpStartTime" type="time" placeholder="e.g. 07:00"></div>
           <div><label>Race location</label><input id="cpLocation" placeholder="Lycée Montaigne, Beit Chabab"></div>
         </div>
+        <div class="row two">
+          <div><label>BIB pool — start</label><input id="cpBibStart" type="number" min="1" placeholder="e.g. 10"></div>
+          <div><label>BIB pool — end</label><input id="cpBibEnd" type="number" min="1" placeholder="e.g. 999"></div>
+        </div>
+        <p class="muted" style="margin:4px 0 0;font-size:.82rem">When you confirm a payment, the next unused bib in this single pool is auto-assigned — first-in-first-out across every category. Each category defines its own visual colour separately.</p>
       </div>
 
       <div><button id="competitionSaveBtn" class="btn">Save event info</button></div>
@@ -1960,6 +1965,7 @@ $("#backupPurgeAll").addEventListener("click", async () => {
 // ===== Ticket + WhatsApp helpers =====
 // Each runner gets a public ticket page (URL-encoded params, no Firestore lookup).
 function buildTicketUrl(r) {
+  const cat = cats.find(c => c.id === r.categoryId);
   const params = new URLSearchParams({
     ref: r.whishReference || "",
     name: `${r.firstName || ""} ${r.lastName || ""}`.trim(),
@@ -1969,7 +1975,8 @@ function buildTicketUrl(r) {
     start:   competition.raceStartTime || "",
     loc:     competition.raceLocation  || "",
     amount:  (r.priceUSD ?? 0) ? `$${r.priceUSD}` : "Free",
-    status:  r.paymentStatus || ""
+    status:  r.paymentStatus || "",
+    color:   cat?.bibColor || ""
   });
   return `${location.origin}${location.pathname.replace(/admin\.html$/, "")}ticket.html?${params}`;
 }
@@ -2000,36 +2007,41 @@ function buildWhatsAppUrl(r) {
   return `https://wa.me/${phone}?text=${encodeURIComponent(lines.join("\n"))}`;
 }
 
-// Find the lowest unused bib in the category's range. FIFO: lowest first.
+// Find the lowest unused bib in the SINGLE pool defined on the competition.
+// FIFO across all categories — the only difference between categories is
+// their visual colour, not their bib numbers.
 function nextBibFor(categoryId) {
   const cat = cats.find(c => c.id === categoryId);
   if (!cat) return { error: "Category not found." };
-  const start = parseInt(cat.bibRangeStart, 10);
-  const end   = parseInt(cat.bibRangeEnd,   10);
+  const start = parseInt(competition.bibPoolStart, 10);
+  const end   = parseInt(competition.bibPoolEnd,   10);
   if (!start || !end || start > end) {
-    return { error: `No BIB range set for "${cat.name || cat.id}". Open admin → Categories → edit this category to define start & end.` };
+    return { error: "No BIB pool defined for this competition. Open admin → Competition and set BIB pool start & end." };
   }
   const used = new Set(
-    regs.filter(x => x.categoryId === categoryId && x.bibNumber != null && !x.deletedAt)
+    regs.filter(x => x.bibNumber != null && !x.deletedAt)
         .map(x => Number(x.bibNumber))
   );
   for (let n = start; n <= end; n++) {
-    if (!used.has(n)) return { bib: n, start, end };
+    if (!used.has(n)) return { bib: n, start, end, color: cat.bibColor || null };
   }
-  return { error: `BIB range ${start}–${end} for "${cat.name || cat.id}" is fully assigned. Extend the range in admin → Categories.` };
+  return { error: `BIB pool ${start}–${end} is fully assigned. Extend the pool in admin → Competition.` };
 }
 
 function openConfirmPay(r) {
   const priceFree = (r.priceUSD || 0) === 0;
   const next = nextBibFor(r.categoryId);
   const autoOk = !next.error;
+  const bibSwatch = autoOk && next.color
+    ? `<span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:${escapeHtml(next.color)};vertical-align:middle;margin-right:6px;border:1px solid rgba(0,0,0,.35)" title="Category bib colour"></span>`
+    : "";
   const bibBlock = autoOk
-    ? `<p style="margin-top:14px">Bib to assign: <strong style="font-size:1.2rem;color:var(--accent)">${next.bib}</strong>
-         <span class="muted" style="margin-left:8px;font-size:.85rem">(from range ${next.start}–${next.end})</span>
+    ? `<p style="margin-top:14px">Bib to assign: ${bibSwatch}<strong style="font-size:1.2rem;color:${escapeHtml(next.color || "var(--accent)")}">${next.bib}</strong>
+         <span class="muted" style="margin-left:8px;font-size:.85rem">(from pool ${next.start}–${next.end})</span>
        </p>`
     : `<div style="margin-top:14px;padding:10px 12px;background:rgba(255,153,51,.12);border:1px solid rgba(255,153,51,.5);border-radius:10px;color:#ffd28a;font-size:.9rem">
          <strong style="color:#ffae50">No automatic bib available.</strong> ${escapeHtml(next.error)}
-         <br><span style="color:#cfd8e2">Enter a bib number manually below to continue, or set a BIB range in admin → Categories.</span>
+         <br><span style="color:#cfd8e2">Enter a bib number manually below to continue, or set the BIB pool in admin → Competition.</span>
        </div>
        <label style="margin-top:14px">Bib number (manual)</label>
        <input id="bibInput" type="number" min="1" placeholder="e.g. 142">`;
@@ -2141,7 +2153,7 @@ function renderCategoryList() {
           <div style="flex:1;min-width:240px">
             <h2 style="margin:0">${escapeHtml(c.name || c.id)} <span class="muted" style="font-weight:400">#${escapeHtml(c.id)}</span></h2>
             <div class="muted" style="margin-top:4px">
-              ${c.distanceKm ?? "?"} km · ${c.timed ? "Timed" : "Untimed"} · ${formatAgeRange(c.ageLimit, c.ageLimitMax)} · ${(typeof c.price === "number") ? (c.price === 0 ? "Free" : "$" + c.price) : "$" + (c.prices?.wave1 ?? 0)}${(c.bibRangeStart && c.bibRangeEnd) ? ` · BIB ${c.bibRangeStart}–${c.bibRangeEnd}` : ""}${c.isRelay ? " · Relay (2 runners)" : ""}${c.allowMultiParticipant ? " · Multi-participant" : ""}
+              ${c.bibColor ? `<span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${escapeHtml(c.bibColor)};vertical-align:middle;margin-right:6px;border:1px solid rgba(0,0,0,.35)"></span>` : ""}${c.distanceKm ?? "?"} km · ${c.timed ? "Timed" : "Untimed"} · ${formatAgeRange(c.ageLimit, c.ageLimitMax)} · ${(typeof c.price === "number") ? (c.price === 0 ? "Free" : "$" + c.price) : "$" + (c.prices?.wave1 ?? 0)}${c.isRelay ? " · Relay (2 runners)" : ""}${c.allowMultiParticipant ? " · Multi-participant" : ""}
             </div>
             <div style="margin-top:8px;font-size:.9rem">
               <strong>Capacity:</strong> ${cap ? `${reg} / ${cap}` : `${reg} (no limit)`}
@@ -2259,10 +2271,17 @@ function openEditCategory(c) {
     </div>
 
     <div class="row two" style="margin-top:8px">
-      <div><label>BIB range — start</label><input id="ec_bibStart" type="number" min="1" value="${c.bibRangeStart ?? ""}" placeholder="e.g. 1"></div>
-      <div><label>BIB range — end</label><input id="ec_bibEnd" type="number" min="1" value="${c.bibRangeEnd ?? ""}" placeholder="e.g. 200"></div>
+      <div>
+        <label>BIB colour for this category</label>
+        <div style="display:flex;align-items:center;gap:10px">
+          <input id="ec_bibColor" type="color" value="${escapeHtml(c.bibColor || "#3dd6c6")}" style="width:60px;height:38px;padding:2px">
+          <input id="ec_bibColorText" type="text" value="${escapeHtml(c.bibColor || "")}" placeholder="#RRGGBB" style="flex:1;font-family:ui-monospace,Menlo,monospace">
+        </div>
+      </div>
+      <div style="display:flex;align-items:flex-end;padding-bottom:4px">
+        <span class="muted" style="font-size:.82rem">Bibs are picked from a single pool set in <strong>Competition</strong>. Each category just gets its own visual colour for tickets and admin lists.</span>
+      </div>
     </div>
-    <p class="muted" style="margin:4px 0 0;font-size:.82rem">When you confirm a payment, the next unused bib in this range is auto-assigned (first-in, first-out).</p>
 
     <label class="inline" style="margin-top:10px;display:flex;align-items:center;gap:8px">
       <input type="checkbox" id="ec_isRelay" ${c.isRelay ? "checked" : ""}
@@ -2300,6 +2319,14 @@ Masters Men-Women 35-39
     </div>
   `);
   $("#ec_cancel").onclick = closeModal;
+  // Keep the color picker + text input in sync.
+  const ecCp  = $("#ec_bibColor");
+  const ecCpT = $("#ec_bibColorText");
+  ecCp.addEventListener("input", () => { ecCpT.value = ecCp.value; });
+  ecCpT.addEventListener("input", () => {
+    const v = ecCpT.value.trim();
+    if (/^#[0-9a-fA-F]{6}$/.test(v)) ecCp.value = v;
+  });
   $("#ec_preset10k").onclick = () => {
     $("#ec_sqLabel").value = "Age categories eligible to participate in the 10 KM race";
     $("#ec_sqOptions").value = STD_10K_BRACKETS.join("\n");
@@ -2326,8 +2353,7 @@ Masters Men-Women 35-39
         timed: $("#ec_timed").value === "true",
         capacity: parseInt($("#ec_cap").value, 10) || null,
         price: parseFloat($("#ec_price").value) || 0,
-        bibRangeStart: parseInt($("#ec_bibStart").value, 10) || null,
-        bibRangeEnd:   parseInt($("#ec_bibEnd").value,   10) || null,
+        bibColor: $("#ec_bibColor").value || null,
         isRelay: $("#ec_isRelay").checked,
         allowMultiParticipant: $("#ec_multi").checked,
         subQuestion
@@ -2901,6 +2927,8 @@ function loadCompetitionIntoEditor(c) {
   $("#cpRaceDay").value = c.raceDay ? c.raceDay.slice(0,10) : "";
   $("#cpStartTime").value = c.raceStartTime || "";
   $("#cpLocation").value = c.raceLocation || "";
+  $("#cpBibStart").value = c.bibPoolStart ?? "";
+  $("#cpBibEnd").value   = c.bibPoolEnd ?? "";
 }
 
 function tsToLocal(ts) {
@@ -2924,7 +2952,9 @@ $("#competitionSaveBtn").addEventListener("click", async () => {
     registrationCloses: closes,
     raceDay: $("#cpRaceDay").value || null,
     raceStartTime: $("#cpStartTime").value || null,
-    raceLocation: $("#cpLocation").value.trim() || null
+    raceLocation: $("#cpLocation").value.trim() || null,
+    bibPoolStart: parseInt($("#cpBibStart").value, 10) || null,
+    bibPoolEnd:   parseInt($("#cpBibEnd").value,   10) || null
   };
 
   console.log("[competition] saving:", {
