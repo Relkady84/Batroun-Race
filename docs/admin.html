@@ -1457,7 +1457,8 @@ function renderRegTable() {
       <td class="actions">
         <button class="btn tiny sec" data-act="view" data-id="${r.id}">View</button>
         ${r.paymentStatus === "pending"
-          ? `<button class="btn tiny" data-act="pay" data-id="${r.id}">Confirm pay</button>` : ""}
+          ? `<button class="btn tiny" data-act="pay" data-id="${r.id}">Confirm pay</button>
+             <button class="btn tiny sec" data-act="wa-pending" data-id="${r.id}" title="Send Whish payment instructions on WhatsApp">WA</button>` : ""}
         ${(r.paymentStatus === "paid" || r.paymentStatus === "free") && r.bibNumber
           ? `<button class="btn tiny sec" data-act="wa" data-id="${r.id}" title="Resend WhatsApp ticket">WA</button>` : ""}
         <button class="btn tiny danger" data-act="del" data-id="${r.id}" title="Delete (spam)">Delete</button>
@@ -1512,6 +1513,11 @@ function renderRegTable() {
       if (b.dataset.act === "pay")  openConfirmPay(r);
       if (b.dataset.act === "wa")   {
         const waUrl = buildWhatsAppUrl(r);
+        if (waUrl) window.open(waUrl, "_blank", "noopener");
+        else toast("No phone number on record", true);
+      }
+      if (b.dataset.act === "wa-pending") {
+        const waUrl = buildPendingWhatsAppUrl(r);
         if (waUrl) window.open(waUrl, "_blank", "noopener");
         else toast("No phone number on record", true);
       }
@@ -2040,6 +2046,36 @@ function buildTicketUrl(r) {
     teammate
   });
   return `${TICKET_BASE_URL}?${params}`;
+}
+
+// WhatsApp message for pending registrations — Whish payment instructions
+// plus a deep link that opens the public page with the sign-in modal
+// pre-filled with the runner's ref so they only need to type their phone.
+function buildPendingWhatsAppUrl(r) {
+  const phone = String(r.phone || "").replace(/\D/g, "");
+  if (!phone) return null;
+  const ref    = r.whishReference || r.id || "";
+  const amount = Number(r.priceUSD) || 0;
+  const invoiceUrl = `https://batroun-race.web.app/?signin=${encodeURIComponent(ref)}`;
+  const lines = [
+    `Hi ${r.firstName || ""}, your Batroun Race 2026 registration is received!`,
+    ``,
+    `Status: PAYMENT PENDING`,
+    `Reference code: ${ref}`,
+    `Amount due: ${amount === 0 ? "Free" : "$" + amount + " USD"}`,
+    `Category: ${r.categoryName || ""}${r.subQuestionAnswer ? " - " + r.subQuestionAnswer : ""}`,
+    ``,
+    `To complete your registration, send the payment via Whish Money:`,
+    `1. Open Whish Money`,
+    `2. Send $${amount} to Batroun Race`,
+    `3. Write your reference code "${ref}" in the transfer note`,
+    ``,
+    `Open your live invoice (auto-updates once we confirm):`,
+    invoiceUrl,
+    ``,
+    `Once we confirm your Whish transfer, you will receive your bib number and a printable QR ticket. See you at the start line!`
+  ];
+  return `https://wa.me/${phone}?text=${encodeURIComponent(lines.join("\n"))}`;
 }
 
 function buildWhatsAppUrl(r) {

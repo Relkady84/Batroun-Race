@@ -2505,6 +2505,18 @@ cartCloseBtn?.addEventListener("click", () => {
 // Boot the top bar based on what's in localStorage.
 refreshSessionFromStorage();
 
+// Deep link: /?signin=BTN-2026-XXXX opens the sign-in modal with the
+// ref pre-filled so the runner only needs to type their mobile.
+// Used by the "WA pending" admin button to take a runner straight to
+// their invoice from a WhatsApp tap.
+(() => {
+  const signinRef = new URLSearchParams(location.search).get("signin");
+  if (!signinRef) return;
+  openSignin();
+  siRefInput.value = signinRef.toUpperCase();
+  setTimeout(() => siPhoneInput.focus(), 60);
+})();
+
 // ============================================================
 // Add another participant from inside the cart
 // ============================================================
