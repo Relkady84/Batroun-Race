@@ -1970,7 +1970,7 @@ function buildTicketUrl(r) {
     bib: String(r.bibNumber || ""),
     cat: (r.categoryName || "") + (r.subQuestionAnswer ? " — " + r.subQuestionAnswer : ""),
     date:    competition.raceDay       || "",
-    start:   competition.raceStartTime || "",
+    start:   cat?.startTime || competition.raceStartTime || "",
     loc:     competition.raceLocation  || "",
     amount:  (r.priceUSD ?? 0) ? `$${r.priceUSD}` : "Free",
     status:  r.paymentStatus || "",
@@ -2155,7 +2155,7 @@ function renderCategoryList() {
           <div style="flex:1;min-width:240px">
             <h2 style="margin:0">${escapeHtml(c.name || c.id)} <span class="muted" style="font-weight:400">#${escapeHtml(c.id)}</span></h2>
             <div class="muted" style="margin-top:4px">
-              ${c.bibColor ? `<span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${escapeHtml(c.bibColor)};vertical-align:middle;margin-right:6px;border:1px solid rgba(0,0,0,.35)"></span>` : ""}${c.distanceKm ?? "?"} km · ${c.timed ? "Timed" : "Untimed"} · ${formatAgeRange(c.ageLimit, c.ageLimitMax)} · ${(typeof c.price === "number") ? (c.price === 0 ? "Free" : "$" + c.price) : "$" + (c.prices?.wave1 ?? 0)}${(c.bibRangeStart && c.bibRangeEnd) ? ` · BIB ${c.bibRangeStart}–${c.bibRangeEnd}` : ""}${c.isRelay ? " · Relay (2 runners)" : ""}${c.allowMultiParticipant ? " · Multi-participant" : ""}
+              ${c.bibColor ? `<span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${escapeHtml(c.bibColor)};vertical-align:middle;margin-right:6px;border:1px solid rgba(0,0,0,.35)"></span>` : ""}${c.distanceKm ?? "?"} km · ${c.timed ? "Timed" : "Untimed"} · ${formatAgeRange(c.ageLimit, c.ageLimitMax)} · ${(typeof c.price === "number") ? (c.price === 0 ? "Free" : "$" + c.price) : "$" + (c.prices?.wave1 ?? 0)}${c.startTime ? ` · Starts ${escapeHtml(c.startTime)}` : ""}${(c.bibRangeStart && c.bibRangeEnd) ? ` · BIB ${c.bibRangeStart}–${c.bibRangeEnd}` : ""}${c.isRelay ? " · Relay (2 runners)" : ""}${c.allowMultiParticipant ? " · Multi-participant" : ""}
             </div>
             <div style="margin-top:8px;font-size:.9rem">
               <strong>Capacity:</strong> ${cap ? `${reg} / ${cap}` : `${reg} (no limit)`}
@@ -2273,6 +2273,16 @@ function openEditCategory(c) {
     </div>
 
     <div class="row two" style="margin-top:8px">
+      <div>
+        <label>Race start time (this category)</label>
+        <input id="ec_startTime" type="time" value="${escapeHtml(c.startTime || "")}" placeholder="e.g. 07:30">
+      </div>
+      <div style="display:flex;align-items:flex-end;padding-bottom:4px">
+        <span class="muted" style="font-size:.82rem">Leave empty to use the event-wide start time from <strong>Competition</strong>. Filled here, it overrides on this category's tickets.</span>
+      </div>
+    </div>
+
+    <div class="row two" style="margin-top:8px">
       <div><label>BIB range — start</label><input id="ec_bibStart" type="number" min="1" value="${c.bibRangeStart ?? ""}" placeholder="e.g. 1"></div>
       <div><label>BIB range — end</label><input id="ec_bibEnd" type="number" min="1" value="${c.bibRangeEnd ?? ""}" placeholder="e.g. 200"></div>
     </div>
@@ -2362,6 +2372,7 @@ Masters Men-Women 35-39
         bibRangeStart: parseInt($("#ec_bibStart").value, 10) || null,
         bibRangeEnd:   parseInt($("#ec_bibEnd").value,   10) || null,
         bibColor: $("#ec_bibColor").value || null,
+        startTime: $("#ec_startTime").value || null,
         isRelay: $("#ec_isRelay").checked,
         allowMultiParticipant: $("#ec_multi").checked,
         subQuestion
