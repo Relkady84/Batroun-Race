@@ -67,7 +67,8 @@ competitions/{competitionId}/categories/{categoryId}
   ├─ ageLimit (min), ageLimitMax (optional)
   ├─ price (single value — no waves)
   ├─ capacity (nullable), registeredCount
-  ├─ bibRangeStart, bibRangeEnd                 // per-category pool — confirm-payment auto-assigns the next unused bib in this range, FIFO within the category
+  ├─ bibRangeStart, bibRangeEnd                 // per-category pool
+  ├─ bibCursor: int                             // next bib to assign — bumped by the confirm-payment transaction, atomic, no duplicate bibs even under concurrent confirms
   ├─ bibColor: "#RRGGBB"                        // displayed next to the bib number on tickets + admin lists
   ├─ startTime: "HH:MM"                         // overrides the event-wide raceStartTime on this category's tickets
   ├─ isRelay: bool                              // when true → public form collects a teammate; teammate shares Person 1's bib (one bib per team doc)

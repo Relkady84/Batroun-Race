@@ -824,7 +824,7 @@
 <!-- Firebase SDK -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
-import { getFirestore, collection, addDoc, setDoc, serverTimestamp, runTransaction, doc, getDoc, getDocs }
+import { getFirestore, collection, addDoc, setDoc, serverTimestamp, runTransaction, doc, getDoc, getDocs, writeBatch, arrayUnion }
   from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 
 // ============================================================
@@ -1639,7 +1639,7 @@ function renderCustomFields() {
     const reqStar = f.required ? " *" : "";
     const req = f.required ? "required" : "";
     const id = "cf_" + f.key;
-    const safeLabel = String(f.label).replace(/</g, "&lt;");
+    const safeLabel = escHtml(f.label);
     let control = "";
     if (f.type === "textarea") {
       control = `<textarea id="${id}" name="${id}" rows="3" ${req}></textarea>`;
@@ -1691,9 +1691,12 @@ function applyTheme(t) {
   if (t.bg2)      root.setProperty("--bg2", t.bg2);
 
   // No automatic default photo — the page is clean unless the admin uploads one.
-  const bg = t.bgImage || null;
-  if (bg) {
-    root.setProperty("--bg-image", `url("${bg}")`);
+  // Only accept http(s):, data:, or relative paths. Strip any quote characters
+  // so a malicious value can't break out of the CSS url("…") context.
+  const bg = (t.bgImage || "").trim();
+  const bgSafe = bg && /^(https?:|data:|\/|\.\.?\/)/.test(bg) ? bg.replace(/["\\]/g, "") : "";
+  if (bgSafe) {
+    root.setProperty("--bg-image", `url("${bgSafe}")`);
     document.body.classList.add("has-bg-image");
   } else {
     document.body.classList.remove("has-bg-image");
@@ -2051,9 +2054,11 @@ form.addEventListener("submit", async (e) => {
       if (!seen.has(r)) { seen.add(r); refs.push(r); }
     }
 
-    const regsCol = collection(db, "competitions", COMPETITION_ID, "registrations");
+    // Build N docPayloads up front, then commit everything in ONE atomic
+    // writeBatch. Either all N registrations + the phone-index land or none
+    // do — no half-submitted families.
     const created = [];
-
+    const batch = writeBatch(db);
     for (let i = 1; i <= N; i++) {
       const cat_i = personCats[i - 1];
       let docPayload;
@@ -2086,16 +2091,17 @@ form.addEventListener("submit", async (e) => {
           groupSize: N
         };
       }
-      // Doc ID = whish reference so the "sign in with mobile + ref" flow
-      // can look up a registration by ref via getDoc().
-      await setDoc(doc(db, "competitions", COMPETITION_ID, "registrations", refs[i - 1]), docPayload);
+      batch.set(doc(db, "competitions", COMPETITION_ID, "registrations", refs[i - 1]), docPayload);
       created.push({ ref: refs[i - 1], name: `${docPayload.firstName} ${docPayload.lastName}`.trim() });
     }
-
-    // Maintain the per-phone index so a signed-in runner can pull every
-    // registration filed under their mobile, not just the one they typed
-    // a ref for.
-    await upsertPhoneIndex(phoneNorm, refs);
+    // Same batch upserts the phone index via arrayUnion — atomic with the
+    // registration writes themselves.
+    batch.set(
+      doc(db, "competitions", COMPETITION_ID, "phoneIndex", phoneNorm),
+      { refs: arrayUnion(...refs), updatedAt: serverTimestamp() },
+      { merge: true }
+    );
+    await batch.commit();
 
     // Auto-sign-in so the cart icon + Hi-name appear in the top bar
     // immediately. Confirmation panel still shows for payment instructions.
@@ -2243,10 +2249,13 @@ async function upsertPhoneIndex(phoneNorm, newRefs) {
   if (!phoneNorm || !Array.isArray(newRefs) || !newRefs.length) return;
   const ref = doc(db, "competitions", COMPETITION_ID, "phoneIndex", phoneNorm);
   try {
-    const snap = await getDoc(ref);
-    const existing = snap.exists() ? (snap.data().refs || []) : [];
-    const next = Array.from(new Set([...existing, ...newRefs]));
-    await setDoc(ref, { refs: next, updatedAt: serverTimestamp() }, { merge: true });
+    // arrayUnion is server-side atomic — two concurrent submissions on the
+    // same mobile both append their refs without losing each other's, no
+    // read-then-write race window.
+    await setDoc(ref, {
+      refs: arrayUnion(...newRefs),
+      updatedAt: serverTimestamp()
+    }, { merge: true });
   } catch (err) {
     // Non-fatal: the registration itself succeeded. Sign-in will just
     // show one registration instead of the full group if this fails.
