@@ -4,7 +4,7 @@ Project context for Claude Code. This file is auto-read on every session. **Keep
 
 ## What this is
 
-A complete registration system for the **Batroun Race** annual running event in Lebanon (Lycée Montaigne, Beit Chabab). Public registration page + admin dashboard + race-day QR scanner. Built reusable each year — never hardcode "2026" anywhere; always use `competitionId` (e.g. `batroun-race-2026`). One deliberate exception: the Whish reference code format (see Critical conventions).
+A complete registration system for the **Batroun Race** annual running event in Lebanon (Batroun). Public registration page + admin dashboard + race-day QR scanner. Built reusable each year — never hardcode "2026" anywhere; always use `competitionId` (e.g. `batroun-race-2026`). One deliberate exception: the Whish reference code format (see Critical conventions).
 
 ## Tech stack (locked — don't change without asking)
 
@@ -69,6 +69,7 @@ competitions/{competitionId}/categories/{categoryId}
   ├─ capacity (nullable), registeredCount
   ├─ bibRangeStart, bibRangeEnd                 // per-category pool — confirm-payment auto-assigns the next unused bib in this range, FIFO within the category
   ├─ bibColor: "#RRGGBB"                        // displayed next to the bib number on tickets + admin lists
+  ├─ startTime: "HH:MM"                         // overrides the event-wide raceStartTime on this category's tickets
   ├─ isRelay: bool                              // when true → public form collects a teammate; teammate shares Person 1's bib (one bib per team doc)
   └─ subQuestion: { label, options[] } | null   // e.g. age-bracket dropdown
 
