@@ -14,11 +14,6 @@
     ],
     "cleanUrls": true,
     "trailingSlash": false,
-    "redirects": [
-      { "source": "/admin", "destination": "/admin.html", "type": 301 },
-      { "source": "/scan",  "destination": "/scan.html",  "type": 301 },
-      { "source": "/ticket","destination": "/ticket.html","type": 301 }
-    ],
     "headers": [
       {
         "source": "**/*.html",
