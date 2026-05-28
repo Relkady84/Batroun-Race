@@ -2014,6 +2014,12 @@ $("#backupPurgeAll").addEventListener("click", async () => {
 
 // ===== Ticket + WhatsApp helpers =====
 // Each runner gets a public ticket page (URL-encoded params, no Firestore lookup).
+// Canonical hosting URL for runner-facing links. Tickets sent on
+// WhatsApp must point here regardless of which mirror an admin is
+// currently signed in to, so the link is stable when GH Pages is
+// eventually retired.
+const TICKET_BASE_URL = "https://batroun-race.web.app/ticket";
+
 function buildTicketUrl(r) {
   const cat = cats.find(c => c.id === r.categoryId);
   const teammate = r.teammate
@@ -2033,7 +2039,7 @@ function buildTicketUrl(r) {
     color:   cat?.bibColor || "",
     teammate
   });
-  return `${location.origin}${location.pathname.replace(/admin\.html$/, "")}ticket.html?${params}`;
+  return `${TICKET_BASE_URL}?${params}`;
 }
 
 function buildWhatsAppUrl(r) {

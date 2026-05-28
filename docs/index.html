@@ -2291,6 +2291,12 @@ function fmtRaceDate(s) {
   catch (_) { return s; }
 }
 
+// Canonical hosting URL for the ticket page — same as the link
+// embedded in WhatsApp messages, so a runner clicking from the
+// cart, from WhatsApp, or from a bookmark always lands on the same
+// origin (with live-from-Firestore data overrides on every load).
+const TICKET_BASE_URL = "https://batroun-race.web.app/ticket";
+
 function buildTicketUrlFor(r) {
   const params = new URLSearchParams({
     ref: r.whishReference || "",
@@ -2301,7 +2307,7 @@ function buildTicketUrlFor(r) {
     amount: (r.priceUSD ?? 0) ? `$${r.priceUSD}` : "Free",
     status: r.paymentStatus || ""
   });
-  return `${location.origin}${location.pathname.replace(/index\.html$/, "")}ticket.html?${params}`;
+  return `${TICKET_BASE_URL}?${params}`;
 }
 
 function renderCart(regs) {
