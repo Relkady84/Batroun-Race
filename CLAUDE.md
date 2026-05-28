@@ -11,7 +11,7 @@ A complete registration system for the **Batroun Race** annual running event in 
 - **Frontend**: vanilla HTML + CSS + JavaScript. **No build step, no framework.** Inter font from Google Fonts at runtime.
 - **Database**: Firebase Firestore (free Spark plan)
 - **Auth**: Google sign-in via Firebase Auth, restricted to a dynamic allowlist (super admins hardcoded, additional admins/staff stored in Firestore `/config/access`)
-- **Hosting**: GitHub Pages serves `/docs` from `main` branch (Pages only supports `/` or `/docs`; that's why the folder is named that)
+- **Hosting**: Firebase Hosting (atomic deploys; `firebase.json` + `firestore.rules` ship together via the `.github/workflows/firebase-deploy.yml` action on every push to `main`). The repo also still has `docs/` so GitHub Pages serves the site at the old URL during the transition.
 - **Payment**: Whish Money, manual reconciliation. Runner pastes their reference code into the Whish note; admin matches it and clicks Confirm.
 - **WhatsApp**: pre-composed `wa.me` links open in WhatsApp Web after payment confirmation — admin clicks Send. Semi-automatic, no API costs.
 - **QR**: generated client-side via `qrcodejs` (cdnjs CDN). No external QR API at runtime.
@@ -162,15 +162,24 @@ firebase emulators:start --only firestore,auth
 
 ## How to deploy
 
-GitHub Pages serves `/docs` on `main`. Just push.
+Every push to `main` triggers `.github/workflows/firebase-deploy.yml`, which runs
+`firebase deploy --only hosting,firestore:rules`. HTML + Firestore rules ship together
+in seconds — no manual rules re-publish.
 
 ```bash
 git add . && git commit -m "..." && git push
 ```
 
-Updates within 1–2 minutes. Hard-reload to bypass cache.
+Live URL: https://batroun-race.web.app (Firebase Hosting default). The old GitHub Pages URL
+keeps working until the DNS / bookmark cutover.
 
-If `firestore.rules` changed, also re-publish manually in Firebase Console.
+**One-time setup required** for the action to work:
+1. On any desktop, `npm install -g firebase-tools` then `firebase login:ci`.
+2. Copy the printed token.
+3. GitHub repo → Settings → Secrets and variables → Actions → New secret → name `FIREBASE_TOKEN`, paste, save.
+
+Before the secret is added, the workflow fails fast with an instructive error and the
+existing GitHub Pages deploy keeps serving the site untouched.
 
 ## Branch conventions
 
