@@ -455,12 +455,7 @@
         <div class="row">
           <label for="category">Distance / Category *</label>
           <select id="category" name="category" required>
-            <option value="">Select…</option>
-            <option value="marathon">Marathon — 42.195 KM (18+)</option>
-            <option value="halfMarathon">Half Marathon — 21.1 KM (17+)</option>
-            <option value="10k">10 KM Race (12+)</option>
-            <option value="5k">5 KM Race (all ages)</option>
-            <option value="para">Para Athlete Race (15+) — FREE</option>
+            <option value="">Loading categories…</option>
           </select>
           <div class="err" id="categoryErr"></div>
         </div>
@@ -855,14 +850,11 @@ let INCLUDES = [
   "Finisher Medal", "Goody Bag", "Finish Time Certificate", "LAF Fees"
 ];
 
-// Single price per category — no waves.
-let CATEGORIES = {
-  marathon:      { name: "Marathon 42.195 KM",    timed: true,  ageLimit: 18, ageLimitMax: null, price: 40 },
-  halfMarathon:  { name: "Half Marathon 21.1 KM", timed: true,  ageLimit: 17, ageLimitMax: null, price: 30 },
-  "10k":         { name: "10 KM Race",            timed: true,  ageLimit: 12, ageLimitMax: null, price: 25 },
-  "5k":          { name: "5 KM Race",             timed: false, ageLimit: 0,  ageLimitMax: null, price: 22 },
-  para:          { name: "Para Athlete Race",     timed: true,  ageLimit: 15, ageLimitMax: null, price: 0  }
-};
+// Categories live on Firestore (/competitions/<cid>/categories). Loaded on
+// boot — we don't ship hardcoded fallbacks any more because they got out
+// of sync with what admin had configured and briefly showed deleted /
+// renamed races during the loading flicker.
+let CATEGORIES = {};
 
 let CUSTOM_FIELDS = [];
 let REGISTRATION_OPENS  = null;          // Date — when registration becomes available
@@ -990,12 +982,17 @@ function applyTopBanner(text) {
 function populateCategorySelect() {
   const sel = document.getElementById("category");
   const current = sel.value;
+  const entries = Object.entries(CATEGORIES);
+  if (!entries.length) {
+    sel.innerHTML = '<option value="">Loading categories…</option>';
+    return;
+  }
   sel.innerHTML = '<option value="">Select…</option>' +
-    Object.entries(CATEGORIES).map(([id, c]) => {
+    entries.map(([id, c]) => {
       const range = formatAgeRange(c.ageLimit, c.ageLimitMax);
       const ageStr = range ? ` (age ${range})` : "";
       const freeStr = (c.price === 0) ? " — FREE" : "";
-      return `<option value="${id}">${c.name}${ageStr}${freeStr}</option>`;
+      return `<option value="${escHtml(id)}">${escHtml(c.name)}${ageStr}${freeStr}</option>`;
     }).join("");
   if (current && CATEGORIES[current]) sel.value = current;
   sel.dispatchEvent(new Event("change"));
