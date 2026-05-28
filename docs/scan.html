@@ -288,17 +288,15 @@ $("#manualLookup").addEventListener("click", () => {
 async function lookupAndShow(ref) {
   $("#result").innerHTML = `<div class="result"><h2 style="color:var(--muted)">Looking up…</h2><code>${ref}</code></div>`;
   try {
-    const q = query(
-      collection(db, "competitions", COMPETITION_ID, "registrations"),
-      where("whishReference", "==", ref)
-    );
-    const snap = await getDocs(q);
-    if (snap.empty) {
+    // Doc ID is the whish reference (since PR #12), so a single get-by-id
+    // is the right path: one round-trip, no list permission needed,
+    // strongly consistent.
+    const docSnap = await getDoc(doc(db, "competitions", COMPETITION_ID, "registrations", ref));
+    if (!docSnap.exists()) {
       $("#result").innerHTML = `<div class="result bad"><h2>❌ Not found</h2><div class="row"><span class="k">Scanned</span><span class="v"><code>${ref}</code></span></div><div class="row"><span class="k">Status</span><span class="v">No registration matches this code.</span></div></div>`;
       addRescan();
       return;
     }
-    const docSnap = snap.docs[0];
     const r = { id: docSnap.id, ...docSnap.data() };
     renderResult(r);
   } catch (err) {

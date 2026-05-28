@@ -687,7 +687,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
 import {
   getFirestore, collection, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc,
-  onSnapshot, query, orderBy, serverTimestamp
+  onSnapshot, query, orderBy, serverTimestamp, runTransaction
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -2122,23 +2122,47 @@ function openConfirmPay(r) {
   `);
   $("#cancelPay").onclick = closeModal;
   $("#okPay").onclick = async () => {
-    let bib;
-    if (autoOk) {
-      bib = next.bib;
-    } else {
-      bib = parseInt(($("#bibInput")?.value || "").trim(), 10);
-      if (!bib) { toast("Enter a bib number to continue", true); return; }
-    }
+    const manualBib = autoOk ? null : parseInt(($("#bibInput")?.value || "").trim(), 10);
+    if (!autoOk && !manualBib) { toast("Enter a bib number to continue", true); return; }
     const sendWa = $("#sendWaCb").checked;
     try {
-      await updateDoc(
-        doc(db, "competitions", COMPETITION_ID, "registrations", r.id),
-        { paymentStatus: priceFree ? "free" : "paid", bibNumber: bib, paidAt: serverTimestamp() }
-      );
+      // Atomic confirm: transaction reads the registration + category
+      // doc so two admins clicking Confirm at the same time can never
+      // assign the same bib. The category's bibCursor is the source of
+      // truth for the next bib in the range; we initialize it from
+      // bibRangeStart lazily on first use.
+      const regRef = doc(db, "competitions", COMPETITION_ID, "registrations", r.id);
+      const catRef = doc(db, "competitions", COMPETITION_ID, "categories", r.categoryId);
+      const assignedBib = await runTransaction(db, async (tx) => {
+        const regSnap = await tx.get(regRef);
+        if (!regSnap.exists()) throw new Error("Registration not found.");
+        const reg = regSnap.data();
+        if (reg.bibNumber) throw new Error(`This registration already has bib ${reg.bibNumber}.`);
+
+        let bib = manualBib;
+        if (bib == null) {
+          const catSnap = await tx.get(catRef);
+          if (!catSnap.exists()) throw new Error("Category not found.");
+          const c = catSnap.data();
+          const start = parseInt(c.bibRangeStart, 10);
+          const end   = parseInt(c.bibRangeEnd,   10);
+          if (!start || !end || start > end) throw new Error("No BIB range on this category — set one in admin → Categories.");
+          const cursor = Number.isFinite(c.bibCursor) ? c.bibCursor : start;
+          if (cursor > end) throw new Error(`BIB range ${start}–${end} is exhausted. Extend it in admin → Categories.`);
+          bib = cursor;
+          tx.update(catRef, { bibCursor: cursor + 1 });
+        }
+        tx.update(regRef, {
+          paymentStatus: (r.priceUSD || 0) === 0 ? "free" : "paid",
+          bibNumber: bib,
+          paidAt: serverTimestamp()
+        });
+        return bib;
+      });
       closeModal();
-      toast("Payment confirmed — bib " + bib + " assigned");
+      toast("Payment confirmed — bib " + assignedBib + " assigned");
       if (sendWa) {
-        const updated = { ...r, bibNumber: bib, paymentStatus: priceFree ? "free" : "paid" };
+        const updated = { ...r, bibNumber: assignedBib, paymentStatus: priceFree ? "free" : "paid" };
         const waUrl = buildWhatsAppUrl(updated);
         if (waUrl) window.open(waUrl, "_blank", "noopener");
         else toast("No phone number on record — couldn't open WhatsApp", true);
