@@ -2024,6 +2024,7 @@ function buildTicketUrl(r) {
     name: `${r.firstName || ""} ${r.lastName || ""}`.trim(),
     bib: String(r.bibNumber || ""),
     cat: (r.categoryName || "") + (r.subQuestionAnswer ? " — " + r.subQuestionAnswer : ""),
+    cat_id:  r.categoryId || "",
     date:    competition.raceDay       || "",
     start:   cat?.startTime || competition.raceStartTime || "",
     loc:     competition.raceLocation  || "",
