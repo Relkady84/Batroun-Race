@@ -75,7 +75,7 @@ competitions/{competitionId}/categories/{categoryId}
   └─ subQuestion: { label, options[] } | null   // e.g. age-bracket dropdown
 
 competitions/{competitionId}/config/{configId}   // public read except /access
-  ├─ theme:      { accent, accent2, ink, bg1, bg2, bgImage, logoImage, logoText, logoHeight, whishLogo, heading, subtitle, bannerText }
+  ├─ theme:      { accent, accent2, ink, bg1, bg2, bgImage, logoImage, logoText, logoHeight, whishLogo, whishNumber, whishRecipient, whishConfirmText, whishInvoiceText, heading, subtitle, bannerText }
   ├─ form:       { fields: [{ key, label, type, required, options }] }   // extra public-form fields
   ├─ publicForm: { builtIn: { <key>: { visible, required, label, deleted } }, includes: [string] }   // toggles + label overrides for built-in fields (email, gender, nationality, country, city, tshirt, blood, club, note, emergency) and the "Registration includes" list shown on the price card
   ├─ scanner:    { fields: [...] }    // which fields the hostess scanner shows
