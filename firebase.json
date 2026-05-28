@@ -10,9 +10,7 @@
     "ignore": [
       "firebase.json",
       "**/.*",
-      "**/node_modules/**",
-      "**/*.md",
-      "**/*.zip"
+      "**/node_modules/**"
     ],
     "cleanUrls": true,
     "trailingSlash": false,
