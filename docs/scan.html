@@ -319,11 +319,33 @@ function renderResult(r) {
     return;
   }
   const isPaid = r.paymentStatus === "paid" || r.paymentStatus === "free";
-  const alreadyCheckedIn = !!r.checkedInAt;
-  const cls = isPaid ? (alreadyCheckedIn ? "warn" : "ok") : "bad";
-  const headline = !isPaid
-    ? "❌ NOT PAID"
-    : (alreadyCheckedIn ? "⚠ ALREADY CHECKED IN" : "✅ PAID");
+
+  // Relay teams: one bib + one ref shared, but BOTH teammates need to be
+  // checked in. checkedInAt = Person 1, teammateCheckedInAt = Person 2.
+  const hasTeammate    = !!r.teammate && !!(r.teammate.firstName || r.teammate.lastName);
+  const p1CheckedIn    = !!r.checkedInAt;
+  const p2CheckedIn    = !!r.teammateCheckedInAt;
+  const teamFullyIn    = hasTeammate && p1CheckedIn && p2CheckedIn;
+  const alreadyCheckedIn = hasTeammate ? teamFullyIn : p1CheckedIn;
+
+  const p1Name = `${r.firstName || ""} ${r.lastName || ""}`.trim() || "Person 1";
+  const p2Name = hasTeammate
+    ? (`${r.teammate.firstName || ""} ${r.teammate.lastName || ""}`.trim() || "Person 2")
+    : "";
+
+  // Headline depends on paid + check-in state (per-person for relay).
+  let headline, cls;
+  if (!isPaid) { headline = "❌ NOT PAID"; cls = "bad"; }
+  else if (!hasTeammate) {
+    cls = p1CheckedIn ? "warn" : "ok";
+    headline = p1CheckedIn ? "⚠ ALREADY CHECKED IN" : "✅ PAID";
+  } else if (teamFullyIn) {
+    cls = "warn"; headline = "⚠ RELAY TEAM ALREADY FULLY CHECKED IN";
+  } else if (!p1CheckedIn) {
+    cls = "ok"; headline = `✅ PAID · RELAY · Check in Person 1`;
+  } else {
+    cls = "ok"; headline = `🔁 RELAY · Person 1 in. Now check in Person 2`;
+  }
 
   const rows = scannerFields.map(key => {
     const label = SCANNER_FIELD_LABELS[key] || key;
@@ -335,24 +357,54 @@ function renderResult(r) {
     return `<div class="row"><span class="k">${label}</span><span class="v">${html}</span></div>`;
   }).join("");
 
+  // For relay teams, show the per-person check-in summary inline.
+  const relayBlock = hasTeammate ? `
+    <div class="row"><span class="k">Person 1</span><span class="v">${escapeHtml(p1Name)} ${
+      p1CheckedIn ? `<span style="color:var(--accent);font-weight:700">✓ ${fmtDateTime(r.checkedInAt)}</span>` : "<em style='color:#ffae50'>pending</em>"
+    }</span></div>
+    <div class="row"><span class="k">Person 2</span><span class="v">${escapeHtml(p2Name)} ${
+      p2CheckedIn ? `<span style="color:var(--accent);font-weight:700">✓ ${fmtDateTime(r.teammateCheckedInAt)}</span>` : "<em style='color:#ffae50'>pending</em>"
+    }</span></div>` : "";
+
+  // Determine the next action.
+  const canCheckPerson1 = isPaid && hasTeammate && !p1CheckedIn;
+  const canCheckPerson2 = isPaid && hasTeammate && p1CheckedIn && !p2CheckedIn;
+  const canCheckSolo    = isPaid && !hasTeammate && !p1CheckedIn;
+
+  let actionBtn = "";
+  if (canCheckSolo)    actionBtn = `<button class="btn" id="checkInBtn">Mark as checked in → hand out bib</button>`;
+  if (canCheckPerson1) actionBtn = `<button class="btn" id="checkInBtn">Check in Person 1 (${escapeHtml(p1Name)})</button>`;
+  if (canCheckPerson2) actionBtn = `<button class="btn" id="checkInBtn">Check in Person 2 (${escapeHtml(p2Name)})</button>`;
+
+  // Single-runner already-checked-in details line (kept for non-relay path).
+  const soloCheckedLine = !hasTeammate && p1CheckedIn
+    ? `<div class="row"><span class="k">Checked in</span><span class="v">${fmtDateTime(r.checkedInAt)}<br><small>by ${escapeHtml(r.checkedInBy||"")}</small></span></div>`
+    : "";
+
   $("#result").innerHTML = `
     <div class="result ${cls}">
       <h2>${headline}</h2>
       ${rows}
-      ${alreadyCheckedIn ? `<div class="row"><span class="k">Checked in</span><span class="v">${fmtDateTime(r.checkedInAt)}<br><small>by ${escapeHtml(r.checkedInBy||"")}</small></span></div>` : ""}
-      ${isPaid && !alreadyCheckedIn
-        ? `<button class="btn" id="checkInBtn">Mark as checked in → hand out bib</button>` : ""}
+      ${relayBlock}
+      ${soloCheckedLine}
+      ${actionBtn}
       <button class="btn sec" id="rescanBtn">Scan another</button>
     </div>
   `;
-  if (isPaid && !alreadyCheckedIn) {
-    document.getElementById("checkInBtn").onclick = async () => {
+  const btn = document.getElementById("checkInBtn");
+  if (btn) {
+    btn.onclick = async () => {
       try {
-        await updateDoc(doc(db, "competitions", COMPETITION_ID, "registrations", r.id), {
-          checkedInAt: serverTimestamp(),
-          checkedInBy: auth.currentUser?.email || "unknown"
+        const patch = canCheckPerson2
+          ? { teammateCheckedInAt: serverTimestamp(), teammateCheckedInBy: auth.currentUser?.email || "unknown" }
+          : { checkedInAt: serverTimestamp(),       checkedInBy:       auth.currentUser?.email || "unknown" };
+        await updateDoc(doc(db, "competitions", COMPETITION_ID, "registrations", r.id), patch);
+        renderResult({
+          ...r,
+          ...(canCheckPerson2
+            ? { teammateCheckedInAt: new Date(), teammateCheckedInBy: auth.currentUser?.email }
+            : { checkedInAt: new Date(), checkedInBy: auth.currentUser?.email })
         });
-        renderResult({ ...r, checkedInAt: new Date(), checkedInBy: auth.currentUser?.email });
       } catch (e) {
         alert("Check-in failed: " + e.message);
       }

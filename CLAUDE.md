@@ -92,8 +92,9 @@ competitions/{competitionId}/registrations/{regId}    // doc ID = normalizePhone
   ├─ bibNumber, paidAt
   ├─ registeredAt, ageOnRaceDay
   ├─ custom: { ...customFieldValues }
-  ├─ deletedAt, deletedBy       // soft delete; admin Backup tab restores
-  └─ checkedInAt, checkedInBy   // set by hostess scanner
+  ├─ deletedAt, deletedBy                       // soft delete; admin Backup tab restores
+  ├─ checkedInAt, checkedInBy                   // set by hostess scanner (Person 1 for relay)
+  └─ teammateCheckedInAt, teammateCheckedInBy   // set when a relay scan checks in Person 2
 ```
 
 ## Critical conventions
