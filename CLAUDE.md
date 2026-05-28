@@ -61,15 +61,15 @@ batroun-race/
 ```
 competitions/{competitionId}                    // "batroun-race-2026"
   ├─ name, year, registrationOpens, registrationCloses, raceDay, raceStartTime, raceLocation
-  ├─ bibPoolStart, bibPoolEnd                  // single shared pool — confirm-payment auto-assigns the next unused bib FIFO across every category
 
 competitions/{competitionId}/categories/{categoryId}
   ├─ name, distanceKm, timed
   ├─ ageLimit (min), ageLimitMax (optional)
   ├─ price (single value — no waves)
   ├─ capacity (nullable), registeredCount
+  ├─ bibRangeStart, bibRangeEnd                 // per-category pool — confirm-payment auto-assigns the next unused bib in this range, FIFO within the category
   ├─ bibColor: "#RRGGBB"                        // displayed next to the bib number on tickets + admin lists
-  ├─ isRelay: bool                              // when true → public form collects a teammate
+  ├─ isRelay: bool                              // when true → public form collects a teammate; teammate shares Person 1's bib (one bib per team doc)
   └─ subQuestion: { label, options[] } | null   // e.g. age-bracket dropdown
 
 competitions/{competitionId}/config/{configId}   // public read except /access
