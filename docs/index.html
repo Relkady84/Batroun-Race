@@ -455,12 +455,7 @@
         <div class="row">
           <label for="category">Distance / Category *</label>
           <select id="category" name="category" required>
-            <option value="">Select…</option>
-            <option value="marathon">Marathon — 42.195 KM (18+)</option>
-            <option value="halfMarathon">Half Marathon — 21.1 KM (17+)</option>
-            <option value="10k">10 KM Race (12+)</option>
-            <option value="5k">5 KM Race (all ages)</option>
-            <option value="para">Para Athlete Race (15+) — FREE</option>
+            <option value="">Loading categories…</option>
           </select>
           <div class="err" id="categoryErr"></div>
         </div>
@@ -802,7 +797,7 @@
           <div style="background:rgba(61,214,198,.07);border:1px solid rgba(61,214,198,.35);border-radius:12px;padding:14px;margin-top:14px">
             <p style="margin:0 0 10px;font-weight:800;color:var(--accent)">📲 How to pay via Whish Money</p>
             <ol style="margin:0;padding-left:22px;line-height:1.7">
-              <li>Open the <strong>Whish Money</strong> app or visit any <strong>Whish Money</strong> store, send <strong id="whishAmount">$X</strong> to <strong style="color:#e6204e">81 300 625</strong> <span class="muted">(Batroun Race)</span>.</li>
+              <li>Open the <strong>Whish Money</strong> app or visit any <strong>Whish Money</strong> store, send <strong id="whishAmount">$X</strong> to <strong style="color:#e6204e">81 300 625</strong> <span class="muted">(Nizar El Kady)</span>.</li>
               <li><strong>In the note / comment field of the transfer, write your reference code <span id="refInline" style="color:var(--accent);font-family:ui-monospace,Menlo,monospace">BTN-2026-XXXX</span></strong> exactly. Without it, we cannot match your payment and <strong>your registration will not be approved</strong>.</li>
               <li><strong>Save this reference</strong> — keep this page open, take a screenshot, or write it down.</li>
             </ol>
@@ -824,7 +819,7 @@
 <!-- Firebase SDK -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
-import { getFirestore, collection, addDoc, setDoc, serverTimestamp, runTransaction, doc, getDoc, getDocs, writeBatch, arrayUnion }
+import { getFirestore, collection, setDoc, serverTimestamp, runTransaction, doc, getDoc, getDocs, writeBatch, arrayUnion }
   from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 
 // ============================================================
@@ -855,19 +850,15 @@ let INCLUDES = [
   "Finisher Medal", "Goody Bag", "Finish Time Certificate", "LAF Fees"
 ];
 
-// Single price per category — no waves.
-let CATEGORIES = {
-  marathon:      { name: "Marathon 42.195 KM",    timed: true,  ageLimit: 18, ageLimitMax: null, price: 40 },
-  halfMarathon:  { name: "Half Marathon 21.1 KM", timed: true,  ageLimit: 17, ageLimitMax: null, price: 30 },
-  "10k":         { name: "10 KM Race",            timed: true,  ageLimit: 12, ageLimitMax: null, price: 25 },
-  "5k":          { name: "5 KM Race",             timed: false, ageLimit: 0,  ageLimitMax: null, price: 22 },
-  para:          { name: "Para Athlete Race",     timed: true,  ageLimit: 15, ageLimitMax: null, price: 0  }
-};
+// Categories live on Firestore (/competitions/<cid>/categories). Loaded on
+// boot — we don't ship hardcoded fallbacks any more because they got out
+// of sync with what admin had configured and briefly showed deleted /
+// renamed races during the loading flicker.
+let CATEGORIES = {};
 
 let CUSTOM_FIELDS = [];
 let REGISTRATION_OPENS  = null;          // Date — when registration becomes available
 let REGISTRATION_CLOSES = null;          // Date — when registration shuts
-const DEFAULT_BG_IMAGE = "https://www.batrounrace.com/cdn/shop/files/IMG-20250707-WA0052.jpg?v=1759771908&width=3840";
 
 // ============================================================
 // Registration period
@@ -930,6 +921,25 @@ function ageOnRaceDay(dobStr) {
   return age;
 }
 
+// Shared age + age-bracket check used by every participant slot:
+// Person 1 on the main form, Person 2..N from the count dropdown,
+// and the "Add another participant" mini-form inside the cart.
+// Returns a human-readable error message, or null if everything is fine.
+function validateParticipantAge(cat, dobStr, sqAnswer) {
+  if (!cat) return "Please pick a race / category.";
+  const age = ageOnRaceDay(dobStr);
+  if (cat.ageLimit > 0 && (age === null || age < cat.ageLimit)) {
+    return `Minimum age for ${cat.name} is ${cat.ageLimit} on race day. Age on race day: ${age ?? "—"}.`;
+  }
+  if (cat.ageLimitMax > 0 && age !== null && age > cat.ageLimitMax) {
+    return `Maximum age for ${cat.name} is ${cat.ageLimitMax} on race day. Age on race day: ${age}.`;
+  }
+  if (cat.subQuestion?.options?.length && !sqAnswer) {
+    return `Date of birth doesn't fit any age bracket for ${cat.name}. Please verify the DOB or contact us.`;
+  }
+  return null;
+}
+
 // Canonical phone format used as the registration doc ID (enforces uniqueness).
 // Lebanese local "71503555" → "96171503555". International like "+33 …" preserved.
 function normalizePhone(raw) {
@@ -990,12 +1000,17 @@ function applyTopBanner(text) {
 function populateCategorySelect() {
   const sel = document.getElementById("category");
   const current = sel.value;
+  const entries = Object.entries(CATEGORIES);
+  if (!entries.length) {
+    sel.innerHTML = '<option value="">Loading categories…</option>';
+    return;
+  }
   sel.innerHTML = '<option value="">Select…</option>' +
-    Object.entries(CATEGORIES).map(([id, c]) => {
+    entries.map(([id, c]) => {
       const range = formatAgeRange(c.ageLimit, c.ageLimitMax);
       const ageStr = range ? ` (age ${range})` : "";
       const freeStr = (c.price === 0) ? " — FREE" : "";
-      return `<option value="${id}">${c.name}${ageStr}${freeStr}</option>`;
+      return `<option value="${escHtml(id)}">${escHtml(c.name)}${ageStr}${freeStr}</option>`;
     }).join("");
   if (current && CATEGORIES[current]) sel.value = current;
   sel.dispatchEvent(new Event("change"));
@@ -1932,20 +1947,9 @@ form.addEventListener("submit", async (e) => {
   const data = Object.fromEntries(new FormData(form).entries());
   const cat = CATEGORIES[data.category];
 
-  // Validate age
+  // Validate Person 1's age + age-bracket via the shared helper.
   if (cat) {
-    const age = ageOnRaceDay(data.dob);
-    let ageErr = null;
-    if (cat.ageLimit > 0 && (age === null || age < cat.ageLimit)) {
-      ageErr = `Minimum age for ${cat.name} is ${cat.ageLimit} on race day. Your age on race day: ${age ?? "—"}.`;
-    } else if (cat.ageLimitMax > 0 && age !== null && age > cat.ageLimitMax) {
-      ageErr = `Maximum age for ${cat.name} is ${cat.ageLimitMax} on race day. Your age on race day: ${age}.`;
-    }
-    // If the category has a sub-question, the auto-fill must have produced a value.
-    // Empty here means user's DOB didn't match any configured bracket.
-    if (!ageErr && cat?.subQuestion?.options?.length && !data.subQuestion) {
-      ageErr = `Your date of birth doesn't fit any age bracket for ${cat.name}. Please verify your DOB or contact us.`;
-    }
+    const ageErr = validateParticipantAge(cat, data.dob, data.subQuestion);
     if (ageErr) {
       document.getElementById("dobErr").textContent = ageErr;
       document.getElementById("dobErr").style.display = "block";
@@ -2032,18 +2036,8 @@ form.addEventListener("submit", async (e) => {
       if (!cat_i) throw new Error(`Participant ${i}: please pick a category.`);
       personCats.push(cat_i);
       totalPrice += cat_i.price ?? 0;
-
-      const dob_i = data[`p${i}_dob`];
-      const age_i = ageOnRaceDay(dob_i);
-      if (cat_i.ageLimit > 0 && (age_i === null || age_i < cat_i.ageLimit)) {
-        throw new Error(`Participant ${i}: minimum age for ${cat_i.name} is ${cat_i.ageLimit} on race day. Their age on race day: ${age_i ?? "—"}.`);
-      }
-      if (cat_i.ageLimitMax > 0 && age_i !== null && age_i > cat_i.ageLimitMax) {
-        throw new Error(`Participant ${i}: maximum age for ${cat_i.name} is ${cat_i.ageLimitMax} on race day. Their age on race day: ${age_i}.`);
-      }
-      if (cat_i.subQuestion?.options?.length && !data[`p${i}_sq`]) {
-        throw new Error(`Participant ${i}: date of birth doesn't fit any age bracket for ${cat_i.name}. Please verify their DOB or contact us.`);
-      }
+      const err_i = validateParticipantAge(cat_i, data[`p${i}_dob`], data[`p${i}_sq`]);
+      if (err_i) throw new Error(`Participant ${i}: ${err_i}`);
     }
 
     // Generate N unique refs.
@@ -2348,7 +2342,7 @@ function renderCart(regs) {
           <div class="row"><span class="k">Whish recipient</span><span class="v"><span class="ref-pill" style="color:#e6204e;background:rgba(230,32,78,.08);border-color:rgba(230,32,78,.4)">81 300 625</span></span></div>
           <div style="margin-top:12px;padding:10px 12px;background:#fff5f7;border:1px solid #ffd6e0;border-radius:10px;font-size:.85rem;color:#5b6c80">
             <strong style="color:#1a2b3d">How to pay.</strong>
-            Open the <strong style="color:#1a2b3d">Whish Money</strong> app or visit any <strong style="color:#1a2b3d">Whish Money</strong> store, send <strong style="color:#e6204e">$${r.priceUSD ?? 0}</strong> to <strong style="color:#e6204e">81 300 625</strong> (<em>Batroun Race</em>), then write <strong style="color:#e6204e">${escHtml(r.whishReference || r.ref || "")}</strong> in the transfer note. Once we confirm the payment, your bib + QR ticket are sent to you on WhatsApp.
+            Open the <strong style="color:#1a2b3d">Whish Money</strong> app or visit any <strong style="color:#1a2b3d">Whish Money</strong> store, send <strong style="color:#e6204e">$${r.priceUSD ?? 0}</strong> to <strong style="color:#e6204e">81 300 625</strong> (<em>Nizar El Kady</em>), then write <strong style="color:#e6204e">${escHtml(r.whishReference || r.ref || "")}</strong> in the transfer note. Once we confirm the payment, your bib + QR ticket are sent to you on WhatsApp.
           </div>
         </div>`;
     } else {
@@ -2661,16 +2655,8 @@ async function submitCartAdd() {
   if (!dob) return showCAErr(err, "Date of birth is required.");
   if (!gender || !shirt || !blood) return showCAErr(err, "Gender, t-shirt size, and blood type are required.");
 
-  const age = ageOnRaceDay(dob);
-  if (cat.ageLimit > 0 && (age === null || age < cat.ageLimit)) {
-    return showCAErr(err, `Minimum age for ${cat.name} is ${cat.ageLimit} on race day. Age: ${age ?? "—"}.`);
-  }
-  if (cat.ageLimitMax > 0 && age !== null && age > cat.ageLimitMax) {
-    return showCAErr(err, `Maximum age for ${cat.name} is ${cat.ageLimitMax} on race day. Age: ${age}.`);
-  }
-  if (cat.subQuestion?.options?.length && !sq) {
-    return showCAErr(err, `Date of birth doesn't fit any age bracket for ${cat.name}.`);
-  }
+  const ageErr = validateParticipantAge(cat, dob, sq);
+  if (ageErr) return showCAErr(err, ageErr);
 
   const btn = document.getElementById("ca_submit");
   btn.disabled = true;
@@ -2687,7 +2673,7 @@ async function submitCartAdd() {
       email: email || lead.email || "",
       phone: phoneNorm,
       dob,
-      ageOnRaceDay: age,
+      ageOnRaceDay: ageOnRaceDay(dob),
       gender,
       nationality: lead.nationality || null,
       country: lead.country || null,
