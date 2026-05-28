@@ -2345,10 +2345,11 @@ function renderCart(regs) {
           <div class="row"><span class="k">Race day</span><span class="v">${escHtml(fmtRaceDate(RACE_DAY))}</span></div>
           <div class="row"><span class="k">Amount due</span><span class="v amount">$${r.priceUSD ?? 0} USD</span></div>
           <div class="row"><span class="k">Reference</span><span class="v"><span class="ref-pill">${escHtml(r.whishReference || r.ref || "—")}</span></span></div>
+          <div class="row"><span class="k">Whish recipient</span><span class="v"><span class="ref-pill" style="color:#e6204e;background:rgba(230,32,78,.08);border-color:rgba(230,32,78,.4)">81 300 625</span></span></div>
           <div style="margin-top:12px;padding:10px 12px;background:#fff5f7;border:1px solid #ffd6e0;border-radius:10px;font-size:.85rem;color:#5b6c80">
             <strong style="color:#1a2b3d">How to pay.</strong>
-            Open Whish Money, send <strong style="color:#e6204e">$${r.priceUSD ?? 0}</strong> to <strong style="color:#1a2b3d">Batroun Race</strong>,
-            and write <strong style="color:#e6204e">${escHtml(r.whishReference || r.ref || "")}</strong> in the transfer note. Once we confirm the payment,
+            Open Whish Money and send <strong style="color:#e6204e">$${r.priceUSD ?? 0}</strong> to <strong style="color:#1a2b3d">+961 81 300 625</strong> (<em>Batroun Race</em>),
+            then write <strong style="color:#e6204e">${escHtml(r.whishReference || r.ref || "")}</strong> in the transfer note. Once we confirm the payment,
             your bib + QR ticket are sent to you on WhatsApp.
           </div>
         </div>`;

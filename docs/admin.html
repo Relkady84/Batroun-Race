@@ -2048,32 +2048,23 @@ function buildTicketUrl(r) {
   return `${TICKET_BASE_URL}?${params}`;
 }
 
-// WhatsApp message for pending registrations — Whish payment instructions
-// plus a deep link that opens the public page with the sign-in modal
-// pre-filled with the runner's ref so they only need to type their phone.
+// WhatsApp message for pending registrations — intentionally minimal:
+// just a greeting + the live-invoice deep link. All payment details
+// (amount, Whish recipient number, reference code, instructions) live
+// on the invoice card the runner sees after tapping the link, so they
+// can't go stale in the chat history.
 function buildPendingWhatsAppUrl(r) {
   const phone = String(r.phone || "").replace(/\D/g, "");
   if (!phone) return null;
-  const ref    = r.whishReference || r.id || "";
-  const amount = Number(r.priceUSD) || 0;
+  const ref = r.whishReference || r.id || "";
   const invoiceUrl = `https://batroun-race.web.app/?signin=${encodeURIComponent(ref)}`;
   const lines = [
-    `Hi ${r.firstName || ""}, your Batroun Race 2026 registration is received!`,
+    `Hi ${r.firstName || ""}, your Batroun Race 2026 registration is received.`,
     ``,
-    `Status: PAYMENT PENDING`,
-    `Reference code: ${ref}`,
-    `Amount due: ${amount === 0 ? "Free" : "$" + amount + " USD"}`,
-    `Category: ${r.categoryName || ""}${r.subQuestionAnswer ? " - " + r.subQuestionAnswer : ""}`,
-    ``,
-    `To complete your registration, send the payment via Whish Money:`,
-    `1. Open Whish Money`,
-    `2. Send $${amount} to Batroun Race`,
-    `3. Write your reference code "${ref}" in the transfer note`,
-    ``,
-    `Open your live invoice (auto-updates once we confirm):`,
+    `Open your invoice and payment instructions here:`,
     invoiceUrl,
     ``,
-    `Once we confirm your Whish transfer, you will receive your bib number and a printable QR ticket. See you at the start line!`
+    `It will update automatically once we confirm the payment.`
   ];
   return `https://wa.me/${phone}?text=${encodeURIComponent(lines.join("\n"))}`;
 }
