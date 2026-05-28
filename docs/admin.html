@@ -1415,14 +1415,31 @@ function renderRegTable() {
     tbody.innerHTML = `<tr><td colspan="11" class="empty">No registrations match.</td></tr>`;
     return;
   }
-  tbody.innerHTML = rows.map(r => `
-    <tr>
+  tbody.innerHTML = rows.map(r => {
+    const hasTeammate = !!r.teammate && !!(r.teammate.firstName || r.teammate.lastName);
+    const t1Done = !!r.checkedInAt;
+    const t2Done = !!r.teammateCheckedInAt;
+    const teammateName = hasTeammate
+      ? `${r.teammate.firstName || ""} ${r.teammate.lastName || ""}`.trim()
+      : "";
+    const checkedInCell = !hasTeammate
+      ? (r.checkedInAt ? `<span style="color:var(--accent);font-weight:700">✓ ${fmtDate(r.checkedInAt)}</span>` : "—")
+      : (t1Done && t2Done
+          ? `<span style="color:var(--accent);font-weight:700">✓ both</span>`
+          : t1Done
+            ? `<span style="color:#ffae50;font-weight:700">1/2 in</span>`
+            : "<span class='muted'>0/2 in</span>");
+    const expanderCell = hasTeammate
+      ? `<button class="btn tiny sec relay-expand" data-relay-id="${r.id}" title="Show teammate">▸</button>`
+      : "";
+    return `
+    <tr data-row-id="${r.id}">
       <td class="col-whishReference"><code>${escapeHtml(r.whishReference || "—")}</code></td>
-      <td class="col-firstName">${escapeHtml(r.firstName)}</td>
+      <td class="col-firstName">${expanderCell}${escapeHtml(r.firstName)}</td>
       <td class="col-lastName">${escapeHtml(r.lastName)}</td>
       <td class="col-email">${escapeHtml(r.email || "—")}</td>
       <td class="col-phone">${escapeHtml(r.phone || "—")}</td>
-      <td class="col-categoryName">${escapeHtml(r.categoryName || r.categoryId || "—")}</td>
+      <td class="col-categoryName">${escapeHtml(r.categoryName || r.categoryId || "—")}${hasTeammate ? ' <span class="muted" style="font-size:.78rem">· Relay</span>' : ""}</td>
       <td class="col-subQuestionAnswer">${escapeHtml(r.subQuestionAnswer || "—")}</td>
       <td class="col-ageOnRaceDay">${r.ageOnRaceDay ?? "—"}</td>
       <td class="col-gender">${escapeHtml(r.gender || "—")}</td>
@@ -1435,7 +1452,7 @@ function renderRegTable() {
       <td class="col-paymentMethod">${escapeHtml(r.paymentMethod || "—")}</td>
       <td class="col-bibNumber">${r.bibNumber ?? "—"}</td>
       <td class="col-registeredAt">${fmtDate(r.registeredAt)}</td>
-      <td class="col-checkedInAt">${r.checkedInAt ? `<span style="color:var(--accent);font-weight:700">✓ ${fmtDate(r.checkedInAt)}</span>` : "—"}</td>
+      <td class="col-checkedInAt">${checkedInCell}</td>
       <td class="actions">
         <button class="btn tiny sec" data-act="view" data-id="${r.id}">View</button>
         ${r.paymentStatus === "pending"
@@ -1445,7 +1462,35 @@ function renderRegTable() {
         <button class="btn tiny danger" data-act="del" data-id="${r.id}" title="Delete (spam)">Delete</button>
       </td>
     </tr>
-  `).join("");
+    ${hasTeammate ? `
+    <tr class="relay-teammate-row" data-relay-of="${r.id}" hidden>
+      <td colspan="20" style="background:rgba(255,255,255,.03);padding:8px 14px">
+        <div style="display:flex;flex-wrap:wrap;gap:14px 22px;align-items:center;font-size:.88rem">
+          <div><strong>Teammate (Person 2):</strong> ${escapeHtml(teammateName || "—")}</div>
+          ${r.teammate.dob ? `<div><span class="muted">DOB:</span> ${escapeHtml(r.teammate.dob)} (${r.teammate.ageOnRaceDay ?? "—"})</div>` : ""}
+          ${r.teammate.gender ? `<div><span class="muted">Gender:</span> ${escapeHtml(r.teammate.gender)}</div>` : ""}
+          ${r.teammate.tshirtSize ? `<div><span class="muted">T-shirt:</span> ${escapeHtml(r.teammate.tshirtSize)}</div>` : ""}
+          ${r.teammate.bloodType ? `<div><span class="muted">Blood:</span> ${escapeHtml(r.teammate.bloodType)}</div>` : ""}
+          <div><span class="muted">Shares bib:</span> ${r.bibNumber ?? "—"}</div>
+          <div><span class="muted">P2 checked in:</span> ${t2Done ? `<span style="color:var(--accent);font-weight:700">✓ ${fmtDate(r.teammateCheckedInAt)}</span>` : "<em style='color:#ffae50'>pending</em>"}</div>
+        </div>
+      </td>
+    </tr>` : ""}
+  `;
+  }).join("");
+
+  // Wire the relay-row expand/collapse toggles.
+  tbody.querySelectorAll("button.relay-expand").forEach(b => {
+    b.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const id = b.dataset.relayId;
+      const teammateRow = tbody.querySelector(`tr.relay-teammate-row[data-relay-of="${id}"]`);
+      if (!teammateRow) return;
+      const expanded = !teammateRow.hidden;
+      teammateRow.hidden = expanded;
+      b.textContent = expanded ? "▸" : "▾";
+    });
+  });
   applyPrefs(); // re-hide any disabled columns in the newly-rendered cells
 
   tbody.querySelectorAll('button[data-act]').forEach(b => {
