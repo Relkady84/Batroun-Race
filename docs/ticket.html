@@ -167,6 +167,7 @@
 </main>
 
 <script>
+const COMPETITION_ID = "batroun-race-2026";
 const params = new URLSearchParams(location.search);
 const get = (k) => (params.get(k) || "").trim();
 
@@ -191,24 +192,36 @@ set("ref",    ref);
 set("name",   teammate ? `${name} + ${teammate}` : name);
 set("bib",    bib);
 
-// Tint the bib number with the category colour if one was provided.
-if (color && /^#[0-9a-fA-F]{6}$/.test(color)) {
-  const bibEl = document.getElementById("bib");
-  if (bibEl) bibEl.style.color = color;
-}
 set("cat",    cat);
 set("amount", amount);
 
-if (date) {
-  try {
-    set("date", new Date(date).toLocaleDateString("en-GB", { weekday:"short", day:"numeric", month:"long", year:"numeric" }));
-    document.getElementById("year").textContent = new Date(date).getFullYear();
-  } catch (_) { set("date", date); }
-} else {
-  document.getElementById("year").textContent = new Date().getFullYear();
+function renderDate(s) {
+  if (!s) { document.getElementById("year").textContent = new Date().getFullYear(); set("date", ""); return; }
+  const d = new Date(s);
+  if (isNaN(d)) { set("date", s); document.getElementById("year").textContent = new Date().getFullYear(); return; }
+  set("date", d.toLocaleDateString("en-GB", { weekday:"short", day:"numeric", month:"long", year:"numeric" }));
+  document.getElementById("year").textContent = d.getFullYear();
 }
-if (start) set("start", start);
-if (loc)   set("loc",   loc);
+function renderStart(s) { set("start", s || "—"); }
+function renderLoc(s)   { set("loc",   s || "Batroun"); }
+function renderColor(c) {
+  if (c && /^#[0-9a-fA-F]{6}$/.test(c)) {
+    const bibEl = document.getElementById("bib");
+    if (bibEl) bibEl.style.color = c;
+  }
+}
+// Expose so the live-override module below can refresh these
+// when Firestore returns updated competition/category data.
+window.renderDate  = renderDate;
+window.renderStart = renderStart;
+window.renderLoc   = renderLoc;
+window.renderColor = renderColor;
+window.set         = set;
+
+renderDate(date);
+renderStart(start);
+renderLoc(loc);
+renderColor(color);
 if (status) {
   const s = status.toLowerCase();
   set("status", s === "free" ? "Free entry (confirmed)" : s === "paid" ? "Paid · Confirmed" : status);
@@ -217,6 +230,55 @@ if (status) {
 if (name) document.getElementById("subName").textContent = name + " — show this at pickup";
 
 document.title = name ? `Race Ticket — ${name}` : "Race Ticket — Batroun Race";
+</script>
+<!-- Live override: if the admin updated raceDay / raceStartTime / raceLocation
+     or the category's startTime / bibColor after this ticket URL was generated,
+     pull the latest values from Firestore on load. URL params are the fallback
+     when Firestore is unreachable (offline / blocked / first paint). -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
+import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+const firebaseConfig = {
+  apiKey: "AIzaSyChNfEHu5FhaNIe1Y7_Q_SaVSXmfHcfUQA",
+  authDomain: "batroun-race.firebaseapp.com",
+  projectId: "batroun-race",
+  storageBucket: "batroun-race.firebasestorage.app",
+  messagingSenderId: "175612171118",
+  appId: "1:175612171118:web:96fc6e09ec599758f9277f"
+};
+const app = initializeApp(firebaseConfig);
+const db  = getFirestore(app);
+const COMPETITION_ID_LIVE = "batroun-race-2026";
+const params = new URLSearchParams(location.search);
+const catId  = (params.get("cat_id") || "").trim();
+
+(async () => {
+  try {
+    const [compSnap, catSnap] = await Promise.all([
+      getDoc(doc(db, "competitions", COMPETITION_ID_LIVE)),
+      catId ? getDoc(doc(db, "competitions", COMPETITION_ID_LIVE, "categories", catId)) : Promise.resolve(null)
+    ]);
+    const c = compSnap.exists() ? compSnap.data() : {};
+    const cat = catSnap && catSnap.exists() ? catSnap.data() : {};
+    const liveRaceDay =
+      typeof c.raceDay === "string" ? c.raceDay.slice(0,10) :
+      c.raceDay?.toDate ? c.raceDay.toDate().toISOString().slice(0,10) : null;
+    if (liveRaceDay) window.renderDate(liveRaceDay);
+    const liveStart = cat.startTime || c.raceStartTime || null;
+    if (liveStart) window.renderStart(liveStart);
+    if (c.raceLocation) window.renderLoc(c.raceLocation);
+    if (cat.bibColor)   window.renderColor(cat.bibColor);
+    // Refresh the category name + sub-question label if the admin renamed
+    // them after this ticket URL was first generated.
+    if (cat.name) {
+      const subQ = params.get("subQuestionAnswer") || "";
+      window.set("cat", cat.name + (subQ ? " — " + subQ : ""));
+    }
+  } catch (err) {
+    // Stay with the URL-param values silently — they are the fallback.
+    console.warn("live-ticket fetch failed, using URL values:", err);
+  }
+})();
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
