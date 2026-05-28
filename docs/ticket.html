@@ -177,16 +177,18 @@ const cat    = get("cat");
 const date   = get("date");
 const start  = get("start");
 const loc    = get("loc");
-const amount = get("amount");
-const status = get("status");
-const color  = get("color");
+const amount   = get("amount");
+const status   = get("status");
+const color    = get("color");
+const teammate = get("teammate");
 
 function set(id, v, fallback = "—") {
   const el = document.getElementById(id);
   if (el) el.textContent = v || fallback;
 }
 set("ref",    ref);
-set("name",   name);
+// Relay teams share one bib — show both names on the participant line.
+set("name",   teammate ? `${name} + ${teammate}` : name);
 set("bib",    bib);
 
 // Tint the bib number with the category colour if one was provided.
