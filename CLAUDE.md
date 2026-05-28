@@ -4,7 +4,7 @@ Project context for Claude Code. This file is auto-read on every session. **Keep
 
 ## What this is
 
-A complete registration system for the **Batroun Race** annual running event in Lebanon (Lycée Montaigne, Beit Chabab). Public registration page + admin dashboard + race-day QR scanner. Built reusable each year — never hardcode "2026" anywhere; always use `competitionId` (e.g. `batroun-race-2026`). One deliberate exception: the Whish reference code format (see Critical conventions).
+A complete registration system for the **Batroun Race** annual running event in Lebanon (Batroun). Public registration page + admin dashboard + race-day QR scanner. Built reusable each year — never hardcode "2026" anywhere; always use `competitionId` (e.g. `batroun-race-2026`). One deliberate exception: the Whish reference code format (see Critical conventions).
 
 ## Tech stack (locked — don't change without asking)
 
