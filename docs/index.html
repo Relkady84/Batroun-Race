@@ -834,7 +834,7 @@
 
             <p lang="ar" dir="rtl" style="margin:14px 0 6px;font-weight:800;color:var(--accent)">📲 طريقة الدفع عبر ويش موني</p>
             <ol lang="ar" dir="rtl" style="margin:0;padding-right:22px;padding-left:0;line-height:1.7">
-              <li id="whishConfirmStepAr">أرسل المبلغ المطلوب عبر <strong>ويش موني</strong> (التطبيق أو أيّ فرع) إلى الرقم <strong style="color:#e6204e">81 300 625</strong> <span class="muted">(Nizar El Kady)</span>.</li>
+              <li id="whishConfirmStepAr">أرسل المبلغ المطلوب عبر <strong>ويش موني</strong> (التطبيق أو أيّ فرع) إلى الرقم <bdi dir="ltr"><strong style="color:#e6204e">81 300 625</strong></bdi> <span class="muted"><bdi dir="ltr">(Nizar El Kady)</bdi></span>.</li>
               <li>في حقل الملاحظة / التعليق على التحويل، اكتب رمز المرجع الخاص بك تمامًا كما هو. بدونه لن نتمكّن من مطابقة الدفع و<strong>لن يتمّ تأكيد تسجيلك</strong>.</li>
               <li><strong>احفظ هذا الرمز</strong> — اترك هذه الصفحة مفتوحة، أو خذ لقطة شاشة، أو دوّنه على الورق.</li>
             </ol>
@@ -1854,7 +1854,11 @@ function whishConfirmHtml(vars) {
 // (no admin override for now). Same placeholder substitutions if an
 // admin ever supplies an Arabic custom message later.
 function whishConfirmHtmlAr(vars) {
-  return `أرسل <strong>${escHtml(vars.amount)}</strong> عبر <strong>ويش موني</strong> (التطبيق أو أيّ فرع) إلى الرقم <strong style="color:#e6204e">${escHtml(vars.number)}</strong> <span class="muted">(${escHtml(vars.recipient)})</span>.`;
+  // Wrap the Latin number + Latin recipient name in <bdi dir="ltr"> so
+  // the browser's bidi algorithm doesn't flip the digit groups inside
+  // the RTL paragraph (which is what makes "81 300 625" render as
+  // "625 300 81" without the isolation).
+  return `أرسل <bdi dir="ltr"><strong>${escHtml(vars.amount)}</strong></bdi> عبر <strong>ويش موني</strong> (التطبيق أو أيّ فرع) إلى الرقم <bdi dir="ltr"><strong style="color:#e6204e">${escHtml(vars.number)}</strong></bdi> <span class="muted"><bdi dir="ltr">(${escHtml(vars.recipient)})</bdi></span>.`;
 }
 
 // Same for the signed-in cart's invoice card.
