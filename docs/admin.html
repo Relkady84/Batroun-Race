@@ -687,6 +687,18 @@ Masters Men-Women 35-39
           <button id="rebuildIndexBtn" class="btn">Rebuild phone indexes</button>
           <span class="muted" id="rebuildIndexStatus"></span>
         </div>
+
+        <p class="muted" style="margin:18px 0 10px">
+          Repairs registrations created before the ref-as-doc-id change shipped. Those legacy docs
+          can't be looked up by ref code, so a runner clicking a sign-in / WhatsApp link sees
+          "We couldn't find a registration with that reference code." This rebuilds each broken
+          doc at the correct path (one per registration), updates the phone index, and removes
+          the old doc. Safe to re-run anytime — it skips registrations that are already correct.
+        </p>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <button id="repairLegacyBtn" class="btn">Repair legacy registrations</button>
+          <span class="muted" id="repairLegacyStatus"></span>
+        </div>
       </div>
     </section>
 
@@ -708,7 +720,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
 import {
   getFirestore, collection, doc, getDoc, setDoc, updateDoc, deleteDoc,
-  onSnapshot, query, orderBy, serverTimestamp, runTransaction
+  onSnapshot, query, orderBy, serverTimestamp, runTransaction, arrayUnion
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -1829,6 +1841,74 @@ document.getElementById("rebuildIndexBtn")?.addEventListener("click", async () =
     ? `Rebuilt ${written}, failed ${failed} (check console).`
     : `Done — ${written} phone${written === 1 ? "" : "s"} indexed.`;
   toast(failed ? `Rebuild done with ${failed} failure(s)` : "Phone index rebuilt", !!failed);
+});
+
+// Repair registrations created before the ref-as-doc-id model: copies
+// each broken doc to /registrations/<whishReference>, appends the ref
+// to /phoneIndex/<normalisedPhone>, then deletes the old doc.
+// Idempotent — skips docs that are already at the correct path.
+document.getElementById("repairLegacyBtn")?.addEventListener("click", async () => {
+  const btn = document.getElementById("repairLegacyBtn");
+  const status = document.getElementById("repairLegacyStatus");
+  if (!regs || !regs.length) { toast("No registrations to scan yet.", true); return; }
+
+  const broken = regs.filter(r => r.whishReference && !r.deletedAt && r.id !== r.whishReference);
+  if (!broken.length) {
+    status.textContent = "Nothing to repair — every registration already uses ref-as-id.";
+    return;
+  }
+  if (!confirm(`Found ${broken.length} legacy registration(s) where the doc id doesn't match the ref code. Repair them now? Safe to re-run.`)) return;
+
+  btn.disabled = true;
+  const _orig = btn.textContent;
+  btn.textContent = "Repairing…";
+  let done = 0, failed = 0, skipped = 0;
+  for (const r of broken) {
+    try {
+      const newRef = doc(db, "competitions", COMPETITION_ID, "registrations", r.whishReference);
+      const oldRef = doc(db, "competitions", COMPETITION_ID, "registrations", r.id);
+      const phoneNorm = normalizePhoneForIndex(r.phone);
+      // Strip the local id field; the document id is implicit.
+      const payload = { ...r };
+      delete payload.id;
+
+      // Atomic: only write the new doc if it doesn't already exist, then
+      // remove the old. The phoneIndex append goes through arrayUnion outside
+      // the transaction (different doc, same effect, idempotent).
+      const result = await runTransaction(db, async (tx) => {
+        const existing = await tx.get(newRef);
+        if (existing.exists()) {
+          // Already migrated — just delete the legacy duplicate.
+          tx.delete(oldRef);
+          return "deduped";
+        }
+        tx.set(newRef, payload);
+        tx.delete(oldRef);
+        return "moved";
+      });
+
+      if (phoneNorm) {
+        await setDoc(
+          doc(db, "competitions", COMPETITION_ID, "phoneIndex", phoneNorm),
+          { refs: arrayUnion(r.whishReference), updatedAt: serverTimestamp() },
+          { merge: true }
+        );
+      }
+      if (result === "moved") done++;
+      else skipped++;
+      status.textContent = `Repaired ${done}${skipped ? `, skipped ${skipped}` : ""} / ${broken.length}…`;
+    } catch (e) {
+      failed++;
+      console.warn("Legacy repair failed for", r.id, e);
+    }
+  }
+
+  btn.disabled = false;
+  btn.textContent = _orig;
+  status.textContent = failed
+    ? `Repaired ${done}, skipped ${skipped}, failed ${failed} (check console).`
+    : `Done — repaired ${done} registration${done === 1 ? "" : "s"}${skipped ? `, ${skipped} already correct` : ""}.`;
+  toast(failed ? `Repair done with ${failed} failure(s)` : "Legacy registrations repaired", !!failed);
 });
 
 // Undo an approved payment — moves a runner back to Registrations as pending.
