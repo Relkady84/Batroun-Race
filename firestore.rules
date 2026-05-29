@@ -99,7 +99,12 @@ service cloud.firestore {
         // listing all registrations is still locked to admin / viewer.
         allow get:    if true;
         allow list:   if canReadDashboard();
-        allow create: if isValidNewRegistration() && registrationOpen(competitionId);
+        // Public form: strict validation + registration window.
+        // Admin / viewer: allowed unconditionally so the "Repair legacy
+        // registrations" maintenance tool can recreate broken docs at
+        // their correct ref-as-id path even after registration closes.
+        allow create: if canReadDashboard()
+                       || (isValidNewRegistration() && registrationOpen(competitionId));
         allow update: if canReadDashboard();
         allow delete: if isAdmin();
       }
