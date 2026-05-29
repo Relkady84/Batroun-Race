@@ -40,10 +40,16 @@ batroun-race/
 
 ## Live URLs
 
-- Public registration: https://relkady84.github.io/Batroun-Race/
-- Admin: https://relkady84.github.io/Batroun-Race/admin.html
-- Race-day scanner: https://relkady84.github.io/Batroun-Race/scan.html
-- Ticket page (per runner): https://relkady84.github.io/Batroun-Race/ticket.html?ref=...&name=...&bib=...
+- Public registration: https://register.batroun-race.com/
+- Admin: https://register.batroun-race.com/admin
+- Race-day scanner: https://register.batroun-race.com/scan
+- Ticket page (per runner): https://register.batroun-race.com/ticket?ref=...&name=...&bib=...
+
+Custom subdomain on Firebase Hosting. The apex `batroun-race.com` is held
+back for a future marketing site. GitHub Pages mirror at
+`relkady84.github.io/Batroun-Race/` is kept up as a fallback during the
+transition; the apex `batroun-race.web.app` still resolves but tickets
++ invoices now use the custom domain.
 
 ## Roles & access
 
@@ -138,7 +144,7 @@ Confirmed tab has a **↩ Revert** button per row that clears `paymentStatus`/`b
 
 - **NEVER edit JS via Python scripts that use string manipulation** — splits regex literals, doubles `const`, breaks template literals. Use the Edit tool.
 - **Always `node --check` the inline admin.html module after edits** — a duplicate `const` once silently broke the entire admin (sign-in button looked dead because the whole script failed to parse). Extract with `awk '/<script type="module">/,/<\/script>/' docs/admin.html | sed 's/<script[^>]*>//;s/<\/script>//' > /tmp/x.mjs && node --check /tmp/x.mjs`.
-- **Admin must be opened in Chrome.** Edge's tracking prevention silently blocks Firebase Auth's cross-origin token handoff between `relkady84.github.io` and `batroun-race.firebaseapp.com` — `getRedirectResult` resolves to null. Public page is unaffected.
+- **Admin must be opened in Chrome.** Edge's tracking prevention silently blocks Firebase Auth's cross-origin token handoff between the hosting origin and `batroun-race.firebaseapp.com` — `getRedirectResult` resolves to null. Public page is unaffected.
 - **Firebase Auth `signInWithPopup` first, then `signInWithRedirect` fallback** on blocked-popup error codes. The admin and scanner pages do this.
 - **Firestore `onSnapshot` fires twice on initial load** (cache then server). Any editor that populates inputs from a listener needs a "dirty" flag, or user-typed values get wiped between keystrokes and Save. See `competitionDirty` in admin.html.
 - **GitHub Pages cache is aggressive.** Hard reload (`Ctrl+Shift+R`) after pushing.
@@ -170,8 +176,10 @@ in seconds — no manual rules re-publish.
 git add . && git commit -m "..." && git push
 ```
 
-Live URL: https://batroun-race.web.app (Firebase Hosting default). The old GitHub Pages URL
-keeps working until the DNS / bookmark cutover.
+Live URL: https://register.batroun-race.com (custom domain, served by Firebase
+Hosting). `https://batroun-race.web.app` is the Firebase default and still
+resolves; the GitHub Pages URL keeps working as a fallback during the
+transition.
 
 **One-time setup required** for the action to work:
 1. On any desktop, `npm install -g firebase-tools` then `firebase login:ci`.
