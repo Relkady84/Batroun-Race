@@ -2356,6 +2356,7 @@ function openConfirmPay(r) {
 // ===== Participant editor (Add + Edit) =====
 // Same age + age-bracket helpers as the public form, so picking a category
 // with a subQuestion and entering a DOB auto-fills the matching bracket.
+// Falls back to race day from /competitions/{COMPETITION_ID} when available.
 function ageOnRaceDayAdmin(dobStr) {
   if (!dobStr || !competition?.raceDay) return null;
   const dob = new Date(dobStr), race = new Date(competition.raceDay);
@@ -2364,24 +2365,36 @@ function ageOnRaceDayAdmin(dobStr) {
   if (m < 0 || (m === 0 && race.getDate() < dob.getDate())) age--;
   return age;
 }
+// Mirrors parseBracketRange() in index.html — accepts:
+//   "(X-Y years)" → age range
+//   "X+"          → age open-ended
+//   "(YYYY-YYYY)" → birth-year range  (e.g. "U20 (2007-2008)")
+//   bare "X-Y"    → age range fallback (e.g. "Masters 50-54")
+function parseBracketRangeAdmin(label) {
+  if (!label) return null;
+  let m = label.match(/\(\s*(\d{1,3})\s*[-–to]+\s*(\d{1,3})\s*years?\s*\)/i);
+  if (m) return { type: "age", min: +m[1], max: +m[2] };
+  m = label.match(/(\d{1,3})\s*\+/);
+  if (m && +m[1] < 100) return { type: "age", min: +m[1], max: 200 };
+  m = label.match(/\(\s*(\d{4})\s*[-–to\s]+\s*(\d{4})\s*\)/i);
+  if (m) {
+    const a = +m[1], b = +m[2];
+    return { type: "year", min: Math.min(a, b), max: Math.max(a, b) };
+  }
+  m = label.match(/(\d{1,3})\s*[-–]\s*(\d{1,3})/);
+  if (m && +m[1] < 100 && +m[2] < 100) return { type: "age", min: +m[1], max: +m[2] };
+  return null;
+}
 function bracketMatches(label, dobStr) {
-  if (!label) return false;
-  // "(YYYY-YYYY)" anywhere in the label
-  const yrs = label.match(/\((\d{4})\s*-\s*(\d{4})\)/);
-  if (yrs) {
+  const r = parseBracketRangeAdmin(label);
+  if (!r) return false;
+  if (r.type === "year") {
     if (!dobStr) return false;
     const by = new Date(dobStr).getFullYear();
-    return by >= parseInt(yrs[1], 10) && by <= parseInt(yrs[2], 10);
+    return by >= r.min && by <= r.max;
   }
   const age = ageOnRaceDayAdmin(dobStr);
-  if (age == null) return false;
-  // "X-Y years"
-  const r = label.match(/(\d+)\s*-\s*(\d+)\s*year/i);
-  if (r) return age >= +r[1] && age <= +r[2];
-  // "X+"
-  const p = label.match(/(\d+)\s*\+/);
-  if (p) return age >= +p[1];
-  return false;
+  return age !== null && age >= r.min && age <= r.max;
 }
 
 function generateAdminRef() {
@@ -2412,7 +2425,10 @@ function openParticipantEditor(r) {
       </div>
       <div>
         <label>Phone *</label>
-        <input id="pe_phone" value="${v("phone")}" placeholder="+961 70 123 456" required>
+        <input id="pe_phone" type="tel" inputmode="tel" required
+               value="${v("phone")}" placeholder="+961 70 123 456"
+               pattern="^[+]?[\\d\\s()-]{7,}$">
+        <div id="pe_phoneErr" class="err" style="display:none;color:#ff7676;font-size:.78rem;margin-top:4px"></div>
       </div>
     </div>
 
@@ -2422,7 +2438,11 @@ function openParticipantEditor(r) {
     </div>
 
     <div class="row two">
-      <div><label>Email</label><input id="pe_email" type="email" value="${v("email")}" placeholder="participant@example.com"></div>
+      <div>
+        <label>Email</label>
+        <input id="pe_email" type="email" value="${v("email")}" placeholder="participant@example.com">
+        <div id="pe_emailErr" class="err" style="display:none;color:#ff7676;font-size:.78rem;margin-top:4px"></div>
+      </div>
       <div><label>Date of birth</label><input id="pe_dob" type="date" value="${v("dob")}"></div>
     </div>
 
@@ -2532,7 +2552,51 @@ function openParticipantEditor(r) {
   }
   $("#pe_cat").addEventListener("change", refreshSubQ);
   $("#pe_dob").addEventListener("change", refreshSubQ);
+  $("#pe_dob").addEventListener("input",  refreshSubQ);
   refreshSubQ();
+
+  // Live validation — phone + email — mirrors the public form (blur + input).
+  // Returns true when the field is empty or well-formed; false otherwise.
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  function validatePhoneField() {
+    const el  = $("#pe_phone");
+    const err = $("#pe_phoneErr");
+    const raw = (el.value || "").trim();
+    if (!raw) {
+      err.style.display = "none"; el.style.borderColor = "";
+      return false; // required → invalid when empty (we'll still let blur pass without nagging)
+    }
+    // Same shape check the public form uses, plus the normalized-length sanity check.
+    const shapeOk = /^[+]?[\d\s()-]{7,}$/.test(raw);
+    const norm    = normalizePhoneForIndex(raw);
+    const lenOk   = norm.length >= 10 && norm.length <= 15;
+    const ok = shapeOk && lenOk;
+    err.textContent = ok ? "" :
+      "That number doesn't look right. Use +961 3 123 456 or 03 123 456.";
+    err.style.display = ok ? "none" : "block";
+    el.style.borderColor = ok ? "" : "#ff7676";
+    return ok;
+  }
+  function validateEmailField() {
+    const el  = $("#pe_email");
+    const err = $("#pe_emailErr");
+    const v   = (el.value || "").trim();
+    if (!v) { err.style.display = "none"; el.style.borderColor = ""; return true; } // optional
+    const ok = EMAIL_RE.test(v);
+    err.textContent = ok ? "" : "Please enter a valid email (e.g. you@example.com).";
+    err.style.display = ok ? "none" : "block";
+    el.style.borderColor = ok ? "" : "#ff7676";
+    return ok;
+  }
+  $("#pe_phone").addEventListener("blur",  validatePhoneField);
+  $("#pe_phone").addEventListener("input", () => {
+    // While typing, only clear the error — don't nag until they leave the field.
+    if ($("#pe_phoneErr").style.display !== "none") validatePhoneField();
+  });
+  $("#pe_email").addEventListener("blur",  validateEmailField);
+  $("#pe_email").addEventListener("input", () => {
+    if ($("#pe_emailErr").style.display !== "none") validateEmailField();
+  });
 
   // Show/hide the teammate section based on whether the picked category is a relay.
   function refreshTeammate() {
@@ -2548,7 +2612,9 @@ function openParticipantEditor(r) {
     const last  = $("#pe_last").value.trim();
     const phoneRaw = $("#pe_phone").value.trim();
     if (!first || !last)  { toast("First and last name are required", true); return; }
-    if (!phoneRaw)        { toast("Phone is required", true); return; }
+    if (!phoneRaw)        { toast("Phone is required", true); $("#pe_phone").focus(); return; }
+    if (!validatePhoneField()) { toast("Fix the phone number first", true); $("#pe_phone").focus(); return; }
+    if (!validateEmailField()) { toast("Fix the email first", true); $("#pe_email").focus(); return; }
     const phoneNorm = normalizePhoneForIndex(phoneRaw);
     if (!phoneNorm || phoneNorm.length < 8) { toast("That phone number doesn't look right", true); return; }
 
