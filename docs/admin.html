@@ -1043,7 +1043,7 @@ function startListeners() {
           orderBy("registeredAt", "desc")),
     snap => {
       regs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      renderStats(); renderRegTable(); renderBackupTable(); renderConfirmedTab();
+      rerenderAllTables();
     },
     err => toast("Registrations listener: " + err.message, true)
   );
@@ -1098,6 +1098,14 @@ function startListeners() {
     },
     err => toast("Competition listener: " + err.message, true)
   );
+}
+
+// Re-render every dashboard view that reads from `regs`. Called both by
+// the live snapshot listener and by individual write actions (delete /
+// undo / restore / revert / etc.) so the UI updates instantly without
+// waiting for the snapshot callback to round-trip back from Firestore.
+function rerenderAllTables() {
+  renderStats(); renderRegTable(); renderBackupTable(); renderConfirmedTab();
 }
 
 // ===== Registrations: stats =====
@@ -2043,6 +2051,14 @@ async function deleteRegistration(r) {
     return;
   }
 
+  // Optimistic local update — flip the row in our in-memory `regs` cache
+  // and re-render right away so it leaves the table without waiting for
+  // the Firestore snapshot listener to round-trip. The snapshot will
+  // reconcile when it fires.
+  const idx = regs.findIndex(x => x.id === r.id);
+  if (idx >= 0) regs[idx] = { ...regs[idx], deletedAt: new Date(), deletedBy: currentUserEmail || "unknown" };
+  rerenderAllTables();
+
   // Then show a 10s undo toast that can restore it
   undoableAction({
     message: `🗑 <strong>${escapeHtml(name)}</strong> deleted — moved to Backup`,
@@ -2053,6 +2069,10 @@ async function deleteRegistration(r) {
           deletedAt: null,
           deletedBy: null
         });
+        // Optimistic: bring the row back instantly.
+        const j = regs.findIndex(x => x.id === r.id);
+        if (j >= 0) regs[j] = { ...regs[j], deletedAt: null, deletedBy: null };
+        rerenderAllTables();
         toast(`${name} restored`);
       } catch (e) {
         console.error(e);
@@ -2070,6 +2090,9 @@ async function restoreRegistration(r) {
       deletedAt: null,
       deletedBy: null
     });
+    const j = regs.findIndex(x => x.id === r.id);
+    if (j >= 0) regs[j] = { ...regs[j], deletedAt: null, deletedBy: null };
+    rerenderAllTables();
     toast("Registration restored");
   } catch (e) { toast(e.message || "Restore failed", true); }
 }
@@ -2083,6 +2106,8 @@ async function purgeRegistration(r) {
   )) return;
   try {
     await deleteDoc(doc(db, "competitions", COMPETITION_ID, "registrations", r.id));
+    regs = regs.filter(x => x.id !== r.id);
+    rerenderAllTables();
     toast("Registration permanently deleted");
   } catch (e) { toast(e.message || "Delete failed", true); }
 }
