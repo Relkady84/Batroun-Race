@@ -690,8 +690,12 @@
 
       <!-- Waiver step (hidden until Proceed is clicked) -->
       <div class="card" id="waiverStep" hidden style="margin-top:14px">
-        <h2 class="title" style="margin-bottom:6px">Participant liability waiver &amp; responsibility agreement</h2>
-        <p class="muted" style="margin:0 0 14px">Please review and accept the terms below to complete your registration.</p>
+        <h2 class="title" style="margin-bottom:6px">
+          Participant liability waiver &amp; responsibility agreement
+          <span lang="ar" dir="rtl" style="display:block;font-size:.7em;opacity:.9;margin-top:4px">إقرار المشارك بإخلاء المسؤولية والموافقة على شروط المشاركة</span>
+        </h2>
+        <p class="muted" style="margin:0 0 6px">Please review and accept the terms below to complete your registration.</p>
+        <p class="muted" lang="ar" dir="rtl" style="margin:0 0 14px">يرجى مراجعة الشروط أدناه والموافقة عليها لإتمام التسجيل.</p>
 
         <h3 style="margin:14px 0 8px;font-size:1rem">Declaration &amp; Terms</h3>
         <ol style="padding-left:1.2rem;line-height:1.55;font-size:.95rem">
@@ -707,22 +711,36 @@
           <li>By submitting this form, I confirm that I have read, understood, and accepted all terms and conditions stated in this document.</li>
         </ol>
 
+        <h3 lang="ar" dir="rtl" style="margin:18px 0 8px;font-size:1rem">الإقرار والشروط</h3>
+        <ol lang="ar" dir="rtl" style="padding-right:1.4rem;padding-left:0;line-height:1.7;font-size:.95rem">
+          <li>أُقرّ بأنّ مشاركتي في سباق البترون طوعيّة وتتمّ على مسؤوليتي الشخصيّة بالكامل.</li>
+          <li>أُقرّ بأنّني لائق بدنيًا وصحيًا للمشاركة في هذا الحدث الرياضي.</li>
+          <li>أتحمّل المسؤولية الكاملة عن أيّ إصابة أو مرض أو حادث أو إعاقة أو خسارة أو ضرر قد يحدث قبل السباق أو أثناءه أو بعده.</li>
+          <li>أُقرّ بأنّني لا أُشارك تحت تأثير الكحول أو المخدّرات أو المنشّطات أو أيّ دواء يؤثّر على قدراتي الجسديّة أو الذهنيّة.</li>
+          <li>أتحمّل مسؤوليّة أيّ حالة طبيّة أو معلومة صحيّة لم يتمّ الإفصاح عنها.</li>
+          <li>أُعفي المنظِّمين والإدارة وفريق العمل والمتطوّعين والرعاة والشركاء والجهات المرتبطة من أيّ مسؤوليّة قانونيّة أو طبيّة أو مدنيّة أو ماليّة تتعلّق بمشاركتي.</li>
+          <li>أتعهّد بالالتزام بجميع قواعد السباق وتعليمات المنظّمين وإجراءات السلامة طوال فترة الحدث.</li>
+          <li>أتفهّم أنّ المنظِّمين قد يوقفون مشاركتي أو يرفضونها لأسباب تتعلّق بالسلامة.</li>
+          <li>أُجيز استخدام الصور والفيديوهات والمقابلات والمواد الإعلاميّة المتعلّقة بي لأغراض التسويق والتواصل والترويج لسباق البترون.</li>
+          <li>بتقديمي لهذا النموذج، أُقرّ بأنّني قرأتُ وفهمتُ ووافقتُ على جميع البنود والشروط الواردة في هذه الوثيقة.</li>
+        </ol>
+
         <div class="row" style="margin-top:14px">
           <label class="inline">
             <input type="checkbox" name="waiver" required
               style="width:auto;min-height:auto;accent-color:#27cbbb;margin-top:5px">
-            <span>I agree to the event waiver and I'm medically fit. *</span>
+            <span>I agree to the event waiver and I'm medically fit. *<br><span lang="ar" dir="rtl" style="display:inline-block;opacity:.9;margin-top:2px">أوافق على إخلاء المسؤولية وأُقرّ بأنّني لائق صحيًا. *</span></span>
           </label>
           <label class="inline">
             <input type="checkbox" name="dataConsent" required
               style="width:auto;min-height:auto;accent-color:#27cbbb;margin-top:5px">
-            <span>I consent to my data being used for registration. *</span>
+            <span>I consent to my data being used for registration. *<br><span lang="ar" dir="rtl" style="display:inline-block;opacity:.9;margin-top:2px">أوافق على استخدام بياناتي لأغراض التسجيل. *</span></span>
           </label>
         </div>
 
         <div style="display:flex;gap:10px;justify-content:space-between;flex-wrap:wrap;margin-top:14px">
-          <button type="button" class="btn sec" id="backToFormBtn">← Back to edit</button>
-          <button type="submit" class="btn" id="submitBtn">Register</button>
+          <button type="button" class="btn sec" id="backToFormBtn">← Back to edit · <span lang="ar" dir="rtl">العودة للتعديل</span></button>
+          <button type="submit" class="btn" id="submitBtn">Register · <span lang="ar" dir="rtl">سجِّل</span></button>
         </div>
       </div>
     </form>
@@ -787,12 +805,24 @@
     <!-- Confirmation -->
     <div class="confirm" id="confirmPanel">
       <div class="card">
-        <h3 class="title" style="color:var(--accent)">✓ Registration received</h3>
-        <p>Your spot is reserved. Save this confirmation code — you'll need it when we contact you.</p>
+        <h3 class="title" style="color:var(--accent)">
+          ✓ Application received
+          <span lang="ar" dir="rtl" style="display:block;font-size:.85em;opacity:.9;margin-top:2px">تمّ استلام طلبك ✓</span>
+        </h3>
+        <p>
+          Your participation is <strong>not confirmed</strong> until your Whish Money payment is verified.
+          Save this reference code — you'll need it as your <strong>payment identifier</strong> in Whish Money and to look up your invoice anytime.
+        </p>
+        <p lang="ar" dir="rtl" style="opacity:.9">
+          مشاركتك <strong>غير مؤكَّدة</strong> حتى يتمّ التحقّق من الدفع عبر ويش موني. احفظ رمز المرجع هذا — ستحتاج إليه <strong>كمُعرِّف للدفع</strong> داخل تطبيق ويش موني ولاستعراض فاتورتك في أيّ وقت.
+        </p>
         <div class="reference" id="refCode">—</div>
 
         <div id="paymentBlock">
-          <p class="muted" style="margin:14px 0 0">Total due: <strong style="color:var(--ink);font-size:1.1rem" id="amountDue">—</strong></p>
+          <p class="muted" style="margin:14px 0 0">
+            Total due / <span lang="ar" dir="rtl">المبلغ المطلوب</span>:
+            <strong style="color:var(--ink);font-size:1.1rem" id="amountDue">—</strong>
+          </p>
 
           <div style="background:rgba(61,214,198,.07);border:1px solid rgba(61,214,198,.35);border-radius:12px;padding:14px;margin-top:14px">
             <p style="margin:0 0 10px;font-weight:800;color:var(--accent)">📲 How to pay via Whish Money</p>
@@ -801,14 +831,26 @@
               <li><strong>In the note / comment field of the transfer, write your reference code <span id="refInline" style="color:var(--accent);font-family:ui-monospace,Menlo,monospace">BTN-2026-XXXX</span></strong> exactly. Without it, we cannot match your payment and <strong>your registration will not be approved</strong>.</li>
               <li><strong>Save this reference</strong> — keep this page open, take a screenshot, or write it down.</li>
             </ol>
+
+            <p lang="ar" dir="rtl" style="margin:14px 0 6px;font-weight:800;color:var(--accent)">📲 طريقة الدفع عبر ويش موني</p>
+            <ol lang="ar" dir="rtl" style="margin:0;padding-right:22px;padding-left:0;line-height:1.7">
+              <li id="whishConfirmStepAr">أرسل المبلغ المطلوب عبر <strong>ويش موني</strong> (التطبيق أو أيّ فرع) إلى الرقم <strong style="color:#e6204e">81 300 625</strong> <span class="muted">(Nizar El Kady)</span>.</li>
+              <li>في حقل الملاحظة / التعليق على التحويل، اكتب رمز المرجع الخاص بك تمامًا كما هو. بدونه لن نتمكّن من مطابقة الدفع و<strong>لن يتمّ تأكيد تسجيلك</strong>.</li>
+              <li><strong>احفظ هذا الرمز</strong> — اترك هذه الصفحة مفتوحة، أو خذ لقطة شاشة، أو دوّنه على الورق.</li>
+            </ol>
           </div>
 
           <p style="margin-top:12px">Once we verify your Whish payment, you'll receive a <strong>WhatsApp message</strong> with your bib number and a QR code ticket to show at pickup.</p>
+          <p lang="ar" dir="rtl" style="margin-top:6px;opacity:.9">
+            بمجرّد التحقّق من دفعتك عبر ويش موني، ستصلك <strong>رسالة على واتساب</strong> تحتوي على رقم البِب ورمز QR لعرضه عند نقطة الاستلام.
+          </p>
         </div>
 
         <div id="freeBlock" style="display:none">
           <p>This category is <strong>free of charge</strong>. No payment needed.</p>
+          <p lang="ar" dir="rtl" style="opacity:.9">هذه الفئة <strong>مجّانية</strong>. لا حاجة لأيّ دفع.</p>
           <p>We'll WhatsApp you with your bib number and a QR code ticket to show at pickup.</p>
+          <p lang="ar" dir="rtl" style="opacity:.9">سنرسل لك على واتساب رقم البِب ورمز QR لعرضه عند نقطة الاستلام.</p>
         </div>
       </div>
     </div>
@@ -1808,6 +1850,13 @@ function whishConfirmHtml(vars) {
   }
   return `Send <strong>${escHtml(vars.amount)}</strong> via <strong>Whish Money</strong> (app or any branch) to <strong style="color:#e6204e">${escHtml(vars.number)}</strong> <span class="muted">(${escHtml(vars.recipient)})</span>.`;
 }
+// Arabic copy of the confirmation step — kept as a built-in default
+// (no admin override for now). Same placeholder substitutions if an
+// admin ever supplies an Arabic custom message later.
+function whishConfirmHtmlAr(vars) {
+  return `أرسل <strong>${escHtml(vars.amount)}</strong> عبر <strong>ويش موني</strong> (التطبيق أو أيّ فرع) إلى الرقم <strong style="color:#e6204e">${escHtml(vars.number)}</strong> <span class="muted">(${escHtml(vars.recipient)})</span>.`;
+}
+
 // Same for the signed-in cart's invoice card.
 function whishInvoiceHtml(vars) {
   if (WHISH_INVOICE_TEXT) {
@@ -2212,15 +2261,16 @@ function showConfirmation(created, total, cat) {
   }
 
   document.getElementById("amountDue").textContent = total === 0 ? "Free" : `$${total} USD`;
-  const confirmStep = document.getElementById("whishConfirmStep");
-  if (confirmStep) {
-    confirmStep.innerHTML = whishConfirmHtml({
-      amount: `$${total}`,
-      number: WHISH_NUMBER,
-      recipient: WHISH_RECIPIENT,
-      ref: N === 1 ? created[0].ref : created.map(p => p.ref).join(", ")
-    });
-  }
+  const confirmStep   = document.getElementById("whishConfirmStep");
+  const confirmStepAr = document.getElementById("whishConfirmStepAr");
+  const confirmVars = {
+    amount: `$${total}`,
+    number: WHISH_NUMBER,
+    recipient: WHISH_RECIPIENT,
+    ref: N === 1 ? created[0].ref : created.map(p => p.ref).join(", ")
+  };
+  if (confirmStep)   confirmStep.innerHTML   = whishConfirmHtml(confirmVars);
+  if (confirmStepAr) confirmStepAr.innerHTML = whishConfirmHtmlAr(confirmVars);
   const refInline = document.getElementById("refInline");
   if (refInline) refInline.textContent = N === 1 ? created[0].ref : created.map(p => p.ref).join(" , ");
 
