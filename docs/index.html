@@ -1282,13 +1282,17 @@ function renderSubQuestion(cat) {
     "United Arab Emirates","United Kingdom","United States","Uruguay",
     "Venezuela","Vietnam","Yemen","Zimbabwe","Other"
   ];
+  // Lebanese city list — Batroun first (event home), then the rest A→Z so
+  // runners can scan the list quickly. "Other" stays at the bottom.
   const LEB_CITIES = [
-    "Batroun","Beirut","Beit Chabab","Antelias","Aley","Baabda","Baalbek",
-    "Bcharre","Beit Mery","Bikfaya","Brummana","Byblos (Jbeil)","Chekka",
-    "Dbayeh","Dora","Ehden","Faraya","Hammana","Hazmieh","Jal el Dib",
-    "Jezzine","Jounieh","Kaslik","Kfardebian","Mansourieh","Mzaar Kfardebian",
-    "Nabatieh","Naccache","Rabieh","Sin el Fil","Sour (Tyre)","Saida (Sidon)",
-    "Tripoli","Zahle","Zalka","Zgharta","Other"
+    "Batroun",
+    "Aley","Antelias","Baabda","Baalbek","Bcharre","Beirut","Beit Chabab",
+    "Beit Mery","Bikfaya","Brummana","Byblos (Jbeil)","Chekka","Dbayeh",
+    "Dora","Ehden","Faraya","Hammana","Hazmieh","Jal el Dib","Jezzine",
+    "Jounieh","Kaslik","Kfardebian","Mansourieh","Mzaar Kfardebian",
+    "Nabatieh","Naccache","Rabieh","Saida (Sidon)","Sin el Fil","Sour (Tyre)",
+    "Tripoli","Zahle","Zalka","Zgharta",
+    "Other"
   ];
 
   function fill(sel, items) {
@@ -1301,7 +1305,9 @@ function renderSubQuestion(cat) {
   const natSel = document.getElementById("nationality");
   fill(natSel, NATIONALITIES);
   natSel.value = "Lebanese";
-  fill(document.getElementById("country"), COUNTRIES);
+  const countrySel = document.getElementById("country");
+  fill(countrySel, COUNTRIES);
+  countrySel.value = "Lebanon";
 
   const citySel = document.getElementById("city");
   const cityOther = document.getElementById("cityOther");
