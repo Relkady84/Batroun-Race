@@ -1613,8 +1613,43 @@ function initFieldErrors() {
     const evt = (el.type === "checkbox" || el.tagName === "SELECT") ? "change" : "input";
     el.addEventListener(evt, () => setFieldError(el, ""));
   });
+  // Also clear the error on input for type=email / type=tel fields that
+  // aren't required — they still get live-validated on blur below.
+  document.querySelectorAll('input[type="email"]:not([required]), input[type="tel"]:not([required])').forEach(el => {
+    el.addEventListener("input", () => setFieldError(el, ""));
+  });
 }
 initFieldErrors();
+
+// Live validation: as soon as a runner blurs out of an email or phone field,
+// show an inline error if the value is filled but the format is wrong. Also
+// shows the "This field is required." message on blur for empty required
+// fields so the runner doesn't have to wait until Proceed / Register.
+function liveValidateOne(el) {
+  if (!el || el.tagName !== "INPUT") return;
+  if (el.type === "checkbox") return;
+  if (el.disabled || el.readOnly) return;
+  if (el.closest("[hidden]")) return;
+  // Skip fields hidden via display:none (form is on the waiver step etc.)
+  if (el.offsetParent === null) return;
+
+  const v = (el.value || "").trim();
+  let msg = "";
+  if (el.required && !v) {
+    msg = "This field is required.";
+  } else if (v && el.type === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) {
+    msg = "Please enter a valid email address (e.g. you@example.com).";
+  } else if (v && el.pattern && !(new RegExp("^(?:" + el.pattern + ")$").test(v))) {
+    msg = el.type === "tel"
+      ? "Please enter a valid mobile number — use +961 3 123 456 or 03 123 456."
+      : "Please enter a valid value (check the format).";
+  }
+  setFieldError(el, msg);
+}
+// Attach via capture-phase delegation on the form so dynamically added
+// participant cards + cart-add fields validate automatically. `blur`
+// doesn't bubble, hence the `true` (capture).
+form.addEventListener("blur", (e) => { liveValidateOne(e.target); }, true);
 
 function validateRequiredFields() {
   let firstBad = null;
