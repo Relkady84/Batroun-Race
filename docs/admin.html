@@ -1464,12 +1464,12 @@ function renderRegTable() {
             ? `<span style="color:#ffae50;font-weight:700">1/2 in</span>`
             : "<span class='muted'>0/2 in</span>");
     const expanderCell = hasTeammate
-      ? `<button class="btn tiny sec relay-expand" data-relay-id="${r.id}" title="Show teammate">▸</button>`
+      ? `<button class="btn tiny sec relay-expand" data-relay-id="${r.id}" title="Show teammate" style="margin-right:6px;padding:2px 6px;line-height:1">▸</button>`
       : "";
     return `
     <tr data-row-id="${r.id}">
-      <td class="col-whishReference"><code>${escapeHtml(r.whishReference || "—")}</code></td>
-      <td class="col-firstName">${expanderCell}${escapeHtml(r.firstName)}</td>
+      <td class="col-whishReference">${expanderCell}<code>${escapeHtml(r.whishReference || "—")}</code></td>
+      <td class="col-firstName">${escapeHtml(r.firstName)}</td>
       <td class="col-lastName">${escapeHtml(r.lastName)}</td>
       <td class="col-email">${escapeHtml(r.email || "—")}</td>
       <td class="col-phone">${escapeHtml(r.phone || "—")}</td>
