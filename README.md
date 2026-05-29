@@ -6,9 +6,9 @@ Registration system for the annual **Batroun Race** in Lebanon. Public registrat
 
 | Page | URL | Audience |
 |---|---|---|
-| Registration | https://relkady84.github.io/Batroun-Race/ | Runners (any browser) |
-| Admin | https://relkady84.github.io/Batroun-Race/admin.html | Staff / admins (**Chrome only**) |
-| Race-day scanner | https://relkady84.github.io/Batroun-Race/scan.html | Hostesses (Chrome / Safari on phone) |
+| Registration | https://register.batroun-race.com/ | Runners (any browser) |
+| Admin | https://register.batroun-race.com/admin | Staff / admins (**Chrome only**) |
+| Race-day scanner | https://register.batroun-race.com/scan | Hostesses (Chrome / Safari on phone) |
 
 ## Docs
 

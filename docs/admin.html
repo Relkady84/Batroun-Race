@@ -2165,13 +2165,10 @@ $("#backupPurgeAll").addEventListener("click", async () => {
 // Each runner gets a public ticket page (URL-encoded params, no Firestore lookup).
 // Canonical hosting URL for runner-facing links. Tickets sent on
 // WhatsApp must point here regardless of which mirror an admin is
-// currently signed in to, so the link is stable when GH Pages is
-// eventually retired.
-// See note on the same constant in index.html — pointing at GitHub
-// Pages while Google Safe Browsing's false-positive on the new
-// .web.app subdomain clears. Switch back to batroun-race.web.app
-// (or a custom domain) once unflagged.
-const TICKET_BASE_URL = "https://relkady84.github.io/Batroun-Race/ticket.html";
+// currently signed in to, so the link is stable for the runner.
+// Custom domain: register.batroun-race.com → Firebase Hosting.
+// The /ticket path is rewritten to /ticket.html in firebase.json.
+const TICKET_BASE_URL = "https://register.batroun-race.com/ticket";
 
 function buildTicketUrl(r) {
   const cat = cats.find(c => c.id === r.categoryId);
@@ -2204,8 +2201,8 @@ function buildPendingWhatsAppUrl(r) {
   const phone = String(r.phone || "").replace(/\D/g, "");
   if (!phone) return null;
   const ref = r.whishReference || r.id || "";
-  // GitHub Pages mirror — see TICKET_BASE_URL note above.
-  const invoiceUrl = `https://relkady84.github.io/Batroun-Race/?signin=${encodeURIComponent(ref)}`;
+  // Custom domain — see TICKET_BASE_URL note above.
+  const invoiceUrl = `https://register.batroun-race.com/?signin=${encodeURIComponent(ref)}`;
   const lines = [
     `Hi ${r.firstName || ""}, your Batroun Race 2026 registration is received.`,
     ``,
