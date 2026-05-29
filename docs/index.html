@@ -2423,7 +2423,13 @@ function fmtRaceDate(s) {
 // embedded in WhatsApp messages, so a runner clicking from the
 // cart, from WhatsApp, or from a bookmark always lands on the same
 // origin (with live-from-Firestore data overrides on every load).
-const TICKET_BASE_URL = "https://batroun-race.web.app/ticket";
+// Runner-facing canonical URL. Temporarily pointing at GitHub Pages
+// because Google Safe Browsing is showing a false-positive warning on
+// the new Firebase Hosting subdomain (.web.app subdomains can trip
+// phishing heuristics when they collect personal info + name a
+// payment brand). Switch back to https://batroun-race.web.app/ticket
+// — or a custom domain — once the flag clears.
+const TICKET_BASE_URL = "https://relkady84.github.io/Batroun-Race/ticket.html";
 
 function buildTicketUrlFor(r) {
   const params = new URLSearchParams({
