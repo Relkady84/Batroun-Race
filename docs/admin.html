@@ -809,6 +809,20 @@ Masters Men-Women 35-39
           <span class="muted" id="backupStatus"></span>
         </div>
 
+        <h3 style="margin:22px 0 6px;font-size:1rem">Restore from a backup file</h3>
+        <p class="muted" style="margin:0 0 8px;font-size:.88rem">
+          Loads a previously downloaded JSON and writes every doc back into Firestore
+          (registrations, sponsors, categories, phone index, config). It runs in
+          <strong>merge</strong> mode — same-ID docs are overwritten, new ones are added,
+          and docs currently in Firestore that aren't in the file are <strong>left
+          alone</strong>. For a clean rollback, run <em>Wipe</em> first, then Restore.
+        </p>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <input type="file" id="restoreFileInput" accept="application/json,.json" hidden>
+          <button id="restoreBackupBtn" class="btn sec">Restore from backup file…</button>
+          <span class="muted" id="restoreStatus"></span>
+        </div>
+
         <h3 style="margin:22px 0 6px;font-size:1rem;color:#ff8a8a">Wipe before going online</h3>
         <p class="muted" style="margin:0 0 8px;font-size:.88rem">
           Removes every registration (live + soft-deleted) and the phone index,
@@ -2310,6 +2324,148 @@ document.getElementById("backupDownloadBtn")?.addEventListener("click", async ()
     toast(e.message || "Backup failed", true);
   } finally {
     btn.disabled = false; btn.textContent = _orig;
+  }
+});
+
+// Inverse of serialisable(): walks a backup payload and turns ISO date
+// strings back into Date objects so the Firebase SDK stores them as
+// proper Timestamps again (createdAt, paidAt, registeredAt, etc).
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/;
+function deserialiseValue(value) {
+  if (value === null || value === undefined) return value;
+  if (typeof value === "string") {
+    if (ISO_DATE_RE.test(value)) {
+      const d = new Date(value);
+      return isNaN(d.getTime()) ? value : d;
+    }
+    return value;
+  }
+  if (Array.isArray(value)) return value.map(deserialiseValue);
+  if (typeof value === "object") {
+    const out = {};
+    for (const k of Object.keys(value)) out[k] = deserialiseValue(value[k]);
+    return out;
+  }
+  return value;
+}
+
+// Restore every doc from one collection array of the backup into Firestore.
+// Uses setDoc (overwrites a same-ID doc, creates if new). Batched at 400 —
+// the writeBatch limit. Returns the count written.
+async function restoreSubcollection(collName, docs) {
+  if (!Array.isArray(docs) || !docs.length) return 0;
+  let written = 0;
+  for (let i = 0; i < docs.length; i += 400) {
+    const batch = writeBatch(db);
+    for (const d of docs.slice(i, i + 400)) {
+      if (!d || !d.id) continue;
+      const { id, ...rest } = d;
+      batch.set(
+        doc(db, "competitions", COMPETITION_ID, collName, String(id)),
+        deserialiseValue(rest)
+      );
+      written++;
+    }
+    await batch.commit();
+  }
+  return written;
+}
+
+// Restore button — opens the file picker (which fires the change handler).
+document.getElementById("restoreBackupBtn")?.addEventListener("click", () => {
+  if (userRole !== "admin") { toast("Admin only", true); return; }
+  document.getElementById("restoreFileInput").click();
+});
+
+document.getElementById("restoreFileInput")?.addEventListener("change", async (e) => {
+  if (userRole !== "admin") return;
+  const file = e.target.files?.[0];
+  // Clear the input so picking the same file twice still fires `change`.
+  e.target.value = "";
+  if (!file) return;
+
+  const status = document.getElementById("restoreStatus");
+  const btn = document.getElementById("restoreBackupBtn");
+
+  // --- Parse + validate the file before we touch anything --------------
+  let backup;
+  try {
+    backup = JSON.parse(await file.text());
+  } catch {
+    status.textContent = "Couldn't parse that file as JSON.";
+    toast("Not a valid JSON file", true);
+    return;
+  }
+  if (!backup || typeof backup !== "object" || !backup.backupVersion) {
+    status.textContent = "File isn't a Batroun Race backup.";
+    toast("Missing backupVersion — wrong file?", true);
+    return;
+  }
+  if (backup.competitionId && backup.competitionId !== COMPETITION_ID) {
+    if (!confirm(
+        `This file is from competition '${backup.competitionId}', but you're currently on '${COMPETITION_ID}'.\n\n` +
+        `Restoring it here would write its docs into THIS competition. Continue anyway?`)) return;
+  }
+
+  // --- Summary + type-to-confirm ---------------------------------------
+  const c = backup.counts || {};
+  const fileTaken = backup.backupTakenAt ? new Date(backup.backupTakenAt) : null;
+  const summary =
+    `Restore from backup\n` +
+    `  • Taken: ${fileTaken ? fileTaken.toLocaleString() : "(unknown)"}\n` +
+    `  • By: ${backup.backupTakenBy || "(unknown)"}\n\n` +
+    `Will WRITE to current Firestore (merge: same-ID overwrites, new IDs are added):\n` +
+    `  • ${c.registrations ?? backup.registrations?.length ?? 0} registrations\n` +
+    `  • ${c.categories    ?? backup.categories?.length    ?? 0} categories\n` +
+    `  • ${c.sponsors      ?? backup.sponsors?.length      ?? 0} sponsors\n` +
+    `  • ${c.phoneIndex    ?? backup.phoneIndex?.length    ?? 0} phone-index entries\n` +
+    `  • ${c.config        ?? backup.config?.length        ?? 0} config docs\n\n` +
+    `Will NOT delete docs that exist in Firestore but not in this file. For a clean rollback,\n` +
+    `run Wipe first, then Restore.\n\n` +
+    `Continue?`;
+  if (!confirm(summary)) { toast("Restore cancelled"); return; }
+
+  const phrase = `RESTORE`;
+  const typed = prompt(`Type exactly to confirm:\n\n${phrase}`);
+  if (typed !== phrase) { toast("Restore cancelled — phrase didn't match", true); return; }
+
+  // --- Run -------------------------------------------------------------
+  btn.disabled = true;
+  const _orig = btn.textContent;
+  btn.textContent = "Restoring…";
+  status.textContent = "";
+  try {
+    // Order matters a little: categories before registrations so the
+    // category-driven UI (filters, colours, sub-questions) settles before
+    // the reg list re-renders.
+    status.textContent = "Restoring categories…";
+    const catsRestored = await restoreSubcollection("categories", backup.categories);
+    status.textContent = "Restoring config…";
+    const cfgRestored  = await restoreSubcollection("config",     backup.config);
+    status.textContent = "Restoring sponsors…";
+    const spnRestored  = await restoreSubcollection("sponsors",   backup.sponsors);
+    status.textContent = "Restoring phone index…";
+    const phRestored   = await restoreSubcollection("phoneIndex", backup.phoneIndex);
+    status.textContent = "Restoring registrations…";
+    const regRestored  = await restoreSubcollection("registrations", backup.registrations);
+
+    // Competition doc (registrationOpens/Closes, raceDay, etc.) — only
+    // restore it when the file actually has one.
+    if (backup.competition && typeof backup.competition === "object") {
+      await setDoc(doc(db, "competitions", COMPETITION_ID),
+                   deserialiseValue(backup.competition), { merge: true });
+    }
+
+    status.textContent =
+      `Done — restored ${regRestored} regs, ${catsRestored} categories, ${spnRestored} sponsors, ${phRestored} phone refs, ${cfgRestored} config docs.`;
+    toast("Restore complete");
+  } catch (err) {
+    console.error(err);
+    status.textContent = `Failed: ${err.message}`;
+    toast(err.message || "Restore failed", true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = _orig;
   }
 });
 
