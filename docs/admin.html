@@ -106,29 +106,38 @@
   .stat .value.accent{color:var(--accent)}
 
   /* Table */
-  .table-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px;max-height:calc(100vh - 240px)}
-  table{width:100%;border-collapse:collapse;min-width:900px}
+  .table-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px;
+     max-height:calc(100vh - 240px);
+     -webkit-overflow-scrolling:touch}      /* momentum scroll on iOS */
+  table{width:100%;border-collapse:separate;border-spacing:0;min-width:900px}
   th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--line);font-size:.9rem;
         white-space:nowrap}
-  th{background:#0f1e35;color:var(--muted);font-weight:700;text-transform:uppercase;
+  /* Sticky header row. translateZ promotes it to its own layer so mobile
+     browsers don't drop/flicker it while flinging the body up and down. */
+  thead th{background:#0f1e35;color:var(--muted);font-weight:700;text-transform:uppercase;
      letter-spacing:.05em;font-size:.72rem;
      position:sticky;top:0;z-index:3;
-     box-shadow:0 1px 0 var(--line)}
+     box-shadow:inset 0 -1px 0 var(--line);
+     transform:translateZ(0)}
   td{background:#0f1e35} /* solid bg so sticky-left cells don't reveal what's underneath */
   tr:hover td{background:#152a48}
   tr.relay-teammate-row td{background:#11253d;font-style:italic;color:#cad7e8}
   td.actions{display:flex;gap:6px}
 
-  /* Sticky first 4 columns (Ref, First, Last, Email) so they stay
-     visible when the table scrolls horizontally. Widths are fixed for
-     these columns only so the cumulative left offsets are predictable. */
-  .col-whishReference{position:sticky;left:0;   z-index:2;min-width:130px;max-width:130px}
-  .col-firstName     {position:sticky;left:130px;z-index:2;min-width:120px;max-width:120px}
-  .col-lastName      {position:sticky;left:250px;z-index:2;min-width:120px;max-width:120px}
-  .col-email         {position:sticky;left:370px;z-index:2;min-width:200px;max-width:200px;overflow:hidden;text-overflow:ellipsis}
-  th.col-whishReference,th.col-firstName,th.col-lastName,th.col-email{z-index:4}
-  /* Right edge shadow so the sticky block reads as a separate column group. */
-  .col-email{box-shadow:2px 0 4px rgba(0,0,0,.3)}
+  /* Frozen (sticky-left) columns. Each has a FIXED width; the `left`
+     offset is computed at runtime by applyStickyOffsets() based on which
+     of them are actually visible, so hiding a column never leaves a gap
+     or overlap. The dynamic <style id="stickyOffsets"> sets `left` + the
+     right-edge shadow on the last visible frozen column. */
+  .col-whishReference,.col-firstName,.col-lastName,.col-email,.col-phone{
+     position:sticky;z-index:2}
+  thead th.col-whishReference,thead th.col-firstName,thead th.col-lastName,
+  thead th.col-email,thead th.col-phone{z-index:4}
+  .col-whishReference{min-width:130px;max-width:130px}
+  .col-firstName     {min-width:120px;max-width:120px}
+  .col-lastName      {min-width:120px;max-width:120px}
+  .col-email         {min-width:200px;max-width:200px;overflow:hidden;text-overflow:ellipsis}
+  .col-phone         {min-width:140px;max-width:140px}
 
   /* Filters */
   .filters{display:grid;grid-template-columns:1fr 180px 180px 180px;gap:10px;margin-bottom:14px}
@@ -180,6 +189,9 @@
   .toast.undo{border-color:var(--warn,#ffa726)}
   .toast button{flex:0 0 auto}
 </style>
+<!-- Runtime-computed `left` offsets for the frozen columns. Rewritten by
+     applyStickyOffsets() whenever column visibility changes. -->
+<style id="stickyOffsets"></style>
 </head>
 <body>
 
@@ -1036,6 +1048,7 @@ function showApp(user) {
   applyRoleVisibility();
   applyPrefs();
   startListeners();
+  hydratePrefsFromCloud();
 }
 
 function applyRoleVisibility() {
@@ -1275,6 +1288,32 @@ function applyPrefs() {
       el.style.display = prefs.columns[c.key] ? "" : "none";
     });
   });
+  applyStickyOffsets();
+}
+
+// The frozen (sticky-left) columns, in display order, with their fixed
+// widths. `left` for each is the sum of the widths of the visible frozen
+// columns before it — recomputed here so hiding e.g. Email never leaves a
+// gap or makes Phone overlap. The last visible one gets the edge shadow.
+const FROZEN_COLS = [
+  { key: "whishReference", w: 130 },
+  { key: "firstName",      w: 120 },
+  { key: "lastName",       w: 120 },
+  { key: "email",          w: 200 },
+  { key: "phone",          w: 140 },
+];
+function applyStickyOffsets() {
+  const visible = FROZEN_COLS.filter(c => prefs.columns[c.key] !== false);
+  let left = 0;
+  const rules = visible.map((c, i) => {
+    const isLast = i === visible.length - 1;
+    const shadow = isLast ? ";box-shadow:2px 0 4px rgba(0,0,0,.3)" : "";
+    const rule = `.col-${c.key}{left:${left}px${shadow}}`;
+    left += c.w;
+    return rule;
+  });
+  const el = document.getElementById("stickyOffsets");
+  if (el) el.textContent = rules.join("\n");
 }
 
 function renderPrefsEditor() {
@@ -1344,16 +1383,53 @@ $("#prefsSaveBtn").addEventListener("click", () => {
   document.querySelectorAll('[data-pref="column"]').forEach(cb => {
     prefs.columns[cb.dataset.key] = cb.checked;
   });
-  localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+  savePrefs();
   applyPrefs();
   renderRegTable();
   toast("Dashboard preferences saved");
 });
 
+// Persist prefs to localStorage (instant, per-browser) AND, best-effort,
+// to Firestore keyed by the signed-in email so they survive a phone's
+// localStorage eviction and follow the admin to another device.
+function savePrefs() {
+  try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch {}
+  if (!currentUserEmail) return;
+  const id = currentUserEmail.replace(/[^a-z0-9]/gi, "_").toLowerCase();
+  setDoc(doc(db, "competitions", COMPETITION_ID, "config", "prefs_" + id),
+         { ...prefs, email: currentUserEmail, updatedAt: serverTimestamp() },
+         { merge: true })
+    .catch(e => console.warn("Cloud prefs save failed (kept locally):", e.message));
+}
+
+// On sign-in, pull cloud prefs (if any) so a fresh browser / re-installed
+// phone picks up the admin's saved columns. Falls back silently to the
+// local copy when there's nothing in the cloud or the read is denied.
+async function hydratePrefsFromCloud() {
+  if (!currentUserEmail) return;
+  const id = currentUserEmail.replace(/[^a-z0-9]/gi, "_").toLowerCase();
+  try {
+    const snap = await getDoc(doc(db, "competitions", COMPETITION_ID, "config", "prefs_" + id));
+    if (!snap.exists()) return;
+    const p = snap.data();
+    prefs = {
+      filters: { ...DEFAULT_PREFS.filters, ...(p.filters || {}) },
+      columns: { ...DEFAULT_PREFS.columns, ...(p.columns || {}) }
+    };
+    try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch {}
+    renderPrefsEditor();
+    applyPrefs();
+    renderRegTable();
+  } catch (e) {
+    console.warn("Cloud prefs load skipped:", e.message);
+  }
+}
+
 $("#prefsResetBtn").addEventListener("click", () => {
   if (!confirm("Reset dashboard preferences to defaults?")) return;
   prefs = structuredClone(DEFAULT_PREFS);
   localStorage.removeItem(PREFS_KEY);
+  savePrefs(); // push the reset to the cloud too, so it doesn't rehydrate back
   renderPrefsEditor();
   applyPrefs();
   renderRegTable();
