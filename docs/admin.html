@@ -953,6 +953,32 @@ function bibCell(bib, categoryId) {
   }
   return escapeHtml(String(bib));
 }
+// Renders a prominent "you are about to act on THIS person" identity card
+// for row-action modals (confirm pay, delete, WhatsApp resend, etc.).
+// Shows Name + Phone + Ref + Category in big readable text so the admin can
+// double-check before committing — independent of which columns are visible
+// in the table behind the modal. teammateNote is optional extra context.
+function identityPanel(r, teammateNote) {
+  const fullName = `${(r.firstName || "").trim()} ${(r.lastName || "").trim()}`.trim() || "(no name)";
+  const phone    = (r.phone || "").trim() || "—";
+  const ref      = (r.whishReference || r.id || "").trim() || "—";
+  const category = (r.categoryName || r.categoryId || "—");
+  const sub      = r.subQuestionAnswer ? ` · ${escapeHtml(r.subQuestionAnswer)}` : "";
+  return `
+    <div style="margin:0 0 14px;padding:12px 14px;background:rgba(39,203,187,.10);
+                border:1px solid rgba(39,203,187,.45);border-radius:10px">
+      <div style="font-size:1.15rem;font-weight:800;color:var(--accent)">${escapeHtml(fullName)}</div>
+      <div style="margin-top:6px;font-size:.95rem;display:grid;gap:4px">
+        <div><span class="muted" style="display:inline-block;width:70px">Phone</span>
+             <strong style="font-family:ui-monospace,Menlo,monospace">${escapeHtml(phone)}</strong></div>
+        <div><span class="muted" style="display:inline-block;width:70px">Ref</span>
+             <code>${escapeHtml(ref)}</code></div>
+        <div><span class="muted" style="display:inline-block;width:70px">Category</span>
+             ${escapeHtml(category)}${sub}</div>
+        ${teammateNote ? `<div class="muted" style="font-size:.85rem;margin-top:4px">${teammateNote}</div>` : ""}
+      </div>
+    </div>`;
+}
 function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 }
@@ -1319,7 +1345,8 @@ const DEFAULT_PREFS = {
   columns: { whishReference:true, firstName:true, lastName:true, categoryName:true,
              subQuestionAnswer:true, ageOnRaceDay:true, priceUSD:true,
              paymentStatus:true, bibNumber:true, registeredAt:true, checkedInAt:true,
-             email:false, phone:false, gender:false, tshirtSize:false,
+             phone:true, /* always-on by default — frozen on horizontal scroll so admins can verify identity at a glance */
+             email:false, gender:false, tshirtSize:false,
              bloodType:true, club:false, city:false, paymentMethod:false }
 };
 const PREFS_KEY = "br-dashboard-prefs-v1";
@@ -1329,10 +1356,20 @@ function loadPrefs() {
     const raw = localStorage.getItem(PREFS_KEY);
     if (!raw) return structuredClone(DEFAULT_PREFS);
     const p = JSON.parse(raw);
-    return {
+    const merged = {
       filters: { ...DEFAULT_PREFS.filters, ...(p.filters || {}) },
-      columns: { ...DEFAULT_PREFS.columns, ...(p.columns || {}) }
+      columns: { ...DEFAULT_PREFS.columns, ...(p.columns || {}) },
+      _migrated: p._migrated || {}
     };
+    // One-time migration: turn the Phone column ON for existing admins
+    // who had it stored as false from when it used to be off by default.
+    // After this runs once the flag stays set, so if you turn Phone off
+    // later it WILL stay off — we only flip it once.
+    if (!merged._migrated.phoneFrozen) {
+      merged.columns.phone = true;
+      merged._migrated.phoneFrozen = true;
+    }
+    return merged;
   } catch { return structuredClone(DEFAULT_PREFS); }
 }
 let prefs = loadPrefs();
@@ -2751,8 +2788,11 @@ function openConfirmPay(r) {
        <label style="margin-top:14px">Bib number (manual)</label>
        <input id="bibInput" type="number" min="1" placeholder="e.g. 142">`;
   openModal(`
-    <h3>Confirm payment — ${escapeHtml(r.firstName)} ${escapeHtml(r.lastName)}</h3>
-    <p class="muted">Reference: <code>${escapeHtml(r.whishReference)}</code> · Amount: ${fmtMoney(r.priceUSD || 0)}</p>
+    <h3 style="margin:0 0 10px">Confirm payment</h3>
+    ${identityPanel(r, r.teammate
+      ? `Relay team — Person 2 (${escapeHtml(((r.teammate.firstName || "") + " " + (r.teammate.lastName || "")).trim())}) shares the bib.`
+      : "")}
+    <p class="muted" style="margin:0 0 4px"><strong>Amount:</strong> ${fmtMoney(r.priceUSD || 0)}</p>
     <p class="muted" style="margin:8px 0 0;font-size:.85rem">${priceFree
       ? "This is a free entry. The runner will be confirmed and we'll WhatsApp them."
       : "Confirm the Whish payment matched this reference. The runner will receive a WhatsApp message with their QR ticket."}
