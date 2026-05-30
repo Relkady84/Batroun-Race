@@ -111,17 +111,16 @@
      -webkit-overflow-scrolling:touch}      /* momentum scroll on iOS */
   table{width:100%;border-collapse:separate;border-spacing:0;min-width:900px}
   th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--line);font-size:.9rem;
-        white-space:nowrap}
-  /* Sticky header row. translateZ promotes it to its own layer so mobile
-     browsers don't drop/flicker it while flinging the body up and down. */
-  thead th{background:#0f1e35;color:var(--muted);font-weight:700;text-transform:uppercase;
+        white-space:nowrap;background:#0f1e35} /* opaque by default so sticky cells don't show through */
+  /* Sticky header row. Every <th> gets top:0 so titles stay pinned during
+     vertical scroll. NO transform here — `translateZ(0)` interferes with
+     position:sticky on mobile Safari. */
+  thead th{color:var(--muted);font-weight:700;text-transform:uppercase;
      letter-spacing:.05em;font-size:.72rem;
      position:sticky;top:0;z-index:3;
-     box-shadow:inset 0 -1px 0 var(--line);
-     transform:translateZ(0)}
-  td{background:#0f1e35} /* solid bg so sticky-left cells don't reveal what's underneath */
-  tr:hover td{background:#152a48}
-  tr.relay-teammate-row td{background:#11253d;font-style:italic;color:#cad7e8}
+     box-shadow:inset 0 -1px 0 var(--line)}
+  tbody tr:hover td{background:#152a48}
+  tbody tr.relay-teammate-row td{background:#11253d;font-style:italic;color:#cad7e8}
   td.actions{display:flex;gap:6px}
 
   /* Frozen (sticky-left) columns. Each has a FIXED width; the `left`
@@ -129,15 +128,28 @@
      of them are actually visible, so hiding a column never leaves a gap
      or overlap. The dynamic <style id="stickyOffsets"> sets `left` + the
      right-edge shadow on the last visible frozen column. */
-  .col-whishReference,.col-firstName,.col-lastName,.col-email,.col-phone{
-     position:sticky;z-index:2}
+  th.col-whishReference,th.col-firstName,th.col-lastName,th.col-email,th.col-phone,
+  td.col-whishReference,td.col-firstName,td.col-lastName,td.col-email,td.col-phone{
+     position:sticky;background:#0f1e35} /* explicit bg so titles never bleed through */
+  /* Frozen header cells: pin to BOTH top and left. z-index 5 so they
+     sit above the non-frozen header (z:3) AND the frozen body (z:2). */
   thead th.col-whishReference,thead th.col-firstName,thead th.col-lastName,
-  thead th.col-email,thead th.col-phone{z-index:4}
+  thead th.col-email,thead th.col-phone{top:0;z-index:5}
+  tbody td.col-whishReference,tbody td.col-firstName,tbody td.col-lastName,
+  tbody td.col-email,tbody td.col-phone{z-index:2}
   .col-whishReference{min-width:130px;max-width:130px}
   .col-firstName     {min-width:120px;max-width:120px}
   .col-lastName      {min-width:120px;max-width:120px}
   .col-email         {min-width:200px;max-width:200px;overflow:hidden;text-overflow:ellipsis}
   .col-phone         {min-width:140px;max-width:140px}
+  /* Keep the dark frozen-cell bg even when the row is hovered, so the
+     frozen header keeps reading as the header strip and the frozen body
+     cells stay in sync visually with the rest of the row. */
+  tbody tr:hover td.col-whishReference,
+  tbody tr:hover td.col-firstName,
+  tbody tr:hover td.col-lastName,
+  tbody tr:hover td.col-email,
+  tbody tr:hover td.col-phone{background:#152a48}
 
   /* Filters */
   .filters{display:grid;grid-template-columns:1fr 180px 180px 180px;gap:10px;margin-bottom:14px}
