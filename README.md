@@ -6,9 +6,9 @@ Registration system for the annual **Batroun Race** in Lebanon. Public registrat
 
 | Page | URL | Audience |
 |---|---|---|
-| Registration | https://register.batroun-race.com/ | Runners (any browser) |
-| Admin | https://register.batroun-race.com/admin | Staff / admins (**Chrome only**) |
-| Race-day scanner | https://register.batroun-race.com/scan | Hostesses (Chrome / Safari on phone) |
+| Registration | https://register.batrounrace.com/ | Runners (any browser) |
+| Admin | https://register.batrounrace.com/admin.html | Staff / admins (**Chrome only**) |
+| Race-day scanner | https://register.batrounrace.com/scan.html | Hostesses (Chrome / Safari on phone) |
 
 ## Docs
 

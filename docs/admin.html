@@ -2636,13 +2636,10 @@ $("#backupPurgeAll").addEventListener("click", async () => {
 // Canonical hosting URL for runner-facing links. Tickets sent on
 // WhatsApp must point here regardless of which mirror an admin is
 // currently signed in to, so the link is stable for the runner.
-// STOPGAP: pointing at the GitHub Pages mirror. The Firebase custom
-// domain (register.batroun-race.com → batroun-race.web.app) is blocked
-// by a Safe Browsing "Dangerous" flag on the .web.app origin, and the
-// Firebase site is also serving empty. GitHub Pages is unflagged and
-// serves the same docs/ folder. Switch back to the custom domain once
-// hosting is migrated to Cloudflare Pages (off the .web.app reputation).
-const TICKET_BASE_URL = "https://relkady84.github.io/Batroun-Race/ticket.html";
+// Custom domain: register.batrounrace.com → GitHub Pages (CNAME in docs/),
+// with free HTTPS. GitHub Pages serves files at the domain root, so the
+// ticket page is /ticket.html (no clean-URL rewrite like Firebase had).
+const TICKET_BASE_URL = "https://register.batrounrace.com/ticket.html";
 
 function buildTicketUrl(r) {
   const cat = cats.find(c => c.id === r.categoryId);
@@ -2675,8 +2672,8 @@ function buildPendingWhatsAppUrl(r) {
   const phone = String(r.phone || "").replace(/\D/g, "");
   if (!phone) return null;
   const ref = r.whishReference || r.id || "";
-  // STOPGAP: GitHub Pages mirror — see TICKET_BASE_URL note above.
-  const invoiceUrl = `https://relkady84.github.io/Batroun-Race/?signin=${encodeURIComponent(ref)}`;
+  // Custom domain — see TICKET_BASE_URL note above.
+  const invoiceUrl = `https://register.batrounrace.com/?signin=${encodeURIComponent(ref)}`;
   const lines = [
     `Hi ${r.firstName || ""}, your Batroun Race 2026 registration is received.`,
     ``,
