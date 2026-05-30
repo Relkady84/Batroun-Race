@@ -123,23 +123,28 @@
   tbody tr.relay-teammate-row td{background:#11253d;font-style:italic;color:#cad7e8}
   td.actions{display:flex;gap:6px}
 
-  /* Frozen (sticky-left) column — ONLY the Ref column stays pinned when the
-     table scrolls horizontally. Ref is the unique id for each row, so it's
-     enough to keep your place without eating horizontal space. Its left is 0;
-     applyStickyOffsets() still manages its edge shadow. */
-  th.col-whishReference,
-  td.col-whishReference{
-     position:sticky;left:0;background:#0f1e35} /* explicit bg so cells never bleed through */
-  /* Frozen header cell: pin to BOTH top and left. z-index 5 so it sits
+  /* Frozen (sticky-left) columns — the relay expander arrow + the Ref code
+     both stay pinned when the table scrolls horizontally. The arrow lives
+     in its OWN narrow column to the LEFT of the Ref cell so a long ref
+     string can never be pushed out of its 130px column by the arrow's
+     width. applyStickyOffsets() writes the `left` offsets at runtime. */
+  th.col-expander, td.col-expander,
+  th.col-whishReference, td.col-whishReference{
+     position:sticky;background:#0f1e35} /* explicit bg so cells never bleed through */
+  /* Frozen header cells: pin to BOTH top and left. z-index 5 so they sit
      above the non-frozen header (z:3) AND the frozen body (z:2). */
+  thead th.col-expander,
   thead th.col-whishReference{top:0;z-index:5}
+  tbody td.col-expander,
   tbody td.col-whishReference{z-index:2}
-  .col-whishReference{min-width:130px;max-width:130px}
+  .col-expander      {min-width:34px;max-width:34px;padding-left:6px;padding-right:0;text-align:center}
+  .col-whishReference{min-width:130px;max-width:130px;overflow:hidden;text-overflow:ellipsis}
   .col-firstName     {min-width:120px;max-width:120px}
   .col-lastName      {min-width:120px;max-width:120px}
   .col-email         {min-width:200px;max-width:200px;overflow:hidden;text-overflow:ellipsis}
   .col-phone         {min-width:140px;max-width:140px}
-  /* Keep the frozen Ref cell's hover bg in sync with the rest of the row. */
+  /* Keep the frozen cells' hover bg in sync with the rest of the row. */
+  tbody tr:hover td.col-expander,
   tbody tr:hover td.col-whishReference{background:#152a48}
 
   /* Filters */
@@ -297,6 +302,7 @@
         <div class="table-wrap">
           <table id="regTable">
             <thead><tr>
+              <th class="col-expander"></th>
               <th class="sortable col-whishReference"    data-sort="whishReference">Ref</th>
               <th class="sortable col-firstName"         data-sort="firstName">First name</th>
               <th class="sortable col-lastName"          data-sort="lastName">Last name</th>
@@ -318,7 +324,7 @@
               <th class="sortable col-checkedInAt"       data-sort="checkedInAt">Checked in</th>
               <th></th>
             </tr></thead>
-            <tbody><tr><td colspan="20" class="empty">Loading…</td></tr></tbody>
+            <tbody><tr><td colspan="21" class="empty">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -1379,10 +1385,12 @@ function applyPrefs() {
   applyStickyOffsets();
 }
 
-// The frozen (sticky-left) column. Only the Ref column is pinned now — it's
-// the unique id for each row, enough to keep your place when scrolling right,
-// without freezing several columns and eating horizontal space on mobile.
+// The frozen (sticky-left) columns: the relay expander arrow (its own
+// narrow column) + the Ref column. Having the arrow in its own column
+// stops it from pushing the ref string out of the 130px Ref cell on
+// relay rows — which was bleeding into the First name column.
 const FROZEN_COLS = [
+  { key: "expander",       w: 34 },
   { key: "whishReference", w: 130 },
 ];
 function applyStickyOffsets() {
@@ -1652,7 +1660,7 @@ function renderRegTable() {
   const rows = applySort(filteredRegs());
   const tbody = $("#regTable tbody");
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="11" class="empty">No registrations match.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="12" class="empty">No registrations match.</td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map(r => {
@@ -1670,11 +1678,12 @@ function renderRegTable() {
             ? `<span style="color:#ffae50;font-weight:700">1/2 in</span>`
             : "<span class='muted'>0/2 in</span>");
     const expanderCell = hasTeammate
-      ? `<button class="btn tiny sec relay-expand" data-relay-id="${r.id}" title="Show teammate" style="margin-right:6px;padding:2px 6px;line-height:1">▸</button>`
+      ? `<button class="btn tiny sec relay-expand" data-relay-id="${r.id}" title="Show teammate" style="padding:2px 5px;line-height:1">▸</button>`
       : "";
     return `
     <tr data-row-id="${r.id}">
-      <td class="col-whishReference">${expanderCell}<code>${escapeHtml(r.whishReference || "—")}</code></td>
+      <td class="col-expander">${expanderCell}</td>
+      <td class="col-whishReference"><code>${escapeHtml(r.whishReference || "—")}</code></td>
       <td class="col-firstName">${escapeHtml(r.firstName)}</td>
       <td class="col-lastName">${escapeHtml(r.lastName)}</td>
       <td class="col-email">${escapeHtml(r.email || "—")}</td>
@@ -1706,6 +1715,7 @@ function renderRegTable() {
     </tr>
     ${hasTeammate ? `
     <tr class="relay-teammate-row" data-relay-of="${r.id}" hidden>
+      <td class="col-expander"></td>
       <td class="col-whishReference"></td>
       <td class="col-firstName" style="padding-left:28px">${escapeHtml(r.teammate.firstName || "")}</td>
       <td class="col-lastName">${escapeHtml(r.teammate.lastName || "")}</td>
