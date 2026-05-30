@@ -40,16 +40,21 @@ batroun-race/
 
 ## Live URLs
 
-- Public registration: https://register.batroun-race.com/
-- Admin: https://register.batroun-race.com/admin
-- Race-day scanner: https://register.batroun-race.com/scan
-- Ticket page (per runner): https://register.batroun-race.com/ticket?ref=...&name=...&bib=...
+- Public registration: https://register.batrounrace.com/
+- Admin: https://register.batrounrace.com/admin.html
+- Race-day scanner: https://register.batrounrace.com/scan.html
+- Ticket page (per runner): https://register.batrounrace.com/ticket.html?ref=...&name=...&bib=...
 
-Custom subdomain on Firebase Hosting. The apex `batroun-race.com` is held
-back for a future marketing site. GitHub Pages mirror at
-`relkady84.github.io/Batroun-Race/` is kept up as a fallback during the
-transition; the apex `batroun-race.web.app` still resolves but tickets
-+ invoices now use the custom domain.
+Custom subdomain **`register.batrounrace.com`** (no hyphen — owned via
+Shopify) served by **GitHub Pages** with free auto HTTPS. DNS: a CNAME for
+`register` → `relkady84.github.io` in Shopify; `docs/CNAME` claims the
+domain on the Pages side. GitHub Pages serves files at the domain root with
+**no clean-URL rewrites**, so paths keep their `.html` (e.g. `/admin.html`).
+The old `relkady84.github.io/Batroun-Race/` URL still works and now
+redirects to the custom domain. Firebase Hosting + the hyphenated
+`batroun-race.com` were abandoned (the `.web.app` origin got Safe-Browsing
+flagged); Firestore + Auth still run on Firebase, only static hosting is on
+GitHub Pages.
 
 ## Roles & access
 
@@ -168,18 +173,23 @@ firebase emulators:start --only firestore,auth
 
 ## How to deploy
 
-Every push to `main` triggers `.github/workflows/firebase-deploy.yml`, which runs
-`firebase deploy --only hosting,firestore:rules`. HTML + Firestore rules ship together
-in seconds — no manual rules re-publish.
+**Static site (the HTML/JS):** served by **GitHub Pages** from `/docs` on
+`main`. Every push to `main` redeploys within 1–2 min — no build step.
 
 ```bash
-git add . && git commit -m "..." && git push
+git add . && git commit -m "..." && git push   # → live on register.batrounrace.com
 ```
 
-Live URL: https://register.batroun-race.com (custom domain, served by Firebase
-Hosting). `https://batroun-race.web.app` is the Firebase default and still
-resolves; the GitHub Pages URL keeps working as a fallback during the
-transition.
+**Firestore rules:** still live on **Firebase** (the database + Auth never
+moved). `firestore.rules` changes are deployed by the
+`.github/workflows/firebase-deploy.yml` action on push to `main`
+(`firebase deploy --only firestore:rules`), or republish manually in the
+Firebase Console → Firestore → Rules for an immediate change. The action's
+hosting step is now moot (hosting is on GitHub Pages) but harmless.
+
+Live URL: https://register.batrounrace.com (custom subdomain on GitHub
+Pages, free HTTPS). The `relkady84.github.io/Batroun-Race/` URL still works
+and redirects to the custom domain.
 
 **One-time setup required** for the action to work:
 1. On any desktop, `npm install -g firebase-tools` then `firebase login:ci`.

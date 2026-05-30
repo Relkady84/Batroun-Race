@@ -8,9 +8,9 @@ A step-by-step guide for everyone who interacts with the registration system: ru
 
 | Page | URL | Who uses it |
 |---|---|---|
-| **Public registration** | https://register.batroun-race.com/ | Runners — anyone signing up |
-| **Admin dashboard** | https://register.batroun-race.com/admin | Admins + staff — must sign in with Google (use Chrome) |
-| **Race-day scanner** | https://register.batroun-race.com/scan | Hostesses on race day — same Google sign-in |
+| **Public registration** | https://register.batrounrace.com/ | Runners — anyone signing up |
+| **Admin dashboard** | https://register.batrounrace.com/admin.html | Admins + staff — must sign in with Google (use Chrome) |
+| **Race-day scanner** | https://register.batrounrace.com/scan.html | Hostesses on race day — same Google sign-in |
 
 > ⚠ **Admin & scanner pages only work in Chrome.** Microsoft Edge silently blocks Firebase sign-in due to its tracking-prevention feature. The public registration page works in any browser.
 
@@ -51,7 +51,7 @@ You can sign in to the admin dashboard but you see **only two tabs**:
 - **Confirmed** — runners whose payment has been approved
 
 ### Confirming a Whish payment
-1. Sign in to https://register.batroun-race.com/admin (Chrome only)
+1. Sign in to https://register.batrounrace.com/admin.html (Chrome only)
 2. **Registrations** tab → find the runner whose Whish payment you've matched (search by reference code, name, or phone)
 3. Click **Confirm pay**
 4. Enter their **bib number**
@@ -141,7 +141,7 @@ Click the red **Remove** button next to their email. Takes effect immediately �
 
 ## 5. For race-day hostesses — using the scanner
 
-The day of the race, open https://register.batroun-race.com/scan on a phone (Chrome or Safari).
+The day of the race, open https://register.batrounrace.com/scan.html on a phone (Chrome or Safari).
 
 1. **Sign in with Google** — use your approved staff email (admins set this up in Settings before the event)
 2. **Allow camera access** when prompted
