@@ -2443,9 +2443,12 @@ function fmtRaceDate(s) {
 // cart, from WhatsApp, or from a bookmark always lands on the same
 // origin (with live-from-Firestore data overrides on every load).
 // Runner-facing canonical URL.
-// Custom domain: register.batroun-race.com → Firebase Hosting.
-// The /ticket path is rewritten to /ticket.html in firebase.json.
-const TICKET_BASE_URL = "https://register.batroun-race.com/ticket";
+// STOPGAP: pointing at the GitHub Pages mirror. The Firebase custom
+// domain (register.batroun-race.com) is blocked by a Safe Browsing
+// "Dangerous" flag on the underlying .web.app origin. GitHub Pages is
+// unflagged and serves the same docs/ folder. Switch back to the custom
+// domain once hosting is migrated to Cloudflare Pages.
+const TICKET_BASE_URL = "https://relkady84.github.io/Batroun-Race/ticket.html";
 
 function buildTicketUrlFor(r) {
   const params = new URLSearchParams({
