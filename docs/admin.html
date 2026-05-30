@@ -2413,7 +2413,7 @@ async function revertToPending(r) {
   const msg =
     `Move ${name} back to Registrations as PENDING?\n\n` +
     `This clears:\n` +
-    `  • Bib number (currently: ${r.bibNumber ?? "—"})\n` +
+    `  • Bib number (currently: ${r.bibNumber ?? "—"}) — it becomes free and the next confirmed runner will reuse it\n` +
     `  • Payment date\n` +
     `  • Check-in (if any)\n\n` +
     `They will re-appear in the Registrations tab as 'pending' so you can reconfirm payment and assign a bib again.`;
@@ -2740,15 +2740,10 @@ function nextBibFor(categoryId) {
     return { error: `No BIB range set for "${cat.name || cat.id}". Open admin → Categories → edit this category to define start & end.` };
   }
   const used = usedBibsFor(categoryId);
-  // Start from the higher of the saved cursor and the range start, so the
-  // preview matches what the confirm transaction will actually assign, then
-  // skip any number already taken (covers manually-entered bibs too).
-  const cursor = Number.isFinite(cat.bibCursor) ? cat.bibCursor : start;
-  for (let n = Math.max(cursor, start); n <= end; n++) {
-    if (!used.has(n)) return { bib: n, start, end, color: cat.bibColor || null };
-  }
-  // Cursor may have run past a gap left by a revert/delete — fall back to a
-  // full scan from the start so freed numbers below the cursor get reused.
+  // Assign the LOWEST free number in the range. A number freed by a revert
+  // or delete drops out of `used`, so it gets handed to the next runner —
+  // no gaps in the final bib list. Same rule the confirm transaction uses,
+  // so this preview matches what actually gets saved.
   for (let n = start; n <= end; n++) {
     if (!used.has(n)) return { bib: n, start, end, color: cat.bibColor || null };
   }
@@ -2830,13 +2825,19 @@ function openConfirmPay(r) {
           const start = parseInt(c.bibRangeStart, 10);
           const end   = parseInt(c.bibRangeEnd,   10);
           if (!start || !end || start > end) throw new Error("No BIB range on this category — set one in admin → Categories.");
-          let cursor = Number.isFinite(c.bibCursor) ? c.bibCursor : start;
-          if (cursor < start) cursor = start;
-          // Advance past any number already taken by a manual assignment.
-          while (cursor <= end && used.has(cursor)) cursor++;
-          if (cursor > end) throw new Error(`BIB range ${start}–${end} is full (every number is assigned). Extend it in admin → Categories.`);
-          bib = cursor;
-          tx.update(catRef, { bibCursor: cursor + 1 });
+          // Assign the LOWEST free number in the range. `used` already skips
+          // taken numbers (manual or auto); a number freed by a revert/delete
+          // dropped out of `used`, so it gets reused here — no gaps left in
+          // the bib list. Writing catRef serialises concurrent confirms (the
+          // second transaction retries on the conflict).
+          let candidate = start;
+          while (candidate <= end && used.has(candidate)) candidate++;
+          if (candidate > end) throw new Error(`BIB range ${start}–${end} is full (every number is assigned). Extend it in admin → Categories.`);
+          bib = candidate;
+          // Keep bibCursor as a monotonic high-water mark (never rewinds), so
+          // two simultaneous confirms can't both grab the same number.
+          const prevCursor = Number.isFinite(c.bibCursor) ? c.bibCursor : start;
+          tx.update(catRef, { bibCursor: Math.max(prevCursor, candidate + 1) });
         }
         tx.update(regRef, {
           paymentStatus: (r.priceUSD || 0) === 0 ? "free" : "paid",
