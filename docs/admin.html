@@ -106,29 +106,38 @@
   .stat .value.accent{color:var(--accent)}
 
   /* Table */
-  .table-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px;max-height:calc(100vh - 240px)}
-  table{width:100%;border-collapse:collapse;min-width:900px}
+  .table-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px;
+     max-height:calc(100vh - 240px);
+     -webkit-overflow-scrolling:touch}      /* momentum scroll on iOS */
+  table{width:100%;border-collapse:separate;border-spacing:0;min-width:900px}
   th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--line);font-size:.9rem;
         white-space:nowrap}
-  th{background:#0f1e35;color:var(--muted);font-weight:700;text-transform:uppercase;
+  /* Sticky header row. translateZ promotes it to its own layer so mobile
+     browsers don't drop/flicker it while flinging the body up and down. */
+  thead th{background:#0f1e35;color:var(--muted);font-weight:700;text-transform:uppercase;
      letter-spacing:.05em;font-size:.72rem;
      position:sticky;top:0;z-index:3;
-     box-shadow:0 1px 0 var(--line)}
+     box-shadow:inset 0 -1px 0 var(--line);
+     transform:translateZ(0)}
   td{background:#0f1e35} /* solid bg so sticky-left cells don't reveal what's underneath */
   tr:hover td{background:#152a48}
   tr.relay-teammate-row td{background:#11253d;font-style:italic;color:#cad7e8}
   td.actions{display:flex;gap:6px}
 
-  /* Sticky first 4 columns (Ref, First, Last, Email) so they stay
-     visible when the table scrolls horizontally. Widths are fixed for
-     these columns only so the cumulative left offsets are predictable. */
-  .col-whishReference{position:sticky;left:0;   z-index:2;min-width:130px;max-width:130px}
-  .col-firstName     {position:sticky;left:130px;z-index:2;min-width:120px;max-width:120px}
-  .col-lastName      {position:sticky;left:250px;z-index:2;min-width:120px;max-width:120px}
-  .col-email         {position:sticky;left:370px;z-index:2;min-width:200px;max-width:200px;overflow:hidden;text-overflow:ellipsis}
-  th.col-whishReference,th.col-firstName,th.col-lastName,th.col-email{z-index:4}
-  /* Right edge shadow so the sticky block reads as a separate column group. */
-  .col-email{box-shadow:2px 0 4px rgba(0,0,0,.3)}
+  /* Frozen (sticky-left) columns. Each has a FIXED width; the `left`
+     offset is computed at runtime by applyStickyOffsets() based on which
+     of them are actually visible, so hiding a column never leaves a gap
+     or overlap. The dynamic <style id="stickyOffsets"> sets `left` + the
+     right-edge shadow on the last visible frozen column. */
+  .col-whishReference,.col-firstName,.col-lastName,.col-email,.col-phone{
+     position:sticky;z-index:2}
+  thead th.col-whishReference,thead th.col-firstName,thead th.col-lastName,
+  thead th.col-email,thead th.col-phone{z-index:4}
+  .col-whishReference{min-width:130px;max-width:130px}
+  .col-firstName     {min-width:120px;max-width:120px}
+  .col-lastName      {min-width:120px;max-width:120px}
+  .col-email         {min-width:200px;max-width:200px;overflow:hidden;text-overflow:ellipsis}
+  .col-phone         {min-width:140px;max-width:140px}
 
   /* Filters */
   .filters{display:grid;grid-template-columns:1fr 180px 180px 180px;gap:10px;margin-bottom:14px}
@@ -180,6 +189,9 @@
   .toast.undo{border-color:var(--warn,#ffa726)}
   .toast button{flex:0 0 auto}
 </style>
+<!-- Runtime-computed `left` offsets for the frozen columns. Rewritten by
+     applyStickyOffsets() whenever column visibility changes. -->
+<style id="stickyOffsets"></style>
 </head>
 <body>
 
@@ -714,6 +726,18 @@ Masters Men-Women 35-39
           <button id="repairLegacyBtn" class="btn">Repair legacy registrations</button>
           <span class="muted" id="repairLegacyStatus"></span>
         </div>
+
+        <p class="muted" style="margin:18px 0 10px">
+          Scans every category for two runners sharing the same bib number. Bibs are
+          meant to be unique within a category, so any match here is a clash to fix by
+          editing one of the runners and giving them a free number. Read-only — it only
+          reports, it never changes anything.
+        </p>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <button id="findDupBibsBtn" class="btn">Find duplicate bibs</button>
+          <span class="muted" id="findDupBibsStatus"></span>
+        </div>
+        <div id="dupBibsResult" style="margin-top:10px"></div>
       </div>
     </section>
 
@@ -867,6 +891,18 @@ function fmtDate(ts) {
   return `${datePart} · ${timePart}`;
 }
 function fmtMoney(n) { return n === 0 ? "Free" : "$" + n; }
+// Renders a bib number tinted with its category's bibColor, same as the
+// ticket page. Falls back to plain text (or an em dash) when there's no
+// bib or no valid color. categoryId lets us look the color up from `cats`.
+function bibCell(bib, categoryId) {
+  if (bib == null || bib === "") return "—";
+  const cat = cats.find(c => c.id === categoryId);
+  const color = cat?.bibColor;
+  if (color && /^#[0-9a-fA-F]{6}$/.test(color)) {
+    return `<span style="color:${color};font-weight:800">${escapeHtml(String(bib))}</span>`;
+  }
+  return escapeHtml(String(bib));
+}
 function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 }
@@ -1012,6 +1048,7 @@ function showApp(user) {
   applyRoleVisibility();
   applyPrefs();
   startListeners();
+  hydratePrefsFromCloud();
 }
 
 function applyRoleVisibility() {
@@ -1251,6 +1288,32 @@ function applyPrefs() {
       el.style.display = prefs.columns[c.key] ? "" : "none";
     });
   });
+  applyStickyOffsets();
+}
+
+// The frozen (sticky-left) columns, in display order, with their fixed
+// widths. `left` for each is the sum of the widths of the visible frozen
+// columns before it — recomputed here so hiding e.g. Email never leaves a
+// gap or makes Phone overlap. The last visible one gets the edge shadow.
+const FROZEN_COLS = [
+  { key: "whishReference", w: 130 },
+  { key: "firstName",      w: 120 },
+  { key: "lastName",       w: 120 },
+  { key: "email",          w: 200 },
+  { key: "phone",          w: 140 },
+];
+function applyStickyOffsets() {
+  const visible = FROZEN_COLS.filter(c => prefs.columns[c.key] !== false);
+  let left = 0;
+  const rules = visible.map((c, i) => {
+    const isLast = i === visible.length - 1;
+    const shadow = isLast ? ";box-shadow:2px 0 4px rgba(0,0,0,.3)" : "";
+    const rule = `.col-${c.key}{left:${left}px${shadow}}`;
+    left += c.w;
+    return rule;
+  });
+  const el = document.getElementById("stickyOffsets");
+  if (el) el.textContent = rules.join("\n");
 }
 
 function renderPrefsEditor() {
@@ -1320,16 +1383,53 @@ $("#prefsSaveBtn").addEventListener("click", () => {
   document.querySelectorAll('[data-pref="column"]').forEach(cb => {
     prefs.columns[cb.dataset.key] = cb.checked;
   });
-  localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+  savePrefs();
   applyPrefs();
   renderRegTable();
   toast("Dashboard preferences saved");
 });
 
+// Persist prefs to localStorage (instant, per-browser) AND, best-effort,
+// to Firestore keyed by the signed-in email so they survive a phone's
+// localStorage eviction and follow the admin to another device.
+function savePrefs() {
+  try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch {}
+  if (!currentUserEmail) return;
+  const id = currentUserEmail.replace(/[^a-z0-9]/gi, "_").toLowerCase();
+  setDoc(doc(db, "competitions", COMPETITION_ID, "config", "prefs_" + id),
+         { ...prefs, email: currentUserEmail, updatedAt: serverTimestamp() },
+         { merge: true })
+    .catch(e => console.warn("Cloud prefs save failed (kept locally):", e.message));
+}
+
+// On sign-in, pull cloud prefs (if any) so a fresh browser / re-installed
+// phone picks up the admin's saved columns. Falls back silently to the
+// local copy when there's nothing in the cloud or the read is denied.
+async function hydratePrefsFromCloud() {
+  if (!currentUserEmail) return;
+  const id = currentUserEmail.replace(/[^a-z0-9]/gi, "_").toLowerCase();
+  try {
+    const snap = await getDoc(doc(db, "competitions", COMPETITION_ID, "config", "prefs_" + id));
+    if (!snap.exists()) return;
+    const p = snap.data();
+    prefs = {
+      filters: { ...DEFAULT_PREFS.filters, ...(p.filters || {}) },
+      columns: { ...DEFAULT_PREFS.columns, ...(p.columns || {}) }
+    };
+    try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch {}
+    renderPrefsEditor();
+    applyPrefs();
+    renderRegTable();
+  } catch (e) {
+    console.warn("Cloud prefs load skipped:", e.message);
+  }
+}
+
 $("#prefsResetBtn").addEventListener("click", () => {
   if (!confirm("Reset dashboard preferences to defaults?")) return;
   prefs = structuredClone(DEFAULT_PREFS);
   localStorage.removeItem(PREFS_KEY);
+  savePrefs(); // push the reset to the cloud too, so it doesn't rehydrate back
   renderPrefsEditor();
   applyPrefs();
   renderRegTable();
@@ -1507,7 +1607,7 @@ function renderRegTable() {
       <td class="col-priceUSD">${fmtMoney(r.priceUSD || 0)}</td>
       <td class="col-paymentStatus"><span class="pill ${r.paymentStatus}">${r.paymentStatus}</span></td>
       <td class="col-paymentMethod">${escapeHtml(r.paymentMethod || "—")}</td>
-      <td class="col-bibNumber">${r.bibNumber ?? "—"}</td>
+      <td class="col-bibNumber">${bibCell(r.bibNumber, r.categoryId)}</td>
       <td class="col-registeredAt">${fmtDate(r.registeredAt)}</td>
       <td class="col-checkedInAt">${checkedInCell}</td>
       <td class="actions">
@@ -1539,7 +1639,7 @@ function renderRegTable() {
       <td class="col-priceUSD"></td>
       <td class="col-paymentStatus"></td>
       <td class="col-paymentMethod"></td>
-      <td class="col-bibNumber">${r.bibNumber ?? "—"}</td>
+      <td class="col-bibNumber">${bibCell(r.bibNumber, r.categoryId)}</td>
       <td class="col-registeredAt"></td>
       <td class="col-checkedInAt">${t2Done ? `<span style="color:var(--accent);font-weight:700">✓ ${fmtDate(r.teammateCheckedInAt)}</span>` : "—"}</td>
       <td class="actions"></td>
@@ -1585,6 +1685,8 @@ function renderRegTable() {
 
 function openRegDetails(r) {
   const k = (label, val) => `<div class="k">${label}</div><div class="v">${escapeHtml(val ?? "—")}</div>`;
+  // Same as k() but the value is already-trusted HTML (e.g. a colored bib span).
+  const kHtml = (label, html) => `<div class="k">${label}</div><div class="v">${html}</div>`;
   const customRows = formFields
     .map(f => k(f.label, r.custom?.[f.key]))
     .join("");
@@ -1603,7 +1705,7 @@ function openRegDetails(r) {
       ${r.subQuestionAnswer ? k(cats.find(c => c.id === r.categoryId)?.subQuestion?.label || "Sub-category", r.subQuestionAnswer) : ""}
       ${k("Price", fmtMoney(r.priceUSD || 0))}
       ${k("Status", r.paymentStatus)}
-      ${k("Bib", r.bibNumber)}
+      ${kHtml("Bib", bibCell(r.bibNumber, r.categoryId))}
       ${k("T-shirt", r.tshirtSize)}
       ${k("Blood type", r.bloodType)}
       ${k("Club", r.club)}
@@ -1719,7 +1821,7 @@ function renderConfirmedTab() {
       <td>${escapeHtml((r.firstName || "") + " " + (r.lastName || ""))}</td>
       <td>${escapeHtml(r.categoryName || "—")}</td>
       <td>${escapeHtml(r.subQuestionAnswer || "—")}</td>
-      <td>${r.bibNumber ?? "—"}</td>
+      <td>${bibCell(r.bibNumber, r.categoryId)}</td>
       <td>${r.paidAt ? fmtDate(r.paidAt) : "—"}</td>
       <td>${r.checkedInAt
         ? `<span style="color:var(--accent);font-weight:700">✓ ${fmtDate(r.checkedInAt)}</span>`
@@ -1934,6 +2036,46 @@ document.getElementById("repairLegacyBtn")?.addEventListener("click", async () =
     ? `Repaired ${done}, skipped ${skipped}, failed ${failed} (check console).`
     : `Done — repaired ${done} registration${done === 1 ? "" : "s"}${skipped ? `, ${skipped} already correct` : ""}.`;
   toast(failed ? `Repair done with ${failed} failure(s)` : "Legacy registrations repaired", !!failed);
+});
+
+// Read-only audit: list every (category, bib) pair held by 2+ runners.
+document.getElementById("findDupBibsBtn")?.addEventListener("click", () => {
+  const status = document.getElementById("findDupBibsStatus");
+  const out = document.getElementById("dupBibsResult");
+  out.innerHTML = "";
+  if (!regs || !regs.length) { status.textContent = "No registrations loaded yet."; return; }
+
+  // Group live (non-deleted) bibbed registrations by category + bib.
+  const groups = new Map();
+  regs.forEach(r => {
+    if (r.deletedAt || r.bibNumber == null) return;
+    const key = `${r.categoryId}__${Number(r.bibNumber)}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(r);
+  });
+  const dups = [...groups.values()].filter(g => g.length > 1);
+
+  if (!dups.length) {
+    status.textContent = "No duplicate bibs — every bib is unique within its category.";
+    return;
+  }
+  status.textContent = `Found ${dups.length} duplicate bib${dups.length === 1 ? "" : "s"} across all categories:`;
+  // Sort by category name then bib for a stable, readable list.
+  dups.sort((a, b) =>
+    (a[0].categoryName || "").localeCompare(b[0].categoryName || "")
+    || Number(a[0].bibNumber) - Number(b[0].bibNumber));
+  out.innerHTML = dups.map(g => {
+    const catName = g[0].categoryName || g[0].categoryId || "—";
+    const people = g.map(r =>
+      `<li>${escapeHtml((r.firstName || "") + " " + (r.lastName || "")).trim() || "(no name)"} — ref <code>${escapeHtml(r.whishReference || r.id)}</code> · ${escapeHtml(r.paymentStatus || "—")}</li>`
+    ).join("");
+    return `<div style="margin-bottom:10px;padding:10px 12px;background:rgba(255,77,77,.10);border:1px solid rgba(255,77,77,.45);border-radius:10px">
+      <strong style="color:#ff8a8a">${escapeHtml(catName)} · bib ${bibCell(g[0].bibNumber, g[0].categoryId)}</strong>
+      — ${g.length} runners share it:
+      <ul style="margin:6px 0 0;padding-left:20px">${people}</ul>
+    </div>`;
+  }).join("");
+  toast(`${dups.length} duplicate bib${dups.length === 1 ? "" : "s"} found`, true);
 });
 
 // Undo an approved payment — moves a runner back to Registrations as pending.
@@ -2249,6 +2391,18 @@ function buildWhatsAppUrl(r) {
 
 // Each category has its own BIB pool. nextBibFor picks the lowest
 // unused number in that category's range. FIFO within the category.
+// Set of bib numbers already taken in a category (live snapshot).
+// Excludes soft-deleted rows, and optionally one registration (so the
+// editor doesn't flag a reg's own existing bib as a clash).
+function usedBibsFor(categoryId, exceptRegId) {
+  return new Set(
+    regs.filter(x => x.categoryId === categoryId
+                  && x.bibNumber != null
+                  && !x.deletedAt
+                  && x.id !== exceptRegId)
+        .map(x => Number(x.bibNumber))
+  );
+}
 function nextBibFor(categoryId) {
   const cat = cats.find(c => c.id === categoryId);
   if (!cat) return { error: "Category not found." };
@@ -2257,10 +2411,16 @@ function nextBibFor(categoryId) {
   if (!start || !end || start > end) {
     return { error: `No BIB range set for "${cat.name || cat.id}". Open admin → Categories → edit this category to define start & end.` };
   }
-  const used = new Set(
-    regs.filter(x => x.categoryId === categoryId && x.bibNumber != null && !x.deletedAt)
-        .map(x => Number(x.bibNumber))
-  );
+  const used = usedBibsFor(categoryId);
+  // Start from the higher of the saved cursor and the range start, so the
+  // preview matches what the confirm transaction will actually assign, then
+  // skip any number already taken (covers manually-entered bibs too).
+  const cursor = Number.isFinite(cat.bibCursor) ? cat.bibCursor : start;
+  for (let n = Math.max(cursor, start); n <= end; n++) {
+    if (!used.has(n)) return { bib: n, start, end, color: cat.bibColor || null };
+  }
+  // Cursor may have run past a gap left by a revert/delete — fall back to a
+  // full scan from the start so freed numbers below the cursor get reused.
   for (let n = start; n <= end; n++) {
     if (!used.has(n)) return { bib: n, start, end, color: cat.bibColor || null };
   }
@@ -2306,13 +2466,23 @@ function openConfirmPay(r) {
   $("#okPay").onclick = async () => {
     const manualBib = autoOk ? null : parseInt(($("#bibInput")?.value || "").trim(), 10);
     if (!autoOk && !manualBib) { toast("Enter a bib number to continue", true); return; }
+    // Snapshot of bibs already taken in this category — used both to reject a
+    // duplicate manual entry and to let the auto-path skip over numbers that
+    // were assigned by hand (which the bibCursor doesn't know about).
+    const used = usedBibsFor(r.categoryId, r.id);
+    if (manualBib != null && used.has(manualBib)) {
+      const owner = regs.find(x => x.categoryId === r.categoryId && Number(x.bibNumber) === manualBib && !x.deletedAt);
+      toast(`Bib ${manualBib} is already used in ${r.categoryName || "this category"}${owner ? ` by ${(owner.firstName||"")} ${(owner.lastName||"")}`.trimEnd() : ""}. Pick another.`, true);
+      return;
+    }
     const sendWa = $("#sendWaCb").checked;
     try {
       // Atomic confirm: transaction reads the registration + category
       // doc so two admins clicking Confirm at the same time can never
       // assign the same bib. The category's bibCursor is the source of
       // truth for the next bib in the range; we initialize it from
-      // bibRangeStart lazily on first use.
+      // bibRangeStart lazily on first use, and skip any number already
+      // taken by a manual assignment so the two paths can't collide.
       const regRef = doc(db, "competitions", COMPETITION_ID, "registrations", r.id);
       const catRef = doc(db, "competitions", COMPETITION_ID, "categories", r.categoryId);
       const assignedBib = await runTransaction(db, async (tx) => {
@@ -2329,8 +2499,11 @@ function openConfirmPay(r) {
           const start = parseInt(c.bibRangeStart, 10);
           const end   = parseInt(c.bibRangeEnd,   10);
           if (!start || !end || start > end) throw new Error("No BIB range on this category — set one in admin → Categories.");
-          const cursor = Number.isFinite(c.bibCursor) ? c.bibCursor : start;
-          if (cursor > end) throw new Error(`BIB range ${start}–${end} is exhausted. Extend it in admin → Categories.`);
+          let cursor = Number.isFinite(c.bibCursor) ? c.bibCursor : start;
+          if (cursor < start) cursor = start;
+          // Advance past any number already taken by a manual assignment.
+          while (cursor <= end && used.has(cursor)) cursor++;
+          if (cursor > end) throw new Error(`BIB range ${start}–${end} is full (every number is assigned). Extend it in admin → Categories.`);
           bib = cursor;
           tx.update(catRef, { bibCursor: cursor + 1 });
         }
@@ -2634,6 +2807,22 @@ function openParticipantEditor(r) {
     const cat   = cats.find(c => c.id === catId);
     const status = $("#pe_status").value;
 
+    // Reject a bib number that's already used in the same category — no
+    // duplicate bibs, in any category. (exceptRegId = this reg, so editing
+    // a row without changing its bib doesn't flag itself.)
+    const bibVal = parseInt($("#pe_bib").value, 10) || null;
+    if (bibVal != null && catId) {
+      const owner = regs.find(x => x.categoryId === catId
+                                && Number(x.bibNumber) === bibVal
+                                && !x.deletedAt
+                                && x.id !== (isEdit ? r.id : null));
+      if (owner) {
+        toast(`Bib ${bibVal} is already used in ${cat?.name || "this category"} by ${(owner.firstName||"")} ${(owner.lastName||"")}`.trimEnd() + ". Pick another.", true);
+        $("#pe_bib").focus();
+        return;
+      }
+    }
+
     // Teammate (Person 2) — only persisted when the category is a relay.
     let teammate = null;
     if (cat?.isRelay) {
@@ -2666,7 +2855,7 @@ function openParticipantEditor(r) {
       priceUSD:     parseFloat($("#pe_price").value) || 0,
       paymentStatus: status,
       paymentMethod: status === "free" ? "free" : (isEdit ? (r.paymentMethod || "manual") : "manual"),
-      bibNumber: parseInt($("#pe_bib").value, 10) || null,
+      bibNumber: bibVal,
       club: $("#pe_club").value.trim() || null,
       medicalNotes: $("#pe_note").value.trim() || null,
       emergencyContactName: $("#pe_emgName").value.trim() || null,
