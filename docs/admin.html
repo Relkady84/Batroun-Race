@@ -196,6 +196,8 @@
   .toast.err{border-color:var(--danger)}
   .toast.undo{border-color:var(--warn,#ffa726)}
   .toast button{flex:0 0 auto}
+  /* Cards / controls reserved for admins — viewers (staff) never see them. */
+  body.role-viewer .admin-only{display:none !important}
 </style>
 <!-- Runtime-computed `left` offsets for the frozen columns. Rewritten by
      applyStickyOffsets() whenever column visibility changes. -->
@@ -785,6 +787,47 @@ Masters Men-Women 35-39
         </div>
         <div id="dupBibsResult" style="margin-top:10px"></div>
       </div>
+
+      <!-- ====== Backup + Wipe (admin only) ====== -->
+      <div class="card admin-only" id="dataMgmtCard">
+        <h2>Backup &amp; reset</h2>
+        <p class="muted" style="margin:0 0 10px">
+          One-click backup of the live data, and a guarded wipe to clear
+          test data before opening real registration. Categories, theme,
+          form fields, scanner, and admin/staff access are <strong>never</strong>
+          touched by the wipe — only the per-runner data resets.
+        </p>
+
+        <h3 style="margin:14px 0 6px;font-size:1rem">Download backup (JSON)</h3>
+        <p class="muted" style="margin:0 0 8px;font-size:.88rem">
+          Saves <em>all</em> registrations (including soft-deleted), sponsors,
+          categories, the phone index, and every <code>config/*</code> doc to a
+          single JSON file you can store locally or commit privately.
+        </p>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <button id="backupDownloadBtn" class="btn">Download backup now</button>
+          <span class="muted" id="backupStatus"></span>
+        </div>
+
+        <h3 style="margin:22px 0 6px;font-size:1rem;color:#ff8a8a">Wipe before going online</h3>
+        <p class="muted" style="margin:0 0 8px;font-size:.88rem">
+          Removes every registration (live + soft-deleted) and the phone index,
+          and resets each category's <code>bibCursor</code> so bib numbering starts
+          from the range start again. Optionally also wipes sponsors. Run this
+          once when you're done testing and ready to open real registration.
+          <strong style="color:#ff8a8a">It cannot be undone</strong> — take a backup first.
+        </p>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <label class="inline" style="display:flex;align-items:center;gap:6px;cursor:pointer">
+            <input type="checkbox" id="wipeSponsorsCb">
+            <span>Also wipe sponsors</span>
+          </label>
+          <button id="wipeAllBtn" class="btn" style="background:#7a1f1f;border-color:#a52828">
+            Wipe registrations…
+          </button>
+          <span class="muted" id="wipeStatus"></span>
+        </div>
+      </div>
     </section>
 
   </main>
@@ -804,7 +847,7 @@ import {
   signOut, onAuthStateChanged, browserLocalPersistence, setPersistence
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
 import {
-  getFirestore, collection, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc,
+  getFirestore, collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc, writeBatch,
   onSnapshot, query, orderBy, serverTimestamp, runTransaction, arrayUnion
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 
@@ -2186,6 +2229,175 @@ document.getElementById("sponsorExportBtn")?.addEventListener("click", () => {
   a.download = `batroun-race-sponsors-${new Date().toISOString().slice(0,10)}.csv`;
   a.click();
   URL.revokeObjectURL(a.href);
+});
+
+// ===== Settings tab — backup + wipe =====
+
+// Convert a Firestore Timestamp (or anything with toDate) to an ISO string so
+// the JSON backup is portable. Plain objects/arrays/primitives pass through.
+function serialisable(value) {
+  if (value === null || value === undefined) return value;
+  if (typeof value?.toDate === "function") return value.toDate().toISOString();
+  if (Array.isArray(value)) return value.map(serialisable);
+  if (typeof value === "object") {
+    const out = {};
+    for (const k of Object.keys(value)) out[k] = serialisable(value[k]);
+    return out;
+  }
+  return value;
+}
+
+// Pulls every doc in a subcollection of the current competition and returns
+// [{ id, ...data }] with timestamps converted for JSON.
+async function dumpSubcollection(name) {
+  const snap = await getDocs(collection(db, "competitions", COMPETITION_ID, name));
+  return snap.docs.map(d => ({ id: d.id, ...serialisable(d.data()) }));
+}
+
+// One-click backup: gathers EVERYTHING under the competition into a single
+// JSON file and downloads it. Soft-deleted registrations are included.
+document.getElementById("backupDownloadBtn")?.addEventListener("click", async () => {
+  if (userRole !== "admin") { toast("Admin only", true); return; }
+  const btn = document.getElementById("backupDownloadBtn");
+  const status = document.getElementById("backupStatus");
+  btn.disabled = true; const _orig = btn.textContent; btn.textContent = "Gathering data…";
+  status.textContent = "";
+  try {
+    // Competition doc itself.
+    const compSnap = await getDoc(doc(db, "competitions", COMPETITION_ID));
+    const competitionData = compSnap.exists() ? serialisable(compSnap.data()) : null;
+
+    const [registrationsAll, categoriesAll, sponsorsAll, phoneIndexAll, configsAll] = await Promise.all([
+      dumpSubcollection("registrations"),
+      dumpSubcollection("categories"),
+      dumpSubcollection("sponsors"),
+      dumpSubcollection("phoneIndex"),
+      dumpSubcollection("config"),
+    ]);
+
+    const payload = {
+      backupVersion: 1,
+      backupTakenAt: new Date().toISOString(),
+      backupTakenBy: currentUserEmail || "unknown",
+      competitionId: COMPETITION_ID,
+      competition: competitionData,
+      counts: {
+        registrations: registrationsAll.length,
+        categories: categoriesAll.length,
+        sponsors: sponsorsAll.length,
+        phoneIndex: phoneIndexAll.length,
+        config: configsAll.length,
+      },
+      registrations: registrationsAll,
+      categories: categoriesAll,
+      sponsors: sponsorsAll,
+      phoneIndex: phoneIndexAll,
+      config: configsAll,
+    };
+
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `batroun-race-backup-${COMPETITION_ID}-${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+
+    status.textContent = `Saved — ${payload.counts.registrations} registrations, ${payload.counts.sponsors} sponsors, ${payload.counts.categories} categories.`;
+    toast("Backup downloaded");
+  } catch (e) {
+    console.error(e);
+    status.textContent = `Failed: ${e.message}`;
+    toast(e.message || "Backup failed", true);
+  } finally {
+    btn.disabled = false; btn.textContent = _orig;
+  }
+});
+
+// Helper: delete every doc in a subcollection in batches of 400.
+// Returns the count actually deleted. No-op (returns 0) on a permission
+// error so a partial wipe doesn't leave the UI stuck.
+async function purgeSubcollection(name) {
+  const snap = await getDocs(collection(db, "competitions", COMPETITION_ID, name));
+  const docs = snap.docs;
+  for (let i = 0; i < docs.length; i += 400) {
+    const batch = writeBatch(db);
+    docs.slice(i, i + 400).forEach(d => batch.delete(d.ref));
+    await batch.commit();
+  }
+  return docs.length;
+}
+
+document.getElementById("wipeAllBtn")?.addEventListener("click", async () => {
+  if (userRole !== "admin") { toast("Admin only", true); return; }
+  const status = document.getElementById("wipeStatus");
+  const wipeSponsors = $("#wipeSponsorsCb").checked;
+
+  // Live counts so the prompt tells the truth before they confirm.
+  const liveRegs = regs.filter(r => !r.deletedAt).length;
+  const allRegs  = regs.length;                    // includes soft-deleted
+  const sponsorsLive = sponsors.filter(s => !s.deletedAt).length;
+
+  // Two-step confirmation: (1) destructive summary, then (2) type-to-confirm.
+  const summary =
+    `WIPE ALL DATA — this CANNOT be undone.\n\n` +
+    `Will delete:\n` +
+    `  • ${allRegs} registrations (${liveRegs} live + ${allRegs - liveRegs} soft-deleted)\n` +
+    `  • The entire phone index\n` +
+    (wipeSponsors ? `  • ${sponsorsLive} sponsors\n` : `  • Sponsors: kept (uncheck "Also wipe sponsors" to keep)\n`) +
+    `\nWill RESET (not delete):\n` +
+    `  • Every category's bibCursor — bib numbering restarts from the range start\n` +
+    `\nWill NOT touch:\n` +
+    `  • Categories themselves, theme, form fields, scanner config, admin/staff access\n\n` +
+    `Take a backup first if you haven't already. Continue?`;
+  if (!confirm(summary)) return;
+
+  const phrase = `WIPE ${COMPETITION_ID}`;
+  const typed = prompt(`Type exactly to confirm:\n\n${phrase}`);
+  if (typed !== phrase) { toast("Wipe cancelled — phrase didn't match", true); return; }
+
+  const btn = document.getElementById("wipeAllBtn");
+  btn.disabled = true; const _orig = btn.textContent; btn.textContent = "Wiping…";
+  status.textContent = "";
+
+  try {
+    status.textContent = "Deleting registrations…";
+    const regsDeleted = await purgeSubcollection("registrations");
+
+    status.textContent = "Clearing phone index…";
+    const phonesDeleted = await purgeSubcollection("phoneIndex");
+
+    let sponsorsDeleted = 0;
+    if (wipeSponsors) {
+      status.textContent = "Deleting sponsors…";
+      sponsorsDeleted = await purgeSubcollection("sponsors");
+    }
+
+    status.textContent = "Resetting bib counters…";
+    // Reset bibCursor on each category back to its bibRangeStart (or null if
+    // no range is set), so the next confirm starts from the bottom of the
+    // range again. Only writes the bibCursor field — leaves names, prices,
+    // colours, brackets, etc. untouched.
+    const catSnap = await getDocs(collection(db, "competitions", COMPETITION_ID, "categories"));
+    let catsReset = 0;
+    for (let i = 0; i < catSnap.docs.length; i += 400) {
+      const batch = writeBatch(db);
+      catSnap.docs.slice(i, i + 400).forEach(d => {
+        const start = parseInt(d.data().bibRangeStart, 10);
+        batch.update(d.ref, { bibCursor: Number.isFinite(start) ? start : null });
+        catsReset++;
+      });
+      await batch.commit();
+    }
+
+    status.textContent = `Done — wiped ${regsDeleted} regs, ${phonesDeleted} phone refs${wipeSponsors ? `, ${sponsorsDeleted} sponsors` : ""}; reset ${catsReset} category counters.`;
+    toast("Data wiped — ready for live registration");
+  } catch (e) {
+    console.error(e);
+    status.textContent = `Failed: ${e.message}`;
+    toast(e.message || "Wipe failed (admin only)", true);
+  } finally {
+    btn.disabled = false; btn.textContent = _orig;
+  }
 });
 
 // ===== Settings tab — user access management =====
