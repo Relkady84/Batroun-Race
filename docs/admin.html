@@ -714,6 +714,18 @@ Masters Men-Women 35-39
           <button id="repairLegacyBtn" class="btn">Repair legacy registrations</button>
           <span class="muted" id="repairLegacyStatus"></span>
         </div>
+
+        <p class="muted" style="margin:18px 0 10px">
+          Scans every category for two runners sharing the same bib number. Bibs are
+          meant to be unique within a category, so any match here is a clash to fix by
+          editing one of the runners and giving them a free number. Read-only — it only
+          reports, it never changes anything.
+        </p>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <button id="findDupBibsBtn" class="btn">Find duplicate bibs</button>
+          <span class="muted" id="findDupBibsStatus"></span>
+        </div>
+        <div id="dupBibsResult" style="margin-top:10px"></div>
       </div>
     </section>
 
@@ -1950,6 +1962,46 @@ document.getElementById("repairLegacyBtn")?.addEventListener("click", async () =
   toast(failed ? `Repair done with ${failed} failure(s)` : "Legacy registrations repaired", !!failed);
 });
 
+// Read-only audit: list every (category, bib) pair held by 2+ runners.
+document.getElementById("findDupBibsBtn")?.addEventListener("click", () => {
+  const status = document.getElementById("findDupBibsStatus");
+  const out = document.getElementById("dupBibsResult");
+  out.innerHTML = "";
+  if (!regs || !regs.length) { status.textContent = "No registrations loaded yet."; return; }
+
+  // Group live (non-deleted) bibbed registrations by category + bib.
+  const groups = new Map();
+  regs.forEach(r => {
+    if (r.deletedAt || r.bibNumber == null) return;
+    const key = `${r.categoryId}__${Number(r.bibNumber)}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(r);
+  });
+  const dups = [...groups.values()].filter(g => g.length > 1);
+
+  if (!dups.length) {
+    status.textContent = "No duplicate bibs — every bib is unique within its category.";
+    return;
+  }
+  status.textContent = `Found ${dups.length} duplicate bib${dups.length === 1 ? "" : "s"} across all categories:`;
+  // Sort by category name then bib for a stable, readable list.
+  dups.sort((a, b) =>
+    (a[0].categoryName || "").localeCompare(b[0].categoryName || "")
+    || Number(a[0].bibNumber) - Number(b[0].bibNumber));
+  out.innerHTML = dups.map(g => {
+    const catName = g[0].categoryName || g[0].categoryId || "—";
+    const people = g.map(r =>
+      `<li>${escapeHtml((r.firstName || "") + " " + (r.lastName || "")).trim() || "(no name)"} — ref <code>${escapeHtml(r.whishReference || r.id)}</code> · ${escapeHtml(r.paymentStatus || "—")}</li>`
+    ).join("");
+    return `<div style="margin-bottom:10px;padding:10px 12px;background:rgba(255,77,77,.10);border:1px solid rgba(255,77,77,.45);border-radius:10px">
+      <strong style="color:#ff8a8a">${escapeHtml(catName)} · bib ${bibCell(g[0].bibNumber, g[0].categoryId)}</strong>
+      — ${g.length} runners share it:
+      <ul style="margin:6px 0 0;padding-left:20px">${people}</ul>
+    </div>`;
+  }).join("");
+  toast(`${dups.length} duplicate bib${dups.length === 1 ? "" : "s"} found`, true);
+});
+
 // Undo an approved payment — moves a runner back to Registrations as pending.
 // Use this when payment was confirmed by mistake.
 async function revertToPending(r) {
@@ -2263,6 +2315,18 @@ function buildWhatsAppUrl(r) {
 
 // Each category has its own BIB pool. nextBibFor picks the lowest
 // unused number in that category's range. FIFO within the category.
+// Set of bib numbers already taken in a category (live snapshot).
+// Excludes soft-deleted rows, and optionally one registration (so the
+// editor doesn't flag a reg's own existing bib as a clash).
+function usedBibsFor(categoryId, exceptRegId) {
+  return new Set(
+    regs.filter(x => x.categoryId === categoryId
+                  && x.bibNumber != null
+                  && !x.deletedAt
+                  && x.id !== exceptRegId)
+        .map(x => Number(x.bibNumber))
+  );
+}
 function nextBibFor(categoryId) {
   const cat = cats.find(c => c.id === categoryId);
   if (!cat) return { error: "Category not found." };
@@ -2271,10 +2335,16 @@ function nextBibFor(categoryId) {
   if (!start || !end || start > end) {
     return { error: `No BIB range set for "${cat.name || cat.id}". Open admin → Categories → edit this category to define start & end.` };
   }
-  const used = new Set(
-    regs.filter(x => x.categoryId === categoryId && x.bibNumber != null && !x.deletedAt)
-        .map(x => Number(x.bibNumber))
-  );
+  const used = usedBibsFor(categoryId);
+  // Start from the higher of the saved cursor and the range start, so the
+  // preview matches what the confirm transaction will actually assign, then
+  // skip any number already taken (covers manually-entered bibs too).
+  const cursor = Number.isFinite(cat.bibCursor) ? cat.bibCursor : start;
+  for (let n = Math.max(cursor, start); n <= end; n++) {
+    if (!used.has(n)) return { bib: n, start, end, color: cat.bibColor || null };
+  }
+  // Cursor may have run past a gap left by a revert/delete — fall back to a
+  // full scan from the start so freed numbers below the cursor get reused.
   for (let n = start; n <= end; n++) {
     if (!used.has(n)) return { bib: n, start, end, color: cat.bibColor || null };
   }
@@ -2320,13 +2390,23 @@ function openConfirmPay(r) {
   $("#okPay").onclick = async () => {
     const manualBib = autoOk ? null : parseInt(($("#bibInput")?.value || "").trim(), 10);
     if (!autoOk && !manualBib) { toast("Enter a bib number to continue", true); return; }
+    // Snapshot of bibs already taken in this category — used both to reject a
+    // duplicate manual entry and to let the auto-path skip over numbers that
+    // were assigned by hand (which the bibCursor doesn't know about).
+    const used = usedBibsFor(r.categoryId, r.id);
+    if (manualBib != null && used.has(manualBib)) {
+      const owner = regs.find(x => x.categoryId === r.categoryId && Number(x.bibNumber) === manualBib && !x.deletedAt);
+      toast(`Bib ${manualBib} is already used in ${r.categoryName || "this category"}${owner ? ` by ${(owner.firstName||"")} ${(owner.lastName||"")}`.trimEnd() : ""}. Pick another.`, true);
+      return;
+    }
     const sendWa = $("#sendWaCb").checked;
     try {
       // Atomic confirm: transaction reads the registration + category
       // doc so two admins clicking Confirm at the same time can never
       // assign the same bib. The category's bibCursor is the source of
       // truth for the next bib in the range; we initialize it from
-      // bibRangeStart lazily on first use.
+      // bibRangeStart lazily on first use, and skip any number already
+      // taken by a manual assignment so the two paths can't collide.
       const regRef = doc(db, "competitions", COMPETITION_ID, "registrations", r.id);
       const catRef = doc(db, "competitions", COMPETITION_ID, "categories", r.categoryId);
       const assignedBib = await runTransaction(db, async (tx) => {
@@ -2343,8 +2423,11 @@ function openConfirmPay(r) {
           const start = parseInt(c.bibRangeStart, 10);
           const end   = parseInt(c.bibRangeEnd,   10);
           if (!start || !end || start > end) throw new Error("No BIB range on this category — set one in admin → Categories.");
-          const cursor = Number.isFinite(c.bibCursor) ? c.bibCursor : start;
-          if (cursor > end) throw new Error(`BIB range ${start}–${end} is exhausted. Extend it in admin → Categories.`);
+          let cursor = Number.isFinite(c.bibCursor) ? c.bibCursor : start;
+          if (cursor < start) cursor = start;
+          // Advance past any number already taken by a manual assignment.
+          while (cursor <= end && used.has(cursor)) cursor++;
+          if (cursor > end) throw new Error(`BIB range ${start}–${end} is full (every number is assigned). Extend it in admin → Categories.`);
           bib = cursor;
           tx.update(catRef, { bibCursor: cursor + 1 });
         }
@@ -2648,6 +2731,22 @@ function openParticipantEditor(r) {
     const cat   = cats.find(c => c.id === catId);
     const status = $("#pe_status").value;
 
+    // Reject a bib number that's already used in the same category — no
+    // duplicate bibs, in any category. (exceptRegId = this reg, so editing
+    // a row without changing its bib doesn't flag itself.)
+    const bibVal = parseInt($("#pe_bib").value, 10) || null;
+    if (bibVal != null && catId) {
+      const owner = regs.find(x => x.categoryId === catId
+                                && Number(x.bibNumber) === bibVal
+                                && !x.deletedAt
+                                && x.id !== (isEdit ? r.id : null));
+      if (owner) {
+        toast(`Bib ${bibVal} is already used in ${cat?.name || "this category"} by ${(owner.firstName||"")} ${(owner.lastName||"")}`.trimEnd() + ". Pick another.", true);
+        $("#pe_bib").focus();
+        return;
+      }
+    }
+
     // Teammate (Person 2) — only persisted when the category is a relay.
     let teammate = null;
     if (cat?.isRelay) {
@@ -2680,7 +2779,7 @@ function openParticipantEditor(r) {
       priceUSD:     parseFloat($("#pe_price").value) || 0,
       paymentStatus: status,
       paymentMethod: status === "free" ? "free" : (isEdit ? (r.paymentMethod || "manual") : "manual"),
-      bibNumber: parseInt($("#pe_bib").value, 10) || null,
+      bibNumber: bibVal,
       club: $("#pe_club").value.trim() || null,
       medicalNotes: $("#pe_note").value.trim() || null,
       emergencyContactName: $("#pe_emgName").value.trim() || null,
