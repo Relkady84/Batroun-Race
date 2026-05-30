@@ -69,10 +69,17 @@ service cloud.firestore {
       allow read:  if true;
       allow write: if isAdmin();
 
-      // Categories: public read (page needs them), admin write
+      // Categories: public read (page needs them), admin write.
+      // EXCEPTION: staff (viewers) confirming a payment must atomically bump
+      // the category's bibCursor (and registeredCount) as part of assigning
+      // the next bib. Allow a viewer to UPDATE a category only when the sole
+      // changed fields are those counters — everything else stays admin-only.
       match /categories/{categoryId} {
         allow read:  if true;
         allow write: if isAdmin();
+        allow update: if canReadDashboard()
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['bibCursor', 'registeredCount']);
       }
 
       // Theme / form-schema / arbitrary config docs: public read, admin write.
