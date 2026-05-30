@@ -120,6 +120,15 @@ service cloud.firestore {
           && request.resource.data.refs.size() <= 50;
         allow delete: if isAdmin();
       }
+
+      // Sponsors: NOT public (contains amounts + private contacts).
+      //   - admin + viewer (staff) can read, create and update — so staff
+      //     can log sponsors during the event, not just admins.
+      //   - only admin can hard-delete.
+      match /sponsors/{sponsorId} {
+        allow read, create, update: if canReadDashboard();
+        allow delete: if isAdmin();
+      }
     }
 
     // Everything else: deny by default
