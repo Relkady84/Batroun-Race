@@ -123,33 +123,24 @@
   tbody tr.relay-teammate-row td{background:#11253d;font-style:italic;color:#cad7e8}
   td.actions{display:flex;gap:6px}
 
-  /* Frozen (sticky-left) columns. Each has a FIXED width; the `left`
-     offset is computed at runtime by applyStickyOffsets() based on which
-     of them are actually visible, so hiding a column never leaves a gap
-     or overlap. The dynamic <style id="stickyOffsets"> sets `left` + the
-     right-edge shadow on the last visible frozen column. */
-  th.col-whishReference,th.col-firstName,th.col-lastName,th.col-email,th.col-phone,
-  td.col-whishReference,td.col-firstName,td.col-lastName,td.col-email,td.col-phone{
-     position:sticky;background:#0f1e35} /* explicit bg so titles never bleed through */
-  /* Frozen header cells: pin to BOTH top and left. z-index 5 so they
-     sit above the non-frozen header (z:3) AND the frozen body (z:2). */
-  thead th.col-whishReference,thead th.col-firstName,thead th.col-lastName,
-  thead th.col-email,thead th.col-phone{top:0;z-index:5}
-  tbody td.col-whishReference,tbody td.col-firstName,tbody td.col-lastName,
-  tbody td.col-email,tbody td.col-phone{z-index:2}
+  /* Frozen (sticky-left) column — ONLY the Ref column stays pinned when the
+     table scrolls horizontally. Ref is the unique id for each row, so it's
+     enough to keep your place without eating horizontal space. Its left is 0;
+     applyStickyOffsets() still manages its edge shadow. */
+  th.col-whishReference,
+  td.col-whishReference{
+     position:sticky;left:0;background:#0f1e35} /* explicit bg so cells never bleed through */
+  /* Frozen header cell: pin to BOTH top and left. z-index 5 so it sits
+     above the non-frozen header (z:3) AND the frozen body (z:2). */
+  thead th.col-whishReference{top:0;z-index:5}
+  tbody td.col-whishReference{z-index:2}
   .col-whishReference{min-width:130px;max-width:130px}
   .col-firstName     {min-width:120px;max-width:120px}
   .col-lastName      {min-width:120px;max-width:120px}
   .col-email         {min-width:200px;max-width:200px;overflow:hidden;text-overflow:ellipsis}
   .col-phone         {min-width:140px;max-width:140px}
-  /* Keep the dark frozen-cell bg even when the row is hovered, so the
-     frozen header keeps reading as the header strip and the frozen body
-     cells stay in sync visually with the rest of the row. */
-  tbody tr:hover td.col-whishReference,
-  tbody tr:hover td.col-firstName,
-  tbody tr:hover td.col-lastName,
-  tbody tr:hover td.col-email,
-  tbody tr:hover td.col-phone{background:#152a48}
+  /* Keep the frozen Ref cell's hover bg in sync with the rest of the row. */
+  tbody tr:hover td.col-whishReference{background:#152a48}
 
   /* Filters */
   .filters{display:grid;grid-template-columns:1fr 180px 180px 180px;gap:10px;margin-bottom:14px}
@@ -1388,16 +1379,11 @@ function applyPrefs() {
   applyStickyOffsets();
 }
 
-// The frozen (sticky-left) columns, in display order, with their fixed
-// widths. `left` for each is the sum of the widths of the visible frozen
-// columns before it — recomputed here so hiding e.g. Email never leaves a
-// gap or makes Phone overlap. The last visible one gets the edge shadow.
+// The frozen (sticky-left) column. Only the Ref column is pinned now — it's
+// the unique id for each row, enough to keep your place when scrolling right,
+// without freezing several columns and eating horizontal space on mobile.
 const FROZEN_COLS = [
   { key: "whishReference", w: 130 },
-  { key: "firstName",      w: 120 },
-  { key: "lastName",       w: 120 },
-  { key: "email",          w: 200 },
-  { key: "phone",          w: 140 },
 ];
 function applyStickyOffsets() {
   const visible = FROZEN_COLS.filter(c => prefs.columns[c.key] !== false);
