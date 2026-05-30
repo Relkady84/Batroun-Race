@@ -867,6 +867,18 @@ function fmtDate(ts) {
   return `${datePart} · ${timePart}`;
 }
 function fmtMoney(n) { return n === 0 ? "Free" : "$" + n; }
+// Renders a bib number tinted with its category's bibColor, same as the
+// ticket page. Falls back to plain text (or an em dash) when there's no
+// bib or no valid color. categoryId lets us look the color up from `cats`.
+function bibCell(bib, categoryId) {
+  if (bib == null || bib === "") return "—";
+  const cat = cats.find(c => c.id === categoryId);
+  const color = cat?.bibColor;
+  if (color && /^#[0-9a-fA-F]{6}$/.test(color)) {
+    return `<span style="color:${color};font-weight:800">${escapeHtml(String(bib))}</span>`;
+  }
+  return escapeHtml(String(bib));
+}
 function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 }
@@ -1507,7 +1519,7 @@ function renderRegTable() {
       <td class="col-priceUSD">${fmtMoney(r.priceUSD || 0)}</td>
       <td class="col-paymentStatus"><span class="pill ${r.paymentStatus}">${r.paymentStatus}</span></td>
       <td class="col-paymentMethod">${escapeHtml(r.paymentMethod || "—")}</td>
-      <td class="col-bibNumber">${r.bibNumber ?? "—"}</td>
+      <td class="col-bibNumber">${bibCell(r.bibNumber, r.categoryId)}</td>
       <td class="col-registeredAt">${fmtDate(r.registeredAt)}</td>
       <td class="col-checkedInAt">${checkedInCell}</td>
       <td class="actions">
@@ -1539,7 +1551,7 @@ function renderRegTable() {
       <td class="col-priceUSD"></td>
       <td class="col-paymentStatus"></td>
       <td class="col-paymentMethod"></td>
-      <td class="col-bibNumber">${r.bibNumber ?? "—"}</td>
+      <td class="col-bibNumber">${bibCell(r.bibNumber, r.categoryId)}</td>
       <td class="col-registeredAt"></td>
       <td class="col-checkedInAt">${t2Done ? `<span style="color:var(--accent);font-weight:700">✓ ${fmtDate(r.teammateCheckedInAt)}</span>` : "—"}</td>
       <td class="actions"></td>
@@ -1585,6 +1597,8 @@ function renderRegTable() {
 
 function openRegDetails(r) {
   const k = (label, val) => `<div class="k">${label}</div><div class="v">${escapeHtml(val ?? "—")}</div>`;
+  // Same as k() but the value is already-trusted HTML (e.g. a colored bib span).
+  const kHtml = (label, html) => `<div class="k">${label}</div><div class="v">${html}</div>`;
   const customRows = formFields
     .map(f => k(f.label, r.custom?.[f.key]))
     .join("");
@@ -1603,7 +1617,7 @@ function openRegDetails(r) {
       ${r.subQuestionAnswer ? k(cats.find(c => c.id === r.categoryId)?.subQuestion?.label || "Sub-category", r.subQuestionAnswer) : ""}
       ${k("Price", fmtMoney(r.priceUSD || 0))}
       ${k("Status", r.paymentStatus)}
-      ${k("Bib", r.bibNumber)}
+      ${kHtml("Bib", bibCell(r.bibNumber, r.categoryId))}
       ${k("T-shirt", r.tshirtSize)}
       ${k("Blood type", r.bloodType)}
       ${k("Club", r.club)}
@@ -1719,7 +1733,7 @@ function renderConfirmedTab() {
       <td>${escapeHtml((r.firstName || "") + " " + (r.lastName || ""))}</td>
       <td>${escapeHtml(r.categoryName || "—")}</td>
       <td>${escapeHtml(r.subQuestionAnswer || "—")}</td>
-      <td>${r.bibNumber ?? "—"}</td>
+      <td>${bibCell(r.bibNumber, r.categoryId)}</td>
       <td>${r.paidAt ? fmtDate(r.paidAt) : "—"}</td>
       <td>${r.checkedInAt
         ? `<span style="color:var(--accent);font-weight:700">✓ ${fmtDate(r.checkedInAt)}</span>`
