@@ -87,9 +87,16 @@
         font-size:.85rem;color:var(--muted)}
   .stub strong{color:var(--ink)}
 
-  .hint{margin:14px 20px 22px;padding:12px 14px;background:#f8fafc;border:1px solid var(--line);
+  .hint{margin:14px 20px 8px;padding:12px 14px;background:#f8fafc;border:1px solid var(--line);
         border-radius:12px;color:#36495e;font-size:.85rem;line-height:1.5}
   .hint strong{color:var(--ink)}
+  /* Bib-pickup schedule. white-space:pre-line preserves the line breaks
+     the admin types into theme.bibPickupText (one pickup per line). */
+  .pickup{margin:0 0 22px;padding:0 20px;text-align:center;font-size:.92rem;line-height:1.5;
+          white-space:pre-line;color:#0f2944;font-weight:600}
+  @media (max-width:520px){
+    .pickup{padding:0 14px;font-size:.86rem}
+  }
 
   /* Mobile-tuned spacing & layout — applies to most phones. */
   @media (max-width:520px){
@@ -160,8 +167,14 @@
     </div>
 
     <p class="hint">
-      <strong>Show this for bib pickup.</strong>
+      <strong>Show this QR at bib pickup:</strong>
     </p>
+    <!-- Bib-pickup schedule. Pre-rendered with the same default as the
+         admin's editable field so it appears instantly while Firestore
+         loads. The IIFE below overrides this with theme.bibPickupText
+         when the admin has customised it. -->
+    <div class="pickup" id="pickupSchedule">- 6 July 2026: Experts Sport, Dbayyeh
+- 8 July 2026: Batroun</div>
   </article>
 </main>
 
@@ -253,12 +266,14 @@ const catId  = (params.get("cat_id") || "").trim();
 
 (async () => {
   try {
-    const [compSnap, catSnap] = await Promise.all([
+    const [compSnap, catSnap, themeSnap] = await Promise.all([
       getDoc(doc(db, "competitions", COMPETITION_ID_LIVE)),
-      catId ? getDoc(doc(db, "competitions", COMPETITION_ID_LIVE, "categories", catId)) : Promise.resolve(null)
+      catId ? getDoc(doc(db, "competitions", COMPETITION_ID_LIVE, "categories", catId)) : Promise.resolve(null),
+      getDoc(doc(db, "competitions", COMPETITION_ID_LIVE, "config", "theme"))
     ]);
     const c = compSnap.exists() ? compSnap.data() : {};
     const cat = catSnap && catSnap.exists() ? catSnap.data() : {};
+    const theme = themeSnap.exists() ? themeSnap.data() : {};
     const liveRaceDay =
       typeof c.raceDay === "string" ? c.raceDay.slice(0,10) :
       c.raceDay?.toDate ? c.raceDay.toDate().toISOString().slice(0,10) : null;
@@ -272,6 +287,15 @@ const catId  = (params.get("cat_id") || "").trim();
     if (cat.name) {
       const subQ = params.get("subQuestionAnswer") || "";
       window.set("cat", cat.name + (subQ ? " — " + subQ : ""));
+    }
+    // Bib pickup schedule — sourced from the same theme.bibPickupText the
+    // post-payment WhatsApp message uses, so editing once in admin updates
+    // both surfaces. The static HTML above already shows the default; this
+    // only overrides when the admin has typed a custom block.
+    const customPickup = (theme.bibPickupText || "").trim();
+    if (customPickup) {
+      const el = document.getElementById("pickupSchedule");
+      if (el) el.textContent = customPickup;
     }
   } catch (err) {
     // Stay with the URL-param values silently — they are the fallback.
