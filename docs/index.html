@@ -347,6 +347,15 @@
 
   .closed-banner{background:rgba(255,107,107,.12);border:1px solid rgba(255,107,107,.4);
     color:#ffd9d9;padding:14px;border-radius:12px;text-align:center;font-weight:700}
+  /* Open-window banner — friendly accent so it reads as positive news,
+     not an alert. Stacked layout: heading on top, dates underneath. */
+  .open-banner{background:rgba(61,214,198,.10);border:1px solid rgba(61,214,198,.45);
+    color:var(--ink);padding:12px 14px;border-radius:12px;text-align:center;
+    margin:0 0 14px}
+  .open-banner .open-banner-title{font-weight:800;color:var(--accent);
+    font-size:1rem;letter-spacing:.02em;text-transform:uppercase}
+  .open-banner .open-banner-dates{margin-top:4px;font-weight:700;color:var(--ink);
+    font-size:1.1rem}
 
   /* ── Sign-in cart / Whish invoice ── */
   /* Cart overlay — full-screen dimmed backdrop, scrollable. Sits above
@@ -480,6 +489,13 @@
     <!-- Registration closed view -->
     <div class="closed-banner" id="closedBanner" style="display:none">
       Registration for Batroun Race 2026 is now closed. See you next year!
+    </div>
+    <!-- Shown only while registration is actively open, to communicate
+         the window (so visitors know the deadline). Filled in by
+         renderRegistrationBanner(); hidden when before/after the window. -->
+    <div class="open-banner" id="openBanner" style="display:none">
+      <div class="open-banner-title">Registration started</div>
+      <div class="open-banner-dates" id="openBannerDates"></div>
     </div>
 
     <!-- Main form -->
@@ -1063,13 +1079,38 @@ function generateRef() {
 // UI: registration banner (hidden when closed)
 // ============================================================
 const closedBanner = document.getElementById("closedBanner");
+const openBanner   = document.getElementById("openBanner");
+const openBannerDates = document.getElementById("openBannerDates");
 const form = document.getElementById("regForm");
+
+// Compact range like "1 June – 1 July 2026" (or "1 June 2026 – 5 January 2027"
+// across a year boundary). Falls back gracefully if only one bound is set.
+function fmtRegistrationWindow() {
+  if (!REGISTRATION_OPENS && !REGISTRATION_CLOSES) return "";
+  const opts = { day: "numeric", month: "long", year: "numeric" };
+  const dayMonthOpts = { day: "numeric", month: "long" };
+  if (REGISTRATION_OPENS && REGISTRATION_CLOSES) {
+    const sameYear = REGISTRATION_OPENS.getFullYear() === REGISTRATION_CLOSES.getFullYear();
+    const left  = REGISTRATION_OPENS.toLocaleDateString("en-GB", sameYear ? dayMonthOpts : opts);
+    const right = REGISTRATION_CLOSES.toLocaleDateString("en-GB", opts);
+    return `${left} – ${right}`;
+  }
+  if (REGISTRATION_OPENS)  return `from ${REGISTRATION_OPENS.toLocaleDateString("en-GB", opts)}`;
+  return `until ${REGISTRATION_CLOSES.toLocaleDateString("en-GB", opts)}`;
+}
 
 function renderRegistrationBanner() {
   const status = registrationStatus();
+  // Reset both banners; the chosen branch below shows the right one.
+  closedBanner.style.display = "none";
+  openBanner.style.display   = "none";
   if (status === "open") {
-    closedBanner.style.display = "none";
     form.style.display = "";
+    const window = fmtRegistrationWindow();
+    if (window) {
+      openBannerDates.textContent = window;
+      openBanner.style.display = "block";
+    }
     return;
   }
   form.style.display = "none";
