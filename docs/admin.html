@@ -693,6 +693,20 @@ Masters Men-Women 35-39
         </div>
       </div>
 
+      <div class="card">
+        <h2>Post-payment WhatsApp message — bib pickup info</h2>
+        <p class="muted" style="margin:0 0 12px">
+          The block appended to every confirmed-payment WhatsApp message,
+          right before "See you at the start line!". Leave blank to use the
+          built-in default. One line per entry — plain text only, no emojis
+          (some Android devices render unknown emojis as "?" in WhatsApp).
+        </p>
+        <label>Bib pickup lines</label>
+        <textarea id="thBibPickup" rows="4" placeholder="BIB PICKUP — bring your ticket (printed or on your phone):
+- 6 July 2026: Experts Sport, Dbayyeh
+- 8 July 2026: Batroun"></textarea>
+      </div>
+
       <div><button id="themeSaveBtn" class="btn">Save theme &amp; copy</button></div>
     </section>
 
@@ -902,6 +916,7 @@ let regs = [];
 let cats = [];
 let sponsors = [];
 let competition = {};
+let theme = {}; // /config/theme — read by buildWhatsAppUrl etc. for editable copy
 let formFields = [];
 let builtInConfig = {};
 let includesConfig = null; // null = use defaults; array = explicit list
@@ -1276,7 +1291,10 @@ function startListeners() {
   // Theme config doc
   onSnapshot(
     doc(db, "competitions", COMPETITION_ID, "config", "theme"),
-    snap => loadThemeIntoEditor(snap.exists() ? snap.data() : {}),
+    snap => {
+      theme = snap.exists() ? snap.data() : {};
+      loadThemeIntoEditor(theme);
+    },
     err => toast("Theme listener: " + err.message, true)
   );
 
@@ -3074,6 +3092,16 @@ function buildWhatsAppUrl(r) {
   const teammateName = r.teammate
     ? `${(r.teammate.firstName || "").trim()} ${(r.teammate.lastName || "").trim()}`.trim()
     : "";
+  // Bib pickup block — admin-editable under Theme & copy. Falls back to a
+  // sensible default when blank. Plain text only (no emojis) so every
+  // Android phone renders it cleanly inside WhatsApp.
+  const DEFAULT_BIB_PICKUP =
+    `BIB PICKUP — bring your ticket (printed or on your phone):\n` +
+    `- 6 July 2026: Experts Sport, Dbayyeh\n` +
+    `- 8 July 2026: Batroun`;
+  const bibPickupBlock = (theme && theme.bibPickupText && theme.bibPickupText.trim())
+    || DEFAULT_BIB_PICKUP;
+
   const lines = [
     `Hi ${r.firstName}, your Batroun Race 2026 registration is confirmed!`,
     ``,
@@ -3086,7 +3114,8 @@ function buildWhatsAppUrl(r) {
     `Open your official race ticket below (with QR code, all your details, and a "Save as PDF" button):`,
     ticketUrl,
     ``,
-    `Bring it printed or on your phone to pick up your bib on race day.`,
+    bibPickupBlock,
+    ``,
     `See you at the start line!`
   ];
   return `https://wa.me/${phone}?text=${encodeURIComponent(lines.join("\n"))}`;
@@ -4227,6 +4256,7 @@ function loadThemeIntoEditor(t) {
   $("#thWhishName").value    = t.whishRecipient    || "";
   $("#thWhishConfirm").value = t.whishConfirmText  || "";
   $("#thWhishInvoice").value = t.whishInvoiceText  || "";
+  $("#thBibPickup").value    = t.bibPickupText     || "";
   updateBgPreview(t.bgImage);
   updateLogoPreview(t.logoImage);
   applyAdminLogo(t.logoImage);
@@ -4436,6 +4466,7 @@ $("#themeSaveBtn").addEventListener("click", async () => {
         whishRecipient:   $("#thWhishName").value.trim()    || null,
         whishConfirmText: $("#thWhishConfirm").value.trim() || null,
         whishInvoiceText: $("#thWhishInvoice").value.trim() || null,
+        bibPickupText:    $("#thBibPickup").value.trim()    || null,
         updatedAt:  serverTimestamp()
       },
       { merge: true }
