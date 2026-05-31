@@ -349,6 +349,34 @@
     color:#ffd9d9;padding:14px;border-radius:12px;text-align:center;font-weight:700}
 
   /* ── Sign-in cart / Whish invoice ── */
+  /* Cart overlay — full-screen dimmed backdrop, scrollable. Sits above
+     everything so the cart reads as a focused dropdown drawer, not a
+     separate page. Lock body scroll via .cart-open on <body>. */
+  .cart-overlay{position:fixed;inset:0;z-index:200;
+    background:rgba(0,0,0,.62);
+    -webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);
+    overflow-y:auto;-webkit-overflow-scrolling:touch;
+    animation:cartFadeIn .18s ease-out}
+  .cart-panel-inner{max-width:760px;margin:56px auto 24px;padding:0 14px}
+  .cart-panel-inner .card{position:relative;
+    box-shadow:0 30px 80px rgba(0,0,0,.55);
+    animation:cartDropIn .22s ease-out}
+  .cart-close-x{appearance:none;background:rgba(255,255,255,.08);
+    border:1px solid var(--line);color:var(--ink);
+    width:36px;height:36px;border-radius:50%;cursor:pointer;
+    display:inline-flex;align-items:center;justify-content:center;
+    font-size:1.35rem;line-height:1;font-weight:700;padding:0;
+    transition:background .15s ease, transform .1s ease}
+  .cart-close-x:hover{background:rgba(255,255,255,.18)}
+  .cart-close-x:active{transform:scale(.94)}
+  @keyframes cartFadeIn{from{opacity:0}to{opacity:1}}
+  @keyframes cartDropIn{from{transform:translateY(-12px);opacity:.65}to{transform:none;opacity:1}}
+  body.cart-open{overflow:hidden}
+  @media (max-width:520px){
+    .cart-panel-inner{margin:14px auto 14px;padding:0 10px}
+    .cart-panel-inner .card{padding:16px!important}
+  }
+
   .whish-badge{display:inline-flex;align-items:center;gap:0;background:#e6204e;
     color:#fff;border-radius:8px;padding:6px 12px;font-weight:900;font-style:italic;
     font-size:.95rem;line-height:1;letter-spacing:.01em;box-shadow:0 2px 6px rgba(0,0,0,.3)}
@@ -778,12 +806,16 @@
       </div>
     </div>
 
-    <!-- Shopping cart (shown after successful sign-in or from the cart icon) -->
-    <div id="cartPanel" hidden style="margin-top:14px">
+    <!-- Shopping cart — opens as a focused overlay drawer over the page,
+         not as inline content. Backdrop closes; .cart-close-x closes;
+         Escape key closes. -->
+    <div id="cartPanel" class="cart-overlay" role="dialog" aria-modal="true"
+         aria-labelledby="cartTitle" hidden>
+     <div class="cart-panel-inner">
       <div class="card" style="background:var(--card);border:1px solid var(--line);border-radius:18px;padding:22px">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px">
-          <h2 style="margin:0;font-size:1.25rem">Welcome back, <span id="cartName">runner</span></h2>
-          <button type="button" id="cartClose" class="btn sec" style="padding:8px 14px;font-size:.9rem">Close cart</button>
+          <h2 id="cartTitle" style="margin:0;font-size:1.25rem">Welcome back, <span id="cartName">runner</span></h2>
+          <button type="button" id="cartClose" class="cart-close-x" aria-label="Close cart">&times;</button>
         </div>
         <div id="cartItems"></div>
         <div id="cartAddWrap" style="margin-top:14px;padding-top:14px;border-top:1px dashed var(--line)">
@@ -791,6 +823,7 @@
         </div>
         <div id="cartAddForm" hidden style="margin-top:14px"></div>
       </div>
+     </div>
     </div>
 
     <!-- DOB picker modal -->
@@ -2556,7 +2589,8 @@ function renderCart(regs) {
   form.style.display = "none";
   document.getElementById("confirmPanel").classList.remove("show");
   cartPanel.hidden = false;
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  document.body.classList.add("cart-open");
+  cartPanel.scrollTop = 0;
 }
 
 // ============================================================
@@ -2633,6 +2667,7 @@ function doSignOut() {
   clearSessionStore();
   SESSION_REGS = [];
   cartPanel.hidden = true;
+  document.body.classList.remove("cart-open");
   cartAddForm.hidden = true;
   cartAddForm.innerHTML = "";
   form.style.display = "";
@@ -2643,26 +2678,46 @@ function doSignOut() {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-function toggleCart() {
-  if (!cartPanel.hidden) {
-    cartPanel.hidden = true;
-    form.style.display = "";
-    form.classList.remove("is-hiding");
-    return;
-  }
+// The cart is rendered as a fixed-position overlay (.cart-overlay). Open
+// = show the overlay + lock body scroll. Close = hide + unlock. The form
+// underneath is also hidden (kept from the inline-panel days) so a runner
+// closing the cart sees their original page state cleanly.
+function openCartOverlay() {
   renderCart(SESSION_REGS);
   cartAddForm.hidden = true;
   cartAddForm.innerHTML = "";
-  cartPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+  cartPanel.hidden = false;
+  document.body.classList.add("cart-open");
+  // Scroll the overlay to its top so the heading is always visible.
+  cartPanel.scrollTop = 0;
 }
-
-cartCloseBtn?.addEventListener("click", () => {
+function closeCartOverlay() {
   cartPanel.hidden = true;
+  document.body.classList.remove("cart-open");
   form.style.display = "";
   form.classList.remove("is-hiding");
+}
+function toggleCart() {
+  if (!cartPanel.hidden) { closeCartOverlay(); return; }
+  openCartOverlay();
+}
+
+// Click on the dimmed backdrop (the cartPanel itself, not the inner card)
+// closes the cart. Inside-card clicks bubble up but stop here because the
+// listener checks event.target identity.
+cartPanel.addEventListener("click", (e) => {
+  if (e.target === cartPanel) closeCartOverlay();
+});
+
+// Esc key closes the cart when it's open.
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !cartPanel.hidden) closeCartOverlay();
+});
+
+cartCloseBtn?.addEventListener("click", () => {
+  closeCartOverlay();
   cartAddForm.hidden = true;
   cartAddForm.innerHTML = "";
-  window.scrollTo({ top: 0, behavior: "smooth" });
 });
 
 // Boot the top bar based on what's in localStorage.
