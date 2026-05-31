@@ -348,14 +348,17 @@
   .closed-banner{background:rgba(255,107,107,.12);border:1px solid rgba(255,107,107,.4);
     color:#ffd9d9;padding:14px;border-radius:12px;text-align:center;font-weight:700}
   /* Open-window banner — friendly accent so it reads as positive news,
-     not an alert. Stacked layout: heading on top, dates underneath. */
-  .open-banner{background:rgba(61,214,198,.10);border:1px solid rgba(61,214,198,.45);
-    color:var(--ink);padding:12px 14px;border-radius:12px;text-align:center;
-    margin:0 0 14px}
-  .open-banner .open-banner-title{font-weight:800;color:var(--accent);
-    font-size:1rem;letter-spacing:.02em;text-transform:uppercase}
-  .open-banner .open-banner-dates{margin-top:4px;font-weight:700;color:var(--ink);
-    font-size:1.1rem}
+     not an alert. Same visual weight as the .closed-banner (padding,
+     border, font-weight) so the page hierarchy feels consistent across
+     the three registration states; stacked layout: heading on top,
+     dates underneath. */
+  .open-banner{background:rgba(61,214,198,.12);border:1px solid rgba(61,214,198,.45);
+    color:var(--ink);padding:14px;border-radius:12px;text-align:center;
+    font-weight:700;margin:0 0 14px}
+  .open-banner .open-banner-title{font-weight:900;color:var(--accent);
+    font-size:1.2rem;letter-spacing:.04em;text-transform:uppercase}
+  .open-banner .open-banner-dates{margin-top:6px;font-weight:800;color:var(--ink);
+    font-size:1.15rem;letter-spacing:.01em}
 
   /* ── Sign-in cart / Whish invoice ── */
   /* Cart overlay — full-screen dimmed backdrop, scrollable. Sits above
