@@ -147,6 +147,27 @@
   tbody tr:hover td.col-expander,
   tbody tr:hover td.col-whishReference{background:#152a48}
 
+  /* Click-to-select row — tap any non-action cell and the row stays
+     highlighted while you scroll left/right, so the action column at the
+     far right can't be tapped on the wrong runner. Tap again to clear;
+     tap a different row to move the highlight. Single-select per table.
+     Higher specificity than the .col-expander / .col-whishReference
+     frozen-bg rules so the whole row reads as a single highlighted unit. */
+  tbody tr{cursor:pointer}
+  tbody tr td.empty{cursor:default}
+  tbody tr.row-selected td,
+  tbody tr.row-selected td.col-expander,
+  tbody tr.row-selected td.col-whishReference{background:#1a3d5e}
+  /* Teal accent strip on the sticky-left expander cell so the selection
+     is obvious even when the rest of the row is off-screen. */
+  tbody tr.row-selected td.col-expander{box-shadow:inset 4px 0 0 0 var(--accent)}
+  /* Hover stays distinct on top of a selected row. */
+  tbody tr.row-selected:hover td,
+  tbody tr.row-selected:hover td.col-expander,
+  tbody tr.row-selected:hover td.col-whishReference{background:#214a72}
+  /* Selected relay-teammate row reads as a sub-row of the selection. */
+  tbody tr.relay-teammate-row.row-selected td{background:#173550}
+
   /* Filters */
   .filters{display:grid;grid-template-columns:1fr 180px 180px 180px;gap:10px;margin-bottom:14px}
   @media (max-width:800px){.filters{grid-template-columns:1fr}}
@@ -1225,6 +1246,29 @@ $$('nav.tabs button').forEach(btn => {
     btn.classList.add("active");
     $$('section.tab').forEach(s => s.classList.remove("active"));
     $("#tab-" + btn.dataset.tab).classList.add("active");
+  });
+});
+
+// ===== Click-to-select-row =====
+// Delegated on each table's <tbody>. The tbody element itself is preserved
+// across re-renders (we replace innerHTML, not the tbody), so this listener
+// keeps working as Firestore snapshots stream in.
+//   - Single-select per table.
+//   - Tap a different row → highlight moves.
+//   - Tap the same row → deselect.
+//   - Skips clicks on buttons / links / form inputs so action buttons
+//     (View, Edit, Confirm pay, ↪ Revert, Delete, ▸ expand, etc.) keep
+//     firing their own handlers without also toggling selection.
+//   - Skips the empty / "Loading…" placeholder rows.
+$$(".table-wrap table tbody").forEach(tbody => {
+  tbody.addEventListener("click", (e) => {
+    if (e.target.closest("button, a, input, select, textarea, label")) return;
+    const tr = e.target.closest("tr");
+    if (!tr || tr.querySelector("td.empty")) return;
+    const tbl = tr.closest("table");
+    const already = tr.classList.contains("row-selected");
+    tbl.querySelectorAll("tr.row-selected").forEach(r => r.classList.remove("row-selected"));
+    if (!already) tr.classList.add("row-selected");
   });
 });
 
