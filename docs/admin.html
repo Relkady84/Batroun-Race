@@ -313,9 +313,9 @@
             <option value="free">Free</option>
           </select>
           <select data-filter-id="checkedIn" id="filterCheckedIn">
-            <option value="">Any check-in</option>
-            <option value="yes">Checked in</option>
-            <option value="no">Not checked in</option>
+            <option value="">Any BIB status</option>
+            <option value="yes">BIB received</option>
+            <option value="no">BIB not received</option>
           </select>
           <button id="addParticipantBtn" class="btn">+ Add participant</button>
           <button id="exportCsvBtn" class="btn sec">Export CSV</button>
@@ -344,7 +344,7 @@
               <th class="sortable col-paymentMethod"     data-sort="paymentMethod">Method</th>
               <th class="sortable col-bibNumber"         data-sort="bibNumber">Bib</th>
               <th class="sortable col-registeredAt"      data-sort="registeredAt">Date</th>
-              <th class="sortable col-checkedInAt"       data-sort="checkedInAt">Checked in</th>
+              <th class="sortable col-checkedInAt"       data-sort="checkedInAt">BIB received</th>
               <th></th>
             </tr></thead>
             <tbody><tr><td colspan="21" class="empty">Loading…</td></tr></tbody>
@@ -363,8 +363,8 @@
           <select id="confirmedCategoryFilter"><option value="">All categories</option></select>
           <select id="confirmedCheckedIn">
             <option value="">All</option>
-            <option value="no">Not checked in yet</option>
-            <option value="yes">Checked in</option>
+            <option value="no">BIB not received yet</option>
+            <option value="yes">BIB received</option>
           </select>
           <button id="confirmedExportBtn" class="btn sec">Export CSV</button>
         </div>
@@ -378,7 +378,7 @@
               <th class="sortable" data-csort="subQuestionAnswer">Sub-category</th>
               <th class="sortable" data-csort="bibNumber">Bib</th>
               <th class="sortable" data-csort="paidAt">Confirmed at</th>
-              <th class="sortable" data-csort="checkedInAt">Checked in</th>
+              <th class="sortable" data-csort="checkedInAt">BIB received</th>
               <th></th>
             </tr></thead>
             <tbody><tr><td colspan="8" class="empty">No confirmed registrations yet.</td></tr></tbody>
@@ -1379,7 +1379,7 @@ function renderStats() {
     <div class="stat"><div class="label">Paid</div><div class="value accent">${paid}</div></div>
     <div class="stat"><div class="label">Pending</div><div class="value" style="color:var(--warn)">${pending}</div></div>
     <div class="stat"><div class="label">Free entries</div><div class="value" style="color:var(--accent2)">${free}</div></div>
-    <div class="stat"><div class="label">Checked in</div><div class="value accent">${checkedIn} <span style="font-size:.5em;opacity:.7">/ ${total}</span></div></div>
+    <div class="stat"><div class="label">BIB received</div><div class="value accent">${checkedIn} <span style="font-size:.5em;opacity:.7">/ ${total}</span></div></div>
     <div class="stat"><div class="label">Revenue collected</div><div class="value accent">$${revenue}</div></div>
   `;
 }
@@ -1405,7 +1405,7 @@ const DASHBOARD_FILTERS = [
   { id:"tshirt",        label:"T-shirt size" },
   { id:"status",        label:"Status" },
   { id:"paymentMethod", label:"Payment method" },
-  { id:"checkedIn",     label:"Check-in status" }
+  { id:"checkedIn",     label:"BIB status" }
 ];
 const DASHBOARD_COLUMNS = [
   { key:"whishReference",    label:"Reference" },
@@ -1426,7 +1426,7 @@ const DASHBOARD_COLUMNS = [
   { key:"paymentMethod",     label:"Method" },
   { key:"bibNumber",         label:"Bib" },
   { key:"registeredAt",      label:"Date" },
-  { key:"checkedInAt",       label:"Checked in" }
+  { key:"checkedInAt",       label:"BIB received" }
 ];
 // Fields available on the hostess scanner result card.
 const SCANNER_FIELDS = [
@@ -1794,8 +1794,8 @@ function renderRegTable() {
       : (t1Done && t2Done
           ? `<span style="color:var(--accent);font-weight:700">✓ both</span>`
           : t1Done
-            ? `<span style="color:#ffae50;font-weight:700">1/2 in</span>`
-            : "<span class='muted'>0/2 in</span>");
+            ? `<span style="color:#ffae50;font-weight:700">1/2 received</span>`
+            : "<span class='muted'>0/2 received</span>");
     const expanderCell = hasTeammate
       ? `<button class="btn tiny sec relay-expand" data-relay-id="${r.id}" title="Show teammate" style="padding:2px 5px;line-height:1">▸</button>`
       : "";
@@ -1964,7 +1964,7 @@ function renderConfirmedStats() {
     <div class="stat"><div class="label">Confirmed registrations</div><div class="value accent">${total}</div></div>
     <div class="stat"><div class="label">Paid</div><div class="value">${paid}</div></div>
     <div class="stat"><div class="label">Free</div><div class="value" style="color:var(--accent2)">${free}</div></div>
-    <div class="stat"><div class="label">Checked in</div><div class="value accent">${checkedIn} <span style="font-size:.5em;opacity:.7">/ ${total}</span></div></div>
+    <div class="stat"><div class="label">BIB received</div><div class="value accent">${checkedIn} <span style="font-size:.5em;opacity:.7">/ ${total}</span></div></div>
     <div class="stat"><div class="label">Revenue</div><div class="value accent">$${revenue}</div></div>
   `;
 }
@@ -2855,7 +2855,7 @@ async function revertToPending(r) {
     `This clears:\n` +
     `  • Bib number (currently: ${r.bibNumber ?? "—"}) — it becomes free and the next confirmed runner will reuse it\n` +
     `  • Payment date\n` +
-    `  • Check-in (if any)\n\n` +
+    `  • BIB received status (if any)\n\n` +
     `They will re-appear in the Registrations tab as 'pending' so you can reconfirm payment and assign a bib again.`;
   if (!confirm(msg)) return;
   try {
