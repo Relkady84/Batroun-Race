@@ -2668,16 +2668,43 @@ cartCloseBtn?.addEventListener("click", () => {
 // Boot the top bar based on what's in localStorage.
 refreshSessionFromStorage();
 
-// Deep link: /?signin=BTN-2026-XXXX opens the sign-in modal with the
-// ref pre-filled so the runner only needs to type their mobile.
-// Used by the "WA pending" admin button to take a runner straight to
-// their invoice from a WhatsApp tap.
+// Deep link: /?signin=BTN-2026-XXXX takes the runner straight to their
+// invoice — no mobile-number prompt. Used by the "WA pending" admin button
+// so a tap on the WhatsApp link drops them on their payment instructions
+// instantly, since they're already the right person (the link was sent to
+// THEIR WhatsApp number, and the ref code is the access token).
+// Security: the registration doc is already publicly readable by known ID
+// (Firestore rules `allow get: if true` on /registrations/{regId}), so the
+// old mobile-match was a UX gate, not a privacy gate.
+// Fallback: if the doc isn't found (typo'd ref, legacy data), or anything
+// throws, we fall back to the original modal that asks for ref + mobile.
 (() => {
   const signinRef = new URLSearchParams(location.search).get("signin");
   if (!signinRef) return;
-  openSignin();
-  siRefInput.value = signinRef.toUpperCase();
-  setTimeout(() => siPhoneInput.focus(), 60);
+  const refUp = signinRef.toUpperCase();
+
+  (async () => {
+    try {
+      const snap = await getDoc(doc(db, "competitions", COMPETITION_ID, "registrations", refUp));
+      if (!snap.exists()) throw new Error("ref-not-found");
+      const r = snap.data();
+      const phoneNorm = normalizePhone(r.phone || "");
+      if (!phoneNorm) throw new Error("missing-phone");
+
+      // Pull every registration filed under this phone so the cart shows
+      // the full group, not just the one ref from the link.
+      const allRegs = await loadAllRegsForPhone(phoneNorm, r, refUp);
+      SESSION_REGS = allRegs;
+      setSession({ phone: phoneNorm, since: Date.now() });
+      renderTopBar();
+      renderCart(allRegs);
+    } catch (err) {
+      console.warn("Direct invoice link failed, falling back to manual sign-in:", err);
+      openSignin();
+      siRefInput.value = refUp;
+      setTimeout(() => siPhoneInput.focus(), 60);
+    }
+  })();
 })();
 
 // ============================================================
