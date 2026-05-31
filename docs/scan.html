@@ -336,13 +336,13 @@ function renderResult(r) {
   if (!isPaid) { headline = "❌ NOT PAID"; cls = "bad"; }
   else if (!hasTeammate) {
     cls = p1CheckedIn ? "warn" : "ok";
-    headline = p1CheckedIn ? "⚠ ALREADY CHECKED IN" : "✅ PAID";
+    headline = p1CheckedIn ? "⚠ BIB ALREADY RECEIVED" : "✅ PAID";
   } else if (teamFullyIn) {
-    cls = "warn"; headline = "⚠ RELAY TEAM ALREADY FULLY CHECKED IN";
+    cls = "warn"; headline = "⚠ RELAY TEAM ALREADY COMPLETE";
   } else if (!p1CheckedIn) {
-    cls = "ok"; headline = `✅ PAID · RELAY · Check in Person 1`;
+    cls = "ok"; headline = `✅ PAID · RELAY · Mark Person 1 received`;
   } else {
-    cls = "ok"; headline = `🔁 RELAY · Person 1 in. Now check in Person 2`;
+    cls = "ok"; headline = `🔁 RELAY · Person 1 received · Now Person 2`;
   }
 
   const rows = scannerFields.map(key => {
@@ -370,13 +370,13 @@ function renderResult(r) {
   const canCheckSolo    = isPaid && !hasTeammate && !p1CheckedIn;
 
   let actionBtn = "";
-  if (canCheckSolo)    actionBtn = `<button class="btn" id="checkInBtn">Mark as checked in → hand out bib</button>`;
-  if (canCheckPerson1) actionBtn = `<button class="btn" id="checkInBtn">Check in Person 1 (${escapeHtml(p1Name)})</button>`;
-  if (canCheckPerson2) actionBtn = `<button class="btn" id="checkInBtn">Check in Person 2 (${escapeHtml(p2Name)})</button>`;
+  if (canCheckSolo)    actionBtn = `<button class="btn" id="checkInBtn">Mark BIB received → hand out bib</button>`;
+  if (canCheckPerson1) actionBtn = `<button class="btn" id="checkInBtn">Mark Person 1 received (${escapeHtml(p1Name)})</button>`;
+  if (canCheckPerson2) actionBtn = `<button class="btn" id="checkInBtn">Mark Person 2 received (${escapeHtml(p2Name)})</button>`;
 
   // Single-runner already-checked-in details line (kept for non-relay path).
   const soloCheckedLine = !hasTeammate && p1CheckedIn
-    ? `<div class="row"><span class="k">Checked in</span><span class="v">${fmtDateTime(r.checkedInAt)}<br><small>by ${escapeHtml(r.checkedInBy||"")}</small></span></div>`
+    ? `<div class="row"><span class="k">BIB received</span><span class="v">${fmtDateTime(r.checkedInAt)}<br><small>by ${escapeHtml(r.checkedInBy||"")}</small></span></div>`
     : "";
 
   $("#result").innerHTML = `
@@ -404,7 +404,7 @@ function renderResult(r) {
             : { checkedInAt: new Date(), checkedInBy: auth.currentUser?.email })
         });
       } catch (e) {
-        alert("Check-in failed: " + e.message);
+        alert("BIB receive failed: " + e.message);
       }
     };
   }
