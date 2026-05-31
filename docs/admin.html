@@ -3086,7 +3086,12 @@ function buildWhatsAppUrl(r) {
     `Open your official race ticket below (with QR code, all your details, and a "Save as PDF" button):`,
     ticketUrl,
     ``,
-    `Bring it printed or on your phone to pick up your bib on race day.`,
+    // Bib pickup — two pre-race pickup days. Plain text only (no emojis) so
+    // every Android phone renders it cleanly inside WhatsApp.
+    `BIB PICKUP — bring your ticket (printed or on your phone):`,
+    `- 6 July 2026: Experts Sport, Dbayyeh`,
+    `- 8 July 2026: Batroun`,
+    ``,
     `See you at the start line!`
   ];
   return `https://wa.me/${phone}?text=${encodeURIComponent(lines.join("\n"))}`;
