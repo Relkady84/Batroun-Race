@@ -27,6 +27,14 @@
   html,body{overflow-x:hidden}
 
   .wrap{max-width:780px;margin:0 auto;padding:14px}
+  /* Support footer — keep each language on a single line on phones.
+     white-space:nowrap stops the email + dot + phone from wrapping, and
+     clamp() shrinks the font on narrow screens so the line fits without
+     forcing horizontal page scroll. min-width:0 lets the <p> shrink
+     inside its flex/text-align context. */
+  .support-line{white-space:nowrap;font-size:clamp(.72rem,3.4vw,.88rem);min-width:0}
+  /* Belt-and-braces: also keep the phone-number block itself unbreakable. */
+  .support-line a[href^="tel:"]{white-space:nowrap}
   .hero{text-align:center;padding:42px 6px 26px;position:relative}
   h1{margin:.25rem 0;font-weight:900;letter-spacing:.2px;font-size:clamp(26px,7vw,40px)}
   .muted{color:var(--muted);font-size:.95rem}
@@ -858,13 +866,13 @@
   </div>
 
   <footer class="wrap" style="margin-top:24px;padding:18px 16px 32px;text-align:center;font-size:.88rem;color:var(--muted);border-top:1px solid var(--line);max-width:760px">
-    <p style="margin:0 0 6px">
+    <p class="support-line" style="margin:0 0 6px">
       Need help?
       <a href="mailto:batrounrace@gmail.com" style="color:var(--accent);font-weight:700;text-decoration:none">batrounrace@gmail.com</a>
       ·
       <a href="tel:+96181300625" style="color:var(--accent);font-weight:700;text-decoration:none">+961 81 300 625</a>
     </p>
-    <p lang="ar" dir="rtl" style="margin:0;opacity:.85">
+    <p class="support-line" lang="ar" dir="rtl" style="margin:0;opacity:.85">
       لأيّ مساعدة، تواصل معنا على
       <bdi dir="ltr"><a href="mailto:batrounrace@gmail.com" dir="ltr" style="color:var(--accent);font-weight:700;text-decoration:none;unicode-bidi:isolate">batrounrace@gmail.com</a></bdi>
       أو
