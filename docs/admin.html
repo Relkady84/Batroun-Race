@@ -88,6 +88,12 @@
   .btn.sec:hover{border-color:var(--accent);color:var(--accent)}
   .btn.danger{background:transparent;color:var(--danger);border:1px solid var(--danger)}
   .btn.danger:hover{background:rgba(255,107,107,.1)}
+  /* 'Already done' modifier — used on the WA-pending button after the
+     admin has opened WhatsApp for that row. Green-tinted so a glance at
+     the row tells you 'this one's been messaged'. */
+  .btn.sent{background:rgba(61,214,198,.15);color:var(--accent);
+            border:1px solid rgba(61,214,198,.55)}
+  .btn.sent:hover{background:rgba(61,214,198,.25)}
   .btn.tiny{padding:6px 10px;font-size:.82rem}
 
   .muted{color:var(--muted)}
@@ -1826,7 +1832,13 @@ function renderRegTable() {
         <button class="btn tiny sec" data-act="edit" data-id="${r.id}" title="Edit participant details">Edit</button>
         ${r.paymentStatus === "pending"
           ? `<button class="btn tiny" data-act="pay" data-id="${r.id}">Confirm pay</button>
-             <button class="btn tiny sec" data-act="wa-pending" data-id="${r.id}" title="Send Whish payment instructions on WhatsApp">WA</button>` : ""}
+             <button class="btn tiny ${r.pendingWaSentAt ? "sent" : "sec"}"
+               data-act="wa-pending" data-id="${r.id}"
+               title="${r.pendingWaSentAt
+                 ? `WhatsApp instructions already sent ${fmtDate(r.pendingWaSentAt)}${r.pendingWaSentBy ? ` by ${escapeHtml(r.pendingWaSentBy)}` : ""} — click to resend`
+                 : "Send Whish payment instructions on WhatsApp"}">
+               WA${r.pendingWaSentAt ? " ✓" : ""}
+             </button>` : ""}
         ${(r.paymentStatus === "paid" || r.paymentStatus === "free") && r.bibNumber
           ? `<button class="btn tiny sec" data-act="wa" data-id="${r.id}" title="Resend WhatsApp ticket">WA</button>` : ""}
         <button class="btn tiny danger" data-act="del" data-id="${r.id}" title="Delete (spam)">Delete</button>
@@ -1888,8 +1900,23 @@ function renderRegTable() {
       }
       if (b.dataset.act === "wa-pending") {
         const waUrl = buildPendingWhatsAppUrl(r);
-        if (waUrl) window.open(waUrl, "_blank", "noopener");
-        else toast("No phone number on record", true);
+        if (!waUrl) { toast("No phone number on record", true); return; }
+        // Tracking: we record the click as 'WA sent' since the admin's next
+        // tap (in WhatsApp itself) is what they actually intend. Persisted
+        // best-effort; opening WA is the primary action and never blocks
+        // on the network. Updates work for both admins and viewers since
+        // /registrations update is already allowed for canReadDashboard.
+        const sentBy = currentUserEmail || "unknown";
+        const idx = regs.findIndex(x => x.id === r.id);
+        if (idx >= 0) {
+          regs[idx] = { ...regs[idx], pendingWaSentAt: new Date(), pendingWaSentBy: sentBy };
+          rerenderAllTables();
+        }
+        updateDoc(doc(db, "competitions", COMPETITION_ID, "registrations", r.id), {
+          pendingWaSentAt: serverTimestamp(),
+          pendingWaSentBy: sentBy
+        }).catch(e => console.warn("WA-sent tracking failed:", e.message));
+        window.open(waUrl, "_blank", "noopener");
       }
     });
   });
