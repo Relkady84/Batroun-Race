@@ -90,17 +90,20 @@
   .hint{margin:14px 20px 8px;padding:12px 14px;background:#f8fafc;border:1px solid var(--line);
         border-radius:12px;color:#36495e;font-size:.85rem;line-height:1.5}
   .hint strong{color:var(--ink)}
-  /* Bib-pickup schedule. white-space:pre-line preserves the line breaks
-     the admin types into theme.bibPickupText (one pickup per line).
-     The outer .pickup centers the inline-block so the whole list sits in
-     the middle of the ticket; .pickup > * left-aligns the text inside so
-     each line starts at the same left edge (no 'triangle' centering of
-     multi-line text). */
-  .pickup{margin:0 auto 22px;padding:0 20px;text-align:center;font-size:.92rem;line-height:1.5;
+  /* Bib-pickup schedule. white-space:pre preserves the line breaks the
+     admin types into theme.bibPickupText AND prevents lines from wrapping
+     mid-phrase. font-size auto-shrinks via clamp() so even long lines
+     ("- 6 July 2026: Experts Sport, Dbayyeh from 8 am to 3 pm") fit on
+     one row on narrow phones without forcing horizontal page scroll.
+     overflow-x:auto inside the block is a safety net if a line is still
+     too long at the smallest font — user scrolls the block, not the page. */
+  .pickup{margin:0 auto 22px;padding:0 20px;text-align:center;line-height:1.5;
           color:#0f2944;font-weight:600}
-  .pickup-inner{display:inline-block;text-align:left;white-space:pre-line;max-width:100%}
+  .pickup-inner{display:inline-block;text-align:left;white-space:pre;max-width:100%;
+                font-size:clamp(.72rem, 3vw, .92rem);overflow-x:auto;
+                -webkit-overflow-scrolling:touch}
   @media (max-width:520px){
-    .pickup{padding:0 14px;font-size:.86rem}
+    .pickup{padding:0 14px}
   }
 
   /* Mobile-tuned spacing & layout — applies to most phones. */
