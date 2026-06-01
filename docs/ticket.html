@@ -91,9 +91,14 @@
         border-radius:12px;color:#36495e;font-size:.85rem;line-height:1.5}
   .hint strong{color:var(--ink)}
   /* Bib-pickup schedule. white-space:pre-line preserves the line breaks
-     the admin types into theme.bibPickupText (one pickup per line). */
-  .pickup{margin:0 0 22px;padding:0 20px;text-align:center;font-size:.92rem;line-height:1.5;
-          white-space:pre-line;color:#0f2944;font-weight:600}
+     the admin types into theme.bibPickupText (one pickup per line).
+     The outer .pickup centers the inline-block so the whole list sits in
+     the middle of the ticket; .pickup > * left-aligns the text inside so
+     each line starts at the same left edge (no 'triangle' centering of
+     multi-line text). */
+  .pickup{margin:0 auto 22px;padding:0 20px;text-align:center;font-size:.92rem;line-height:1.5;
+          color:#0f2944;font-weight:600}
+  .pickup-inner{display:inline-block;text-align:left;white-space:pre-line;max-width:100%}
   @media (max-width:520px){
     .pickup{padding:0 14px;font-size:.86rem}
   }
@@ -173,8 +178,10 @@
          admin's editable field so it appears instantly while Firestore
          loads. The IIFE below overrides this with theme.bibPickupText
          when the admin has customised it. -->
-    <div class="pickup" id="pickupSchedule">- 6 July 2026: Experts Sport, Dbayyeh
-- 8 July 2026: Batroun</div>
+    <div class="pickup">
+      <span class="pickup-inner" id="pickupSchedule">- 6 July 2026: Experts Sport, Dbayyeh
+- 8 July 2026: Batroun</span>
+    </div>
   </article>
 </main>
 
