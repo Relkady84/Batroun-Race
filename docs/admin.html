@@ -827,6 +827,19 @@ Masters Men-Women 35-39 (1987-1991)
           <span class="muted" id="findDupBibsStatus"></span>
         </div>
         <div id="dupBibsResult" style="margin-top:10px"></div>
+
+        <p class="muted" style="margin:18px 0 10px">
+          Re-evaluates every registration's sub-category against the current
+          brackets on its category, then rewrites the saved label so old and
+          new rows read the same way. Use this once after applying a new
+          bracket preset — e.g. after switching to the IAAF birth-year labels.
+          Idempotent (safe to re-run); only changes <code>subQuestionAnswer</code>
+          on rows where it differs.
+        </p>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <button id="normalizeSubCatsBtn" class="btn">Normalize sub-categories</button>
+          <span class="muted" id="normalizeSubCatsStatus"></span>
+        </div>
       </div>
 
       <!-- ====== Backup + Wipe (admin only) ====== -->
@@ -2871,6 +2884,91 @@ document.getElementById("findDupBibsBtn")?.addEventListener("click", () => {
     </div>`;
   }).join("");
   toast(`${dups.length} duplicate bib${dups.length === 1 ? "" : "s"} found`, true);
+});
+
+// Normalise sub-category labels — re-evaluates every non-deleted reg against
+// its category's CURRENT bracket list and rewrites subQuestionAnswer if it
+// differs. Used after switching to a new bracket preset (e.g. the IAAF
+// birth-year labels) so old + new rows show the same names in the dashboard.
+// Idempotent: re-running it is safe. Skips rows whose DOB doesn't fit any
+// current bracket (rather than blanking them) so an out-of-spec runner stays
+// inspectable. Only writes subQuestionAnswer — everything else is untouched.
+document.getElementById("normalizeSubCatsBtn")?.addEventListener("click", async () => {
+  if (userRole !== "admin") { toast("Admin only", true); return; }
+  const btn = document.getElementById("normalizeSubCatsBtn");
+  const status = document.getElementById("normalizeSubCatsStatus");
+  if (!regs.length) { status.textContent = "No registrations to scan yet."; return; }
+
+  // Build a quick { catId → category } lookup once.
+  const catById = new Map(cats.map(c => [c.id, c]));
+
+  // First pass: figure out the plan WITHOUT writing anything, so the admin
+  // can decide whether to apply.
+  const plan = [];     // [{ reg, newAnswer }]
+  let unchanged = 0;
+  let noBracketMatch = 0;
+  let noCategory = 0;
+  for (const r of regs) {
+    if (r.deletedAt) continue;
+    const cat = catById.get(r.categoryId);
+    if (!cat) { noCategory++; continue; }
+    const opts = cat.subQuestion?.options || [];
+    if (!opts.length) continue; // category has no brackets — nothing to normalise
+    if (!r.dob) continue;       // can't re-evaluate without DOB
+    const match = opts.find(o => bracketMatches(o, r.dob));
+    if (!match) { noBracketMatch++; continue; }
+    if (match === r.subQuestionAnswer) { unchanged++; continue; }
+    plan.push({ reg: r, newAnswer: match });
+  }
+
+  if (!plan.length) {
+    status.textContent =
+      `Nothing to change — ${unchanged} already up to date${noBracketMatch ? `, ${noBracketMatch} with no current bracket match` : ""}${noCategory ? `, ${noCategory} with no category` : ""}.`;
+    return;
+  }
+
+  const summary =
+    `Rewrite subQuestionAnswer on ${plan.length} registration${plan.length === 1 ? "" : "s"}?\n\n` +
+    `Will change (sample):\n` +
+    plan.slice(0, 6).map(p =>
+      `  • ${(p.reg.firstName || "") + " " + (p.reg.lastName || "")}: "${p.reg.subQuestionAnswer || "—"}" → "${p.newAnswer}"`
+    ).join("\n") +
+    (plan.length > 6 ? `\n  …and ${plan.length - 6} more.` : "") +
+    `\n\nWill keep unchanged: ${unchanged}` +
+    (noBracketMatch ? `\nWill skip (no current bracket fits DOB): ${noBracketMatch}` : "") +
+    (noCategory ? `\nWill skip (category missing): ${noCategory}` : "") +
+    `\n\nOnly the subQuestionAnswer field is rewritten — everything else stays.`;
+  if (!confirm(summary)) { toast("Normalize cancelled"); return; }
+
+  btn.disabled = true;
+  const _orig = btn.textContent;
+  btn.textContent = "Normalising…";
+  status.textContent = "";
+  let done = 0, failed = 0;
+  // Sequential updates so we can recover gracefully on partial failure;
+  // optimistic local update so the dashboard reflects each row instantly.
+  for (const { reg, newAnswer } of plan) {
+    try {
+      await updateDoc(
+        doc(db, "competitions", COMPETITION_ID, "registrations", reg.id),
+        { subQuestionAnswer: newAnswer }
+      );
+      const idx = regs.findIndex(x => x.id === reg.id);
+      if (idx >= 0) regs[idx] = { ...regs[idx], subQuestionAnswer: newAnswer };
+      done++;
+      if (done % 10 === 0) status.textContent = `Updated ${done} / ${plan.length}…`;
+    } catch (e) {
+      console.warn("Normalize failed for", reg.id, e.message);
+      failed++;
+    }
+  }
+  rerenderAllTables();
+  btn.disabled = false;
+  btn.textContent = _orig;
+  status.textContent = failed
+    ? `Updated ${done}, failed ${failed} (check console).`
+    : `Done — updated ${done} sub-category label${done === 1 ? "" : "s"}.`;
+  toast(failed ? `Normalize done with ${failed} failure(s)` : "Sub-categories normalised", !!failed);
 });
 
 // Undo an approved payment — moves a runner back to Registrations as pending.
