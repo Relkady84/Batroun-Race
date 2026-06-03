@@ -1655,11 +1655,11 @@ function renderExtraParticipants(count) {
             <input id="${p}last" name="${p}last" placeholder="Family name" required autocomplete="off">
           </div>
         </div>
-        <div class="row" data-field="email">
-          <label for="${p}email">Email</label>
+        <div class="row" data-field="extraEmail">
+          <label for="${p}email">Email<span class="req-star" hidden> *</span></label>
           <input id="${p}email" name="${p}email" type="email" inputmode="email" autocomplete="off"
                  placeholder="Leave empty to use Person 1's email">
-          <div class="help">Optional. Each participant can have their own email; otherwise the email from Person 1 is reused.</div>
+          <div class="help">Optional by default. Each participant can have their own email; otherwise the email from Person 1 is reused. Admins can change this in Settings → Form fields.</div>
         </div>
         <div class="row two">
           <div>
@@ -1822,9 +1822,18 @@ function setFieldError(el, msg) {
 }
 
 function initFieldErrors() {
-  document.querySelectorAll("[required]").forEach(el => {
-    // Skip if an err element is already adjacent
-    if (getErrEl(el)) return;
+  // Walk both currently-required fields AND every input/select/textarea inside
+  // a [data-field=…] container. The second part matters because the admin's
+  // built-in-fields config can flip a field from optional → required at
+  // runtime (applyBuiltInToScope), and without an .err sibling
+  // setFieldError() can't render the message — only the red border shows.
+  const targets = new Set();
+  document.querySelectorAll("[required]").forEach(el => targets.add(el));
+  document.querySelectorAll("[data-field] input, [data-field] select, [data-field] textarea")
+    .forEach(el => targets.add(el));
+  targets.forEach(el => {
+    if (el.type === "hidden") return;
+    if (getErrEl(el)) return; // already has an .err sibling
     const anchor = el.type === "checkbox" ? el.closest("label.inline") : el;
     if (!anchor || !anchor.parentNode) return;
     const div = document.createElement("div");
@@ -2138,6 +2147,7 @@ async function loadFromFirestore() {
 // Each entry: { visible: bool, required: bool }. Missing entries → defaults.
 const PUBLIC_FORM_DEFAULTS = {
   email:       { visible: true,  required: true  },
+  extraEmail:  { visible: true,  required: false }, // Person 2+ email — optional by default; if empty, Person 1's email is reused
   gender:      { visible: true,  required: true  },
   nationality: { visible: true,  required: false },
   country:     { visible: true,  required: false },
@@ -2186,6 +2196,9 @@ function applyPublicFormConfig(builtIn) {
     PUBLIC_FORM_EFFECTIVE[key] = { ...defaults, ...(builtIn[key] || {}) };
   });
   applyBuiltInToScope(document);
+  // A field may have just become required → make sure its .err sibling
+  // exists, otherwise the submit-time message has nowhere to render.
+  initFieldErrors();
 }
 
 // Render once with hardcoded fallbacks so the page is usable instantly…
