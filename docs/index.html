@@ -973,6 +973,29 @@ let INCLUDES = [
 // renamed races during the loading flicker.
 let CATEGORIES = {};
 
+// Phone-based special pricing, looked up from /discounts/{normalizedPhone}
+// when the runner enters their mobile. null = no special pricing. Shape:
+//   { overrides: { <categoryId>: <fixedPriceUSD>, ... }, note }
+// A per-category fixed price replaces that category's normal price for this
+// person (e.g. 5k → 15, relay → 30). An override of 0 = free entry for that
+// category (routes the submit through the free-entry path, no Whish step).
+// Categories with no override fall back to their normal price.
+let PHONE_DISCOUNT = null;
+let PHONE_DISCOUNT_FOR = "";   // the normalized phone the current pricing belongs to
+
+// Does this person have a fixed-price override for this specific category?
+function hasOverrideFor(cat) {
+  return !!(PHONE_DISCOUNT && cat && PHONE_DISCOUNT.overrides
+            && Object.prototype.hasOwnProperty.call(PHONE_DISCOUNT.overrides, cat.id));
+}
+// Price this person actually pays for a category — their override if set,
+// otherwise the category's normal price.
+function effectivePriceFor(cat) {
+  if (!cat) return 0;
+  if (hasOverrideFor(cat)) return Number(PHONE_DISCOUNT.overrides[cat.id]) || 0;
+  return cat.price ?? 0;
+}
+
 let CUSTOM_FIELDS = [];
 let REGISTRATION_OPENS  = null;          // Date — when registration becomes available
 let REGISTRATION_CLOSES = null;          // Date — when registration shuts
@@ -1073,6 +1096,39 @@ function normalizePhone(raw) {
   // If the user already typed the country code, don't add it again.
   if (!digits.startsWith("961")) digits = "961" + digits;
   return digits;
+}
+
+// Look up the entered phone in the discount pool and refresh the price display.
+// Fails open: any error → no discount, full price. Cached per normalized phone
+// so re-blurring the same number doesn't re-hit Firestore.
+async function lookupPhoneDiscount() {
+  const raw = (document.getElementById("phone")?.value || "").trim();
+  const norm = raw ? normalizePhone(raw) : "";
+  if (!norm || norm.length < 10) {
+    if (PHONE_DISCOUNT) { PHONE_DISCOUNT = null; PHONE_DISCOUNT_FOR = ""; refreshPriceDisplay(); }
+    return;
+  }
+  if (norm === PHONE_DISCOUNT_FOR) return; // already resolved for this number
+  PHONE_DISCOUNT_FOR = norm;
+  try {
+    const snap = await getDoc(doc(db, "competitions", COMPETITION_ID, "discounts", norm));
+    const ov = snap.exists() ? snap.data().overrides : null;
+    PHONE_DISCOUNT = (ov && typeof ov === "object" && Object.keys(ov).length) ? { overrides: ov } : null;
+  } catch (e) {
+    console.warn("Discount lookup failed:", e.message);
+    PHONE_DISCOUNT = null;
+  }
+  refreshPriceDisplay();
+}
+
+// Re-renders whatever price UI is currently showing (single price card or the
+// multi-participant total) so a freshly-found discount takes effect live.
+function refreshPriceDisplay() {
+  const multiActive = !document.getElementById("participantCountWrap")?.hidden
+                   && (parseInt(participantCountSel?.value, 10) || 1) > 1;
+  if (multiActive) { recomputeMultiTotal(); return; }
+  // Re-trigger the single price-card render via the category change handler.
+  catSelect.dispatchEvent(new Event("change"));
 }
 
 function generateRef() {
@@ -1479,11 +1535,17 @@ catSelect.addEventListener("change", () => {
   toggleParticipantCount(!!cat?.allowMultiParticipant && !cat?.isRelay);
   if (!cat) { priceCard.classList.remove("show"); return; }
 
-  const price = cat.price ?? 0;
+  const base  = cat.price ?? 0;
+  const price = effectivePriceFor(cat);
+  const overridden = hasOverrideFor(cat) && price !== base;
   priceBig.innerHTML = price === 0
     ? `Free <span class="free-badge">${cat.name.toLowerCase().includes("para") ? "Para" : "Free"}</span>`
-    : `$${price} USD`;
-  priceLabel.textContent = `Registration fee`;
+    : (overridden
+        ? `$${price} USD <span style="font-size:.6em;opacity:.65;text-decoration:line-through;margin-left:6px">$${base}</span>`
+        : `$${price} USD`);
+  priceLabel.innerHTML = overridden || (hasOverrideFor(cat) && price === 0)
+    ? `Registration fee · <span style="color:var(--accent);font-weight:700">special price applied</span>`
+    : `Registration fee`;
   priceMeta.innerHTML = cat.timed
     ? `Timed race · ${formatAgeRange(cat.ageLimit, cat.ageLimitMax) ? "Age " + formatAgeRange(cat.ageLimit, cat.ageLimitMax) + " on race day" : "All ages"}`
     : `Untimed · ${formatAgeRange(cat.ageLimit, cat.ageLimitMax) ? "Age " + formatAgeRange(cat.ageLimit, cat.ageLimitMax) : "All ages"}`;
@@ -1520,6 +1582,15 @@ function syncTeammatePhone() {
   if (src && dst) dst.value = src.value;
 }
 document.getElementById("phone").addEventListener("input", syncTeammatePhone);
+// Look up any special pricing for this number when the runner finishes typing
+// it (blur), and also shortly after they pause typing so the price reacts
+// without needing to leave the field.
+document.getElementById("phone").addEventListener("blur", lookupPhoneDiscount);
+let _discDebounce = null;
+document.getElementById("phone").addEventListener("input", () => {
+  clearTimeout(_discDebounce);
+  _discDebounce = setTimeout(lookupPhoneDiscount, 600);
+});
 
 // ============================================================
 // Multi-participant (extra Person N cards)
@@ -1691,22 +1762,20 @@ function recomputeMultiTotal() {
   if (N <= 1 || !leadCat) {
     breakdown.hidden = true;
     breakdown.innerHTML = "";
-    if (leadCat) {
-      const lp = leadCat.price ?? 0;
-      priceBig.innerHTML = lp === 0
-        ? `Free <span class="free-badge">${leadCat.name.toLowerCase().includes("para") ? "Para" : "Free"}</span>`
-        : `$${lp} USD`;
-      priceLabel.textContent = "Registration fee";
-    }
+    // Single-participant price is fully handled by the catSelect change
+    // handler (which shows the special-price strike-through). Leave it alone
+    // here so we don't overwrite that display.
     return;
   }
 
+  // Multi-participant: every participant shares the lead phone, so the same
+  // per-category special pricing applies to each of them.
   const rows = [{ label: "Person 1", cat: leadCat }];
   for (let n = 2; n <= N; n++) {
     const id = document.getElementById(`p${n}_cat`)?.value;
     rows.push({ label: `Person ${n}`, cat: CATEGORIES[id] || null });
   }
-  const total = rows.reduce((s, r) => s + (r.cat?.price ?? 0), 0);
+  const total = rows.reduce((s, r) => s + (r.cat ? effectivePriceFor(r.cat) : 0), 0);
 
   priceLabel.textContent = `Total for ${N} participants`;
   priceBig.innerHTML = total === 0 ? `Free` : `$${total} USD`;
@@ -1714,9 +1783,17 @@ function recomputeMultiTotal() {
   breakdown.hidden = false;
   breakdown.innerHTML = `<div class="muted" style="margin-bottom:6px">Per participant:</div>` +
     rows.map(r => {
-      const right = r.cat
-        ? `${escHtml(r.cat.name)} — ${r.cat.price === 0 ? "Free" : "$" + (r.cat.price ?? 0)}`
-        : `<em>not chosen</em>`;
+      let right;
+      if (!r.cat) {
+        right = `<em>not chosen</em>`;
+      } else {
+        const eff = effectivePriceFor(r.cat);
+        const base = r.cat.price ?? 0;
+        const priceTxt = eff === 0 ? "Free" : "$" + eff;
+        const strike = (hasOverrideFor(r.cat) && eff !== base)
+          ? ` <span style="opacity:.6;text-decoration:line-through">$${base}</span>` : "";
+        right = `${escHtml(r.cat.name)} — ${priceTxt}${strike}`;
+      }
       return `<div style="display:flex;justify-content:space-between;gap:8px;padding:3px 0">
         <span>${r.label}</span><span style="color:var(--ink)">${right}</span>
       </div>`;
@@ -2018,6 +2095,7 @@ async function loadFromFirestore() {
       catSnap.forEach(d => {
         const x = d.data();
         CATEGORIES[d.id] = {
+          id: d.id, // needed for per-category special-pricing lookup
           name: x.name || d.id,
           timed: !!x.timed,
           ageLimit:    x.ageLimit    || 0,
@@ -2214,7 +2292,11 @@ form.addEventListener("submit", async (e) => {
     return;
   }
 
-  const price = cat.price ?? 0;
+  // Make sure any special pricing for this phone is resolved before we read
+  // the price (covers the case where they typed the phone and submitted fast
+  // without the field losing focus).
+  await lookupPhoneDiscount();
+  const price = effectivePriceFor(cat);
   const ref = generateRef();
 
   const payload = {
@@ -2272,13 +2354,13 @@ form.addEventListener("submit", async (e) => {
 
     // Per-participant: resolve their own category, validate age, accumulate total.
     const personCats = [cat]; // Person 1's category
-    let totalPrice = cat.price ?? 0;
+    let totalPrice = effectivePriceFor(cat); // honours this phone's special pricing
     for (let i = 2; i <= N; i++) {
       const catId_i = data[`p${i}_cat`];
       const cat_i = CATEGORIES[catId_i];
       if (!cat_i) throw new Error(`Participant ${i}: please pick a category.`);
       personCats.push(cat_i);
-      totalPrice += cat_i.price ?? 0;
+      totalPrice += effectivePriceFor(cat_i);
       const err_i = validateParticipantAge(cat_i, data[`p${i}_dob`], data[`p${i}_sq`]);
       if (err_i) throw new Error(`Participant ${i}: ${err_i}`);
     }
@@ -2319,9 +2401,9 @@ form.addEventListener("submit", async (e) => {
           bloodType: data[`p${i}_blood`]  || null,
           categoryId:   data[`p${i}_cat`],
           categoryName: cat_i.name,
-          priceUSD:     cat_i.price ?? 0,
-          paymentStatus: (cat_i.price ?? 0) === 0 ? "free" : "pending",
-          paymentMethod: (cat_i.price ?? 0) === 0 ? "free" : "manual",
+          priceUSD:     effectivePriceFor(cat_i),
+          paymentStatus: effectivePriceFor(cat_i) === 0 ? "free" : "pending",
+          paymentMethod: effectivePriceFor(cat_i) === 0 ? "free" : "manual",
           subQuestionAnswer: data[`p${i}_sq`] || null,
           whishReference: refs[i - 1],
           teammate: null,
@@ -2983,8 +3065,16 @@ async function submitCartAdd() {
   btn.textContent = "Submitting…";
   try {
     const newRef = generateRef();
-    const price = cat.price ?? 0;
     const phoneNorm = normalizePhone(lead.phone || "");
+    // Honour this phone's special pricing for cart-added participants too.
+    // The signed-in session is keyed on this phone, so resolve its overrides
+    // directly (the form-field-driven lookup doesn't apply in the cart).
+    let price = cat.price ?? 0;
+    try {
+      const dsnap = await getDoc(doc(db, "competitions", COMPETITION_ID, "discounts", phoneNorm));
+      const ov = dsnap.exists() ? dsnap.data().overrides : null;
+      if (ov && Object.prototype.hasOwnProperty.call(ov, catId)) price = Number(ov[catId]) || 0;
+    } catch (e) { console.warn("Cart-add discount lookup failed:", e.message); }
     const payload = {
       competitionId: COMPETITION_ID,
       firstName: first,
