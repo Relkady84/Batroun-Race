@@ -136,6 +136,19 @@ service cloud.firestore {
         allow read, create, update: if canReadDashboard();
         allow delete: if isAdmin();
       }
+
+      // Phone-based discount pool. Doc id = normalized phone.
+      //   - get: public, by EXACT known phone only (the public form looks up
+      //     the runner's own number to apply their discount). list is locked
+      //     to admin/staff so the full set of discounted numbers isn't
+      //     world-readable — same privacy model as /registrations.
+      //   - write: admin only (managing comps/discounts is an admin action;
+      //     staff can still discount an individual via the registration editor).
+      match /discounts/{phoneId} {
+        allow get:   if true;
+        allow list:  if canReadDashboard();
+        allow write: if isAdmin();
+      }
     }
 
     // Everything else: deny by default

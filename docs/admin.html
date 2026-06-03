@@ -792,6 +792,27 @@ Masters Men-Women 35-39 (1987-1991)
         </p>
       </div>
 
+      <div class="card admin-only">
+        <h2>Special pricing (by phone)</h2>
+        <p class="muted" style="margin:0 0 12px">
+          Give a mobile number custom fixed prices per category. When that person
+          registers online and enters this number, each category they pick shows
+          the special price instead of the normal one (e.g. 5&nbsp;KM = $15,
+          10&nbsp;KM = $20). Enter <strong>0</strong> for a free entry — their
+          registration lands as <em>free</em> on the dashboard, no payment step.
+          Leave a category blank to charge the normal price. Numbers are matched
+          after normalisation, so format doesn't matter.
+        </p>
+        <div class="row two">
+          <div><label>Mobile number</label><input id="discPhone" placeholder="+961 3 123 456" inputmode="tel"></div>
+          <div><label>Note (optional)</label><input id="discNote" placeholder="e.g. Sponsor, staff family"></div>
+        </div>
+        <label style="margin-top:10px;display:block">Fixed price per category (USD) — blank = normal price, 0 = free</label>
+        <div id="discCatInputs" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px;margin-top:6px"></div>
+        <div style="margin-top:12px"><button id="discAddBtn" class="btn">Save special pricing for this number</button></div>
+        <div id="discList" style="margin-top:16px"></div>
+      </div>
+
       <div class="card">
         <h2>Maintenance</h2>
         <p class="muted" style="margin:0 0 10px">
@@ -955,6 +976,7 @@ const db = getFirestore(app);
 let regs = [];
 let cats = [];
 let sponsors = [];
+let discounts = []; // /discounts — phone-based discount pool
 let competition = {};
 let theme = {}; // /config/theme — read by buildWhatsAppUrl etc. for editable copy
 let formFields = [];
@@ -1318,12 +1340,23 @@ function startListeners() {
     err => toast("Sponsors listener: " + err.message, true)
   );
 
+  // Discount pool (by phone)
+  onSnapshot(
+    collection(db, "competitions", COMPETITION_ID, "discounts"),
+    snap => {
+      discounts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      renderDiscountList();
+    },
+    err => console.warn("Discounts listener:", err.message)
+  );
+
   // Categories
   onSnapshot(
     collection(db, "competitions", COMPETITION_ID, "categories"),
     snap => {
       cats = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       renderCategoryList(); renderCategoryFilter();
+      renderDiscountCatInputs(); renderDiscountList();
     },
     err => toast("Categories listener: " + err.message, true)
   );
@@ -2724,6 +2757,107 @@ async function removeUser(role, email) {
 
 document.getElementById("addAdminBtn")?.addEventListener("click", () => addUser("admin"));
 document.getElementById("addViewerBtn")?.addEventListener("click", () => addUser("viewer"));
+
+// ===== Settings tab — phone special-pricing pool =====
+
+// Build the per-category price inputs in the 'add' form from the live cats.
+// Each input id is disc_cat_<categoryId>; blank = no override, 0 = free.
+function renderDiscountCatInputs() {
+  const wrap = document.getElementById("discCatInputs");
+  if (!wrap) return;
+  if (!cats.length) { wrap.innerHTML = `<span class="muted" style="font-size:.85rem">No categories yet.</span>`; return; }
+  wrap.innerHTML = cats.map(c => `
+    <div>
+      <label style="font-size:.78rem">${escapeHtml(c.name || c.id)}
+        <span class="muted">(normally ${typeof c.price === "number" ? "$" + c.price : "—"})</span>
+      </label>
+      <input id="disc_cat_${escapeHtml(c.id)}" type="number" min="0" step="0.5"
+             placeholder="normal" inputmode="decimal">
+    </div>`).join("");
+}
+
+function renderDiscountList() {
+  const box = document.getElementById("discList");
+  if (!box) return;
+  const live = [...discounts].sort((a, b) => (a.note || "").localeCompare(b.note || ""));
+  if (!live.length) {
+    box.innerHTML = `<div class="muted" style="font-size:.85rem">No special-pricing numbers yet.</div>`;
+    return;
+  }
+  const catName = id => (cats.find(c => c.id === id)?.name) || id;
+  box.innerHTML = live.map(d => {
+    const ov = d.overrides && typeof d.overrides === "object" ? d.overrides : {};
+    const parts = Object.keys(ov).map(cid => {
+      const v = Number(ov[cid]) || 0;
+      return `${escapeHtml(catName(cid))}: ${v === 0 ? "<span style='color:var(--accent);font-weight:700'>FREE</span>" : "$" + v}`;
+    });
+    return `
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;
+                  padding:8px 12px;background:rgba(0,0,0,.18);border:1px solid var(--line);
+                  border-radius:8px;margin-bottom:6px">
+        <span style="word-break:break-word">
+          <code>${escapeHtml(d.id)}</code>
+          ${d.note ? ` <span class="muted" style="font-size:.82rem">— ${escapeHtml(d.note)}</span>` : ""}
+          <br><span style="font-size:.85rem">${parts.length ? parts.join(" · ") : "<span class='muted'>no overrides</span>"}</span>
+        </span>
+        <button class="btn tiny danger" data-disc-remove="${escapeHtml(d.id)}">Remove</button>
+      </div>`;
+  }).join("");
+  box.querySelectorAll("[data-disc-remove]").forEach(btn => {
+    btn.onclick = () => removeDiscount(btn.dataset.discRemove);
+  });
+}
+
+document.getElementById("discAddBtn")?.addEventListener("click", async () => {
+  if (userRole !== "admin") { toast("Admin only", true); return; }
+  const phoneRaw = $("#discPhone").value.trim();
+  const note = $("#discNote").value.trim();
+  if (!phoneRaw) { toast("Enter a mobile number", true); return; }
+  const phoneNorm = normalizePhoneForIndex(phoneRaw);
+  if (!phoneNorm || phoneNorm.length < 10) { toast("That number doesn't look right", true); return; }
+
+  // Collect only the categories the admin actually filled in.
+  const overrides = {};
+  for (const c of cats) {
+    const el = document.getElementById("disc_cat_" + c.id);
+    if (!el) continue;
+    const raw = el.value.trim();
+    if (raw === "") continue;            // blank = normal price
+    const val = parseFloat(raw);
+    if (!(val >= 0)) { toast(`Price for ${c.name || c.id} must be 0 or more`, true); return; }
+    overrides[c.id] = val;               // 0 = free
+  }
+  if (!Object.keys(overrides).length) {
+    toast("Set a price for at least one category (0 = free)", true);
+    return;
+  }
+  try {
+    await setDoc(doc(db, "competitions", COMPETITION_ID, "discounts", phoneNorm), {
+      overrides,
+      note: note || null,
+      updatedAt: serverTimestamp(),
+      updatedBy: currentUserEmail || "unknown"
+    }, { merge: true });
+    $("#discPhone").value = ""; $("#discNote").value = "";
+    cats.forEach(c => { const el = document.getElementById("disc_cat_" + c.id); if (el) el.value = ""; });
+    toast("Special pricing saved for that number");
+  } catch (e) {
+    console.error(e);
+    toast(e.message || "Couldn't save special pricing", true);
+  }
+});
+
+async function removeDiscount(phoneId) {
+  if (userRole !== "admin") { toast("Admin only", true); return; }
+  if (!confirm(`Remove special pricing for ${phoneId}? New registrations from this number will pay normal prices.`)) return;
+  try {
+    await deleteDoc(doc(db, "competitions", COMPETITION_ID, "discounts", phoneId));
+    toast("Special pricing removed");
+  } catch (e) {
+    console.error(e);
+    toast(e.message || "Couldn't remove", true);
+  }
+}
 
 // Same normalization the public page uses for the phone-as-index key.
 function normalizePhoneForIndex(raw) {
