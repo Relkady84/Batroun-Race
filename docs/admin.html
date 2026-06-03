@@ -1885,6 +1885,8 @@ function renderRegTable() {
                  : "Send Whish payment instructions on WhatsApp"}">
                WA${r.pendingWaSentAt ? " ✓" : ""}
              </button>` : ""}
+        ${r.paymentStatus === "free" && !r.bibNumber
+          ? `<button class="btn tiny" data-act="pay" data-id="${r.id}" title="Assign a bib number and send the QR ticket on WhatsApp">Assign bib</button>` : ""}
         ${(r.paymentStatus === "paid" || r.paymentStatus === "free") && r.bibNumber
           ? `<button class="btn tiny sec" data-act="wa" data-id="${r.id}" title="Resend WhatsApp ticket">WA</button>` : ""}
         <button class="btn tiny danger" data-act="del" data-id="${r.id}" title="Delete (spam)">Delete</button>
@@ -3476,13 +3478,13 @@ function openConfirmPay(r) {
        <label style="margin-top:14px">Bib number (manual)</label>
        <input id="bibInput" type="number" min="1" placeholder="e.g. 142">`;
   openModal(`
-    <h3 style="margin:0 0 10px">Confirm payment</h3>
+    <h3 style="margin:0 0 10px">${priceFree ? "Confirm free entry" : "Confirm payment"}</h3>
     ${identityPanel(r, r.teammate
       ? `Relay team — Person 2 (${escapeHtml(((r.teammate.firstName || "") + " " + (r.teammate.lastName || "")).trim())}) shares the bib.`
       : "")}
     <p class="muted" style="margin:0 0 4px"><strong>Amount:</strong> ${fmtMoney(r.priceUSD || 0)}</p>
     <p class="muted" style="margin:8px 0 0;font-size:.85rem">${priceFree
-      ? "This is a free entry. The runner will be confirmed and we'll WhatsApp them."
+      ? "This is a free entry. Assigning the bib confirms the runner and we'll WhatsApp them their QR ticket."
       : "Confirm the Whish payment matched this reference. The runner will receive a WhatsApp message with their QR ticket."}
     </p>
     ${bibBlock}
@@ -3492,7 +3494,7 @@ function openConfirmPay(r) {
     </label>
     <div class="modal-actions">
       <button class="btn sec" id="cancelPay">Cancel</button>
-      <button class="btn" id="okPay">Mark as paid</button>
+      <button class="btn" id="okPay">${priceFree ? "Confirm + assign bib" : "Mark as paid"}</button>
     </div>
   `);
   $("#cancelPay").onclick = closeModal;
@@ -3554,7 +3556,7 @@ function openConfirmPay(r) {
         return bib;
       });
       closeModal();
-      toast("Payment confirmed — bib " + assignedBib + " assigned");
+      toast((priceFree ? "Free entry confirmed — bib " : "Payment confirmed — bib ") + assignedBib + " assigned");
       if (sendWa) {
         const updated = { ...r, bibNumber: assignedBib, paymentStatus: priceFree ? "free" : "paid" };
         const waUrl = buildWhatsAppUrl(updated);
