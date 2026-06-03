@@ -4255,6 +4255,7 @@ async function deleteCategory(c) {
 // ===== Built-in form fields (label / visibility / required / delete) =====
 const BUILT_IN_FIELDS = [
   { key: "email",       label: "Email" },
+  { key: "extraEmail",  label: "Email — extra participants (Person 2+)" },
   { key: "gender",      label: "Gender" },
   { key: "nationality", label: "Nationality" },
   { key: "country",     label: "Country of residence" },
@@ -4267,6 +4268,7 @@ const BUILT_IN_FIELDS = [
 ];
 const BUILT_IN_DEFAULTS = {
   email:      { visible:true,  required:true,  deleted:false },
+  extraEmail: { visible:true,  required:false, deleted:false }, // Person 2+ email is optional by default (falls back to Person 1's email)
   gender:     { visible:true,  required:true,  deleted:false },
   nationality:{ visible:true,  required:false, deleted:false },
   country:    { visible:true,  required:false, deleted:false },
