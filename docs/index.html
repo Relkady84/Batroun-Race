@@ -2556,7 +2556,9 @@ siSubmit.addEventListener("click", async () => {
   siSubmit.textContent = "Signing in…";
   try {
     const snap = await getDoc(doc(db, "competitions", COMPETITION_ID, "registrations", refRaw));
-    if (!snap.exists()) {
+    // A soft-deleted reg still 'exists' in Firestore — treat it as not found
+    // for sign-in purposes so the runner doesn't see an archived row.
+    if (!snap.exists() || snap.data().deletedAt) {
       showSigninError("We couldn't find a registration with that reference code.");
       return;
     }
@@ -2612,7 +2614,12 @@ async function loadAllRegsForPhone(phoneNorm, fallbackReg, fallbackRef) {
     const fetched = await Promise.all(refs.map(async (ref) => {
       try {
         const s = await getDoc(doc(db, "competitions", COMPETITION_ID, "registrations", ref));
-        return s.exists() ? { ref, ...s.data() } : null;
+        if (!s.exists()) return null;
+        const data = s.data();
+        // Hide soft-deleted registrations from the cart — they live in the
+        // admin Backup tab and aren't 'real' registrations for the runner.
+        if (data.deletedAt) return null;
+        return { ref, ...data };
       } catch (_) { return null; }
     }));
     const valid = fetched.filter(Boolean);
@@ -2777,7 +2784,10 @@ async function loadRegsForPhone(phoneNorm) {
     const fetched = await Promise.all(refs.map(async (ref) => {
       try {
         const s = await getDoc(doc(db, "competitions", COMPETITION_ID, "registrations", ref));
-        return s.exists() ? { ref, ...s.data() } : null;
+        if (!s.exists()) return null;
+        const data = s.data();
+        if (data.deletedAt) return null; // hide soft-deleted regs from auto-signin cart too
+        return { ref, ...data };
       } catch (_) { return null; }
     }));
     return fetched.filter(Boolean);
@@ -2903,7 +2913,10 @@ refreshSessionFromStorage();
   (async () => {
     try {
       const snap = await getDoc(doc(db, "competitions", COMPETITION_ID, "registrations", refUp));
-      if (!snap.exists()) throw new Error("ref-not-found");
+      // A soft-deleted reg still 'exists' — treat as not-found so the link
+      // doesn't auto-open an archived invoice. Falls through to the manual
+      // sign-in below, which also rejects deleted refs with a clean message.
+      if (!snap.exists() || snap.data().deletedAt) throw new Error("ref-not-found");
       const r = snap.data();
       const phoneNorm = normalizePhone(r.phone || "");
       if (!phoneNorm) throw new Error("missing-phone");
