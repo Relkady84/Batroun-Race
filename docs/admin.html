@@ -757,6 +757,27 @@ Masters Men-Women 35-39 (1987-1991)
       </div>
 
       <div><button id="competitionSaveBtn" class="btn">Save event info</button></div>
+
+      <div class="card admin-only">
+        <h2>Special pricing (by phone)</h2>
+        <p class="muted" style="margin:0 0 12px">
+          Give a mobile number custom fixed prices per category. When that person
+          registers online and enters this number, each category they pick shows
+          the special price instead of the normal one (e.g. 5&nbsp;KM = $15,
+          10&nbsp;KM = $20). Enter <strong>0</strong> for a free entry — their
+          registration lands as <em>free</em> on the dashboard, no payment step.
+          Leave a category blank to charge the normal price. Numbers are matched
+          after normalisation, so format doesn't matter.
+        </p>
+        <div class="row two">
+          <div><label>Mobile number</label><input id="discPhone" placeholder="+961 3 123 456" inputmode="tel"></div>
+          <div><label>Note (optional)</label><input id="discNote" placeholder="e.g. Sponsor, staff family"></div>
+        </div>
+        <label style="margin-top:10px;display:block">Fixed price per category (USD) — blank = normal price, 0 = free</label>
+        <div id="discCatInputs" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px;margin-top:6px"></div>
+        <div style="margin-top:12px"><button id="discAddBtn" class="btn">Save special pricing for this number</button></div>
+        <div id="discList" style="margin-top:16px"></div>
+      </div>
     </section>
 
     <!-- ============ Settings (user access) ============ -->
@@ -790,27 +811,6 @@ Masters Men-Women 35-39 (1987-1991)
           Changes take effect immediately on the server (Firestore rules read
           this same list). The added user just needs to sign in.
         </p>
-      </div>
-
-      <div class="card admin-only">
-        <h2>Special pricing (by phone)</h2>
-        <p class="muted" style="margin:0 0 12px">
-          Give a mobile number custom fixed prices per category. When that person
-          registers online and enters this number, each category they pick shows
-          the special price instead of the normal one (e.g. 5&nbsp;KM = $15,
-          10&nbsp;KM = $20). Enter <strong>0</strong> for a free entry — their
-          registration lands as <em>free</em> on the dashboard, no payment step.
-          Leave a category blank to charge the normal price. Numbers are matched
-          after normalisation, so format doesn't matter.
-        </p>
-        <div class="row two">
-          <div><label>Mobile number</label><input id="discPhone" placeholder="+961 3 123 456" inputmode="tel"></div>
-          <div><label>Note (optional)</label><input id="discNote" placeholder="e.g. Sponsor, staff family"></div>
-        </div>
-        <label style="margin-top:10px;display:block">Fixed price per category (USD) — blank = normal price, 0 = free</label>
-        <div id="discCatInputs" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px;margin-top:6px"></div>
-        <div style="margin-top:12px"><button id="discAddBtn" class="btn">Save special pricing for this number</button></div>
-        <div id="discList" style="margin-top:16px"></div>
       </div>
 
       <div class="card">
