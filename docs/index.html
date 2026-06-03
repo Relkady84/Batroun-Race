@@ -2980,8 +2980,8 @@ cartAddBtn?.addEventListener("click", () => {
           <input id="ca_last" type="text" required placeholder="Family name">
         </div>
       </div>
-      <div class="row">
-        <label for="ca_email">Email</label>
+      <div class="row" data-field="extraEmail">
+        <label for="ca_email">Email<span class="req-star" hidden> *</span></label>
         <input id="ca_email" type="email" inputmode="email" autocomplete="email"
                value="${escHtml(lead.email || "")}" placeholder="participant@example.com">
         <div class="help">Pre-filled from your first registration. Edit if this participant uses a different one.</div>
@@ -2992,8 +2992,8 @@ cartAddBtn?.addEventListener("click", () => {
           <input id="ca_dob" class="dob-input" readonly required
                  placeholder="Tap to choose date of birth" aria-haspopup="dialog">
         </div>
-        <div>
-          <label for="ca_gender">Gender *</label>
+        <div data-field="gender">
+          <label for="ca_gender">Gender <span class="req-star">*</span></label>
           <select id="ca_gender" required>
             <option value="">Select…</option>
             <option>Female</option><option>Male</option>
@@ -3002,16 +3002,16 @@ cartAddBtn?.addEventListener("click", () => {
         </div>
       </div>
       <div class="row two">
-        <div>
-          <label for="ca_shirt">T-shirt size *</label>
+        <div data-field="tshirt">
+          <label for="ca_shirt">T-shirt size <span class="req-star">*</span></label>
           <select id="ca_shirt" required>
             <option value="">Select…</option>
             <option>XS</option><option>S</option><option>M</option>
             <option>L</option><option>XL</option><option>XXL</option>
           </select>
         </div>
-        <div>
-          <label for="ca_blood">Blood type *</label>
+        <div data-field="blood">
+          <label for="ca_blood">Blood type <span class="req-star">*</span></label>
           <select id="ca_blood" required>
             <option value="">Select…</option>
             ${ADD_BLOOD_OPTIONS.map(b => `<option>${b}</option>`).join("")}
@@ -3051,6 +3051,11 @@ cartAddBtn?.addEventListener("click", () => {
   document.getElementById("ca_cat").addEventListener("change", renderCaSubQ);
   document.getElementById("ca_dob").addEventListener("change", renderCaSubQ);
   renderCaSubQ();
+  // Apply the admin's built-in-field config (visibility/required) to this
+  // mini-form too, so a deleted/optional field (e.g. T-shirt) is hidden or
+  // not required here just like on the main form.
+  applyBuiltInToScope(cartAddForm);
+  initFieldErrors();
   document.getElementById("ca_cancel").addEventListener("click", () => {
     cartAddForm.hidden = true;
     cartAddForm.innerHTML = "";
@@ -3076,11 +3081,21 @@ async function submitCartAdd() {
   const blood  = document.getElementById("ca_blood").value;
   const sq     = document.getElementById("ca_sq")?.value || null;
 
+  // Only enforce gender/tshirt/blood when the admin config marks them
+  // visible + required, so a deleted/optional field (e.g. T-shirt) doesn't
+  // block the cart-add submission.
+  const fieldRequired = (key) => {
+    const cfg = PUBLIC_FORM_EFFECTIVE[key] || {};
+    return !!cfg.visible && !cfg.deleted && !!cfg.required;
+  };
+
   if (!cat) return showCAErr(err, "Pick a race / category.");
   if (!first || !last) return showCAErr(err, "First and last name are required.");
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return showCAErr(err, "Please enter a valid email address (or leave it empty).");
   if (!dob) return showCAErr(err, "Date of birth is required.");
-  if (!gender || !shirt || !blood) return showCAErr(err, "Gender, t-shirt size, and blood type are required.");
+  if (fieldRequired("gender") && !gender) return showCAErr(err, "Gender is required.");
+  if (fieldRequired("tshirt") && !shirt)  return showCAErr(err, "T-shirt size is required.");
+  if (fieldRequired("blood")  && !blood)  return showCAErr(err, "Blood type is required.");
 
   const ageErr = validateParticipantAge(cat, dob, sq);
   if (ageErr) return showCAErr(err, ageErr);
