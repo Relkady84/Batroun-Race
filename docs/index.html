@@ -134,6 +134,22 @@
     border-style:dashed!important;
     font-weight:600
   }
+  /* Country dial-code + phone composite. The select is narrow (flag + code),
+     the input takes the rest. Both share the same height + border styling so
+     they read as one control. */
+  .phone-group{display:flex;gap:6px;align-items:stretch}
+  .phone-group .dial-select{
+    flex:0 0 auto;
+    width:115px;
+    font-size:.92rem;
+    padding-right:24px;
+    background-position: right 6px center;
+  }
+  .phone-group .dial-select option{font-family:'Inter',system-ui;font-size:.95rem}
+  .phone-group .phone-input{flex:1;min-width:0}
+  @media (max-width:380px){
+    .phone-group .dial-select{width:100px}
+  }
   input[readonly]:focus{box-shadow:none!important;border-color:rgba(255,255,255,.22)!important}
 
   /* ============================================================ */
@@ -564,8 +580,11 @@
           </div>
           <div>
             <label for="phone">Mobile (WhatsApp) *</label>
-            <input id="phone" name="phone" placeholder="+961 3 123 456" required
-                   inputmode="tel" pattern="^[+]?[\d\s()-]{7,}$">
+            <div class="phone-group">
+              <select id="phoneDial" class="dial-select" aria-label="Country code"></select>
+              <input id="phone" name="phone" class="phone-input" placeholder="3 123 456" required
+                     inputmode="tel" pattern="^[+]?[\d\s()-]{6,}$">
+            </div>
             <div class="help">Use +961… or local format.</div>
           </div>
         </div>
@@ -812,8 +831,12 @@
             Enter the mobile number you registered with and the reference code we generated for you. You'll see your invoice and ticket.
           </p>
           <label for="siPhone">Mobile</label>
-          <input id="siPhone" type="tel" placeholder="+961 3 123 456" inputmode="tel"
-                 style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font:inherit">
+          <div class="phone-group" style="margin-top:4px">
+            <select id="siPhoneDial" class="dial-select" aria-label="Country code"
+                    style="padding:10px 8px;border-radius:10px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font:inherit"></select>
+            <input id="siPhone" class="phone-input" type="tel" placeholder="3 123 456" inputmode="tel"
+                   style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font:inherit">
+          </div>
           <label for="siRef" style="margin-top:10px;display:block">Reference code</label>
           <input id="siRef" type="text" placeholder="BTN-2026-XXXX" autocapitalize="characters"
                  style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font:inherit;font-family:ui-monospace,Menlo,monospace;letter-spacing:1px">
@@ -1084,17 +1107,226 @@ function validateParticipantAge(cat, dobStr, sqAnswer) {
   return null;
 }
 
-// Canonical phone format used as the registration doc ID (enforces uniqueness).
-// Lebanese local "71503555" → "96171503555". International like "+33 …" preserved.
-function normalizePhone(raw) {
+// Country list for the dial-code picker: { iso2, dial, name }.
+// Common diaspora destinations are alphabetised together; Lebanon is the
+// default. Sorted alphabetically by name in the dropdown.
+const COUNTRY_DIAL_CODES = [
+  { iso:"AF", dial:"93",   name:"Afghanistan" },
+  { iso:"AL", dial:"355",  name:"Albania" },
+  { iso:"DZ", dial:"213",  name:"Algeria" },
+  { iso:"AD", dial:"376",  name:"Andorra" },
+  { iso:"AO", dial:"244",  name:"Angola" },
+  { iso:"AR", dial:"54",   name:"Argentina" },
+  { iso:"AM", dial:"374",  name:"Armenia" },
+  { iso:"AW", dial:"297",  name:"Aruba" },
+  { iso:"AU", dial:"61",   name:"Australia" },
+  { iso:"AT", dial:"43",   name:"Austria" },
+  { iso:"AZ", dial:"994",  name:"Azerbaijan" },
+  { iso:"BH", dial:"973",  name:"Bahrain" },
+  { iso:"BD", dial:"880",  name:"Bangladesh" },
+  { iso:"BY", dial:"375",  name:"Belarus" },
+  { iso:"BE", dial:"32",   name:"Belgium" },
+  { iso:"BZ", dial:"501",  name:"Belize" },
+  { iso:"BJ", dial:"229",  name:"Benin" },
+  { iso:"BT", dial:"975",  name:"Bhutan" },
+  { iso:"BO", dial:"591",  name:"Bolivia" },
+  { iso:"BA", dial:"387",  name:"Bosnia and Herzegovina" },
+  { iso:"BW", dial:"267",  name:"Botswana" },
+  { iso:"BR", dial:"55",   name:"Brazil" },
+  { iso:"BN", dial:"673",  name:"Brunei" },
+  { iso:"BG", dial:"359",  name:"Bulgaria" },
+  { iso:"BF", dial:"226",  name:"Burkina Faso" },
+  { iso:"BI", dial:"257",  name:"Burundi" },
+  { iso:"KH", dial:"855",  name:"Cambodia" },
+  { iso:"CM", dial:"237",  name:"Cameroon" },
+  { iso:"CA", dial:"1",    name:"Canada" },
+  { iso:"CV", dial:"238",  name:"Cape Verde" },
+  { iso:"TD", dial:"235",  name:"Chad" },
+  { iso:"CL", dial:"56",   name:"Chile" },
+  { iso:"CN", dial:"86",   name:"China" },
+  { iso:"CO", dial:"57",   name:"Colombia" },
+  { iso:"KM", dial:"269",  name:"Comoros" },
+  { iso:"CG", dial:"242",  name:"Congo (Republic)" },
+  { iso:"CD", dial:"243",  name:"Congo (DRC)" },
+  { iso:"CR", dial:"506",  name:"Costa Rica" },
+  { iso:"CI", dial:"225",  name:"Côte d'Ivoire" },
+  { iso:"HR", dial:"385",  name:"Croatia" },
+  { iso:"CU", dial:"53",   name:"Cuba" },
+  { iso:"CY", dial:"357",  name:"Cyprus" },
+  { iso:"CZ", dial:"420",  name:"Czech Republic" },
+  { iso:"DK", dial:"45",   name:"Denmark" },
+  { iso:"DJ", dial:"253",  name:"Djibouti" },
+  { iso:"DO", dial:"1",    name:"Dominican Republic" },
+  { iso:"EC", dial:"593",  name:"Ecuador" },
+  { iso:"EG", dial:"20",   name:"Egypt" },
+  { iso:"SV", dial:"503",  name:"El Salvador" },
+  { iso:"GQ", dial:"240",  name:"Equatorial Guinea" },
+  { iso:"ER", dial:"291",  name:"Eritrea" },
+  { iso:"EE", dial:"372",  name:"Estonia" },
+  { iso:"ET", dial:"251",  name:"Ethiopia" },
+  { iso:"FI", dial:"358",  name:"Finland" },
+  { iso:"FR", dial:"33",   name:"France" },
+  { iso:"GA", dial:"241",  name:"Gabon" },
+  { iso:"GM", dial:"220",  name:"Gambia" },
+  { iso:"GE", dial:"995",  name:"Georgia" },
+  { iso:"DE", dial:"49",   name:"Germany" },
+  { iso:"GH", dial:"233",  name:"Ghana" },
+  { iso:"GR", dial:"30",   name:"Greece" },
+  { iso:"GT", dial:"502",  name:"Guatemala" },
+  { iso:"GN", dial:"224",  name:"Guinea" },
+  { iso:"GY", dial:"592",  name:"Guyana" },
+  { iso:"HT", dial:"509",  name:"Haiti" },
+  { iso:"HN", dial:"504",  name:"Honduras" },
+  { iso:"HK", dial:"852",  name:"Hong Kong" },
+  { iso:"HU", dial:"36",   name:"Hungary" },
+  { iso:"IS", dial:"354",  name:"Iceland" },
+  { iso:"IN", dial:"91",   name:"India" },
+  { iso:"ID", dial:"62",   name:"Indonesia" },
+  { iso:"IR", dial:"98",   name:"Iran" },
+  { iso:"IQ", dial:"964",  name:"Iraq" },
+  { iso:"IE", dial:"353",  name:"Ireland" },
+  { iso:"IL", dial:"972",  name:"Israel" },
+  { iso:"IT", dial:"39",   name:"Italy" },
+  { iso:"JM", dial:"1",    name:"Jamaica" },
+  { iso:"JP", dial:"81",   name:"Japan" },
+  { iso:"JO", dial:"962",  name:"Jordan" },
+  { iso:"KZ", dial:"7",    name:"Kazakhstan" },
+  { iso:"KE", dial:"254",  name:"Kenya" },
+  { iso:"KW", dial:"965",  name:"Kuwait" },
+  { iso:"KG", dial:"996",  name:"Kyrgyzstan" },
+  { iso:"LA", dial:"856",  name:"Laos" },
+  { iso:"LV", dial:"371",  name:"Latvia" },
+  { iso:"LB", dial:"961",  name:"Lebanon" },
+  { iso:"LS", dial:"266",  name:"Lesotho" },
+  { iso:"LR", dial:"231",  name:"Liberia" },
+  { iso:"LY", dial:"218",  name:"Libya" },
+  { iso:"LI", dial:"423",  name:"Liechtenstein" },
+  { iso:"LT", dial:"370",  name:"Lithuania" },
+  { iso:"LU", dial:"352",  name:"Luxembourg" },
+  { iso:"MO", dial:"853",  name:"Macao" },
+  { iso:"MK", dial:"389",  name:"North Macedonia" },
+  { iso:"MG", dial:"261",  name:"Madagascar" },
+  { iso:"MW", dial:"265",  name:"Malawi" },
+  { iso:"MY", dial:"60",   name:"Malaysia" },
+  { iso:"MV", dial:"960",  name:"Maldives" },
+  { iso:"ML", dial:"223",  name:"Mali" },
+  { iso:"MT", dial:"356",  name:"Malta" },
+  { iso:"MR", dial:"222",  name:"Mauritania" },
+  { iso:"MU", dial:"230",  name:"Mauritius" },
+  { iso:"MX", dial:"52",   name:"Mexico" },
+  { iso:"MD", dial:"373",  name:"Moldova" },
+  { iso:"MC", dial:"377",  name:"Monaco" },
+  { iso:"MN", dial:"976",  name:"Mongolia" },
+  { iso:"ME", dial:"382",  name:"Montenegro" },
+  { iso:"MA", dial:"212",  name:"Morocco" },
+  { iso:"MZ", dial:"258",  name:"Mozambique" },
+  { iso:"MM", dial:"95",   name:"Myanmar" },
+  { iso:"NA", dial:"264",  name:"Namibia" },
+  { iso:"NP", dial:"977",  name:"Nepal" },
+  { iso:"NL", dial:"31",   name:"Netherlands" },
+  { iso:"NZ", dial:"64",   name:"New Zealand" },
+  { iso:"NI", dial:"505",  name:"Nicaragua" },
+  { iso:"NE", dial:"227",  name:"Niger" },
+  { iso:"NG", dial:"234",  name:"Nigeria" },
+  { iso:"KP", dial:"850",  name:"North Korea" },
+  { iso:"NO", dial:"47",   name:"Norway" },
+  { iso:"OM", dial:"968",  name:"Oman" },
+  { iso:"PK", dial:"92",   name:"Pakistan" },
+  { iso:"PS", dial:"970",  name:"Palestine" },
+  { iso:"PA", dial:"507",  name:"Panama" },
+  { iso:"PG", dial:"675",  name:"Papua New Guinea" },
+  { iso:"PY", dial:"595",  name:"Paraguay" },
+  { iso:"PE", dial:"51",   name:"Peru" },
+  { iso:"PH", dial:"63",   name:"Philippines" },
+  { iso:"PL", dial:"48",   name:"Poland" },
+  { iso:"PT", dial:"351",  name:"Portugal" },
+  { iso:"PR", dial:"1",    name:"Puerto Rico" },
+  { iso:"QA", dial:"974",  name:"Qatar" },
+  { iso:"RO", dial:"40",   name:"Romania" },
+  { iso:"RU", dial:"7",    name:"Russia" },
+  { iso:"RW", dial:"250",  name:"Rwanda" },
+  { iso:"SA", dial:"966",  name:"Saudi Arabia" },
+  { iso:"SN", dial:"221",  name:"Senegal" },
+  { iso:"RS", dial:"381",  name:"Serbia" },
+  { iso:"SC", dial:"248",  name:"Seychelles" },
+  { iso:"SL", dial:"232",  name:"Sierra Leone" },
+  { iso:"SG", dial:"65",   name:"Singapore" },
+  { iso:"SK", dial:"421",  name:"Slovakia" },
+  { iso:"SI", dial:"386",  name:"Slovenia" },
+  { iso:"SO", dial:"252",  name:"Somalia" },
+  { iso:"ZA", dial:"27",   name:"South Africa" },
+  { iso:"KR", dial:"82",   name:"South Korea" },
+  { iso:"SS", dial:"211",  name:"South Sudan" },
+  { iso:"ES", dial:"34",   name:"Spain" },
+  { iso:"LK", dial:"94",   name:"Sri Lanka" },
+  { iso:"SD", dial:"249",  name:"Sudan" },
+  { iso:"SR", dial:"597",  name:"Suriname" },
+  { iso:"SE", dial:"46",   name:"Sweden" },
+  { iso:"CH", dial:"41",   name:"Switzerland" },
+  { iso:"SY", dial:"963",  name:"Syria" },
+  { iso:"TW", dial:"886",  name:"Taiwan" },
+  { iso:"TJ", dial:"992",  name:"Tajikistan" },
+  { iso:"TZ", dial:"255",  name:"Tanzania" },
+  { iso:"TH", dial:"66",   name:"Thailand" },
+  { iso:"TG", dial:"228",  name:"Togo" },
+  { iso:"TT", dial:"1",    name:"Trinidad and Tobago" },
+  { iso:"TN", dial:"216",  name:"Tunisia" },
+  { iso:"TR", dial:"90",   name:"Türkiye" },
+  { iso:"TM", dial:"993",  name:"Turkmenistan" },
+  { iso:"UG", dial:"256",  name:"Uganda" },
+  { iso:"UA", dial:"380",  name:"Ukraine" },
+  { iso:"AE", dial:"971",  name:"United Arab Emirates" },
+  { iso:"GB", dial:"44",   name:"United Kingdom" },
+  { iso:"US", dial:"1",    name:"United States" },
+  { iso:"UY", dial:"598",  name:"Uruguay" },
+  { iso:"UZ", dial:"998",  name:"Uzbekistan" },
+  { iso:"VE", dial:"58",   name:"Venezuela" },
+  { iso:"VN", dial:"84",   name:"Vietnam" },
+  { iso:"YE", dial:"967",  name:"Yemen" },
+  { iso:"ZM", dial:"260",  name:"Zambia" },
+  { iso:"ZW", dial:"263",  name:"Zimbabwe" },
+];
+const DEFAULT_DIAL_ISO = "LB"; // Lebanon — default for this race
+
+// Render ISO2 → 🇱🇧 emoji via the Regional Indicator Symbol Letters.
+// Most modern phones + macOS render correctly; older Windows shows the
+// letters (acceptable degradation, dial code still visible).
+function flagEmoji(iso2) {
+  return String(iso2 || "").toUpperCase().replace(/./g,
+    c => String.fromCodePoint(127397 + c.charCodeAt(0)));
+}
+
+// Populate a <select> with all countries; selects DEFAULT_DIAL_ISO by default.
+function populateDialSelect(selectEl) {
+  if (!selectEl) return;
+  const opts = COUNTRY_DIAL_CODES
+    .slice()
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map(c => `<option value="${c.iso}" data-dial="${c.dial}"${c.iso === DEFAULT_DIAL_ISO ? " selected" : ""}>${flagEmoji(c.iso)}  +${c.dial}  ${c.name}</option>`)
+    .join("");
+  selectEl.innerHTML = opts;
+}
+
+// Active dial code from a select (falls back to Lebanon's 961).
+function selectedDial(selectEl) {
+  const opt = selectEl?.selectedOptions?.[0];
+  return (opt && opt.dataset && opt.dataset.dial) || "961";
+}
+
+// Canonical phone format used as the registration doc ID. Now dial-aware:
+//   - Strip non-digits.
+//   - Strip leading '00' international prefix and any leading '0' trunk prefix.
+//   - If the digits already start with the given dial code, leave alone.
+//   - Otherwise, prepend the dial code.
+// Backward-compatible with the old Lebanon-only behaviour: any existing
+// '961xxxxxxxx' value re-normalises to itself with dial='961'.
+function normalizePhone(raw, dial) {
   if (!raw) return "";
   let digits = String(raw).replace(/\D/g, "");
-  // International prefix: "00961…" → "961…"
   if (digits.startsWith("00")) digits = digits.slice(2);
-  // National trunk prefix: "03…" → "3…"
-  if (digits.startsWith("0")) digits = digits.slice(1);
-  // If the user already typed the country code, don't add it again.
-  if (!digits.startsWith("961")) digits = "961" + digits;
+  if (digits.startsWith("0"))  digits = digits.slice(1);
+  const d = String(dial || "961").replace(/\D/g, "") || "961";
+  if (!digits.startsWith(d)) digits = d + digits;
   return digits;
 }
 
@@ -1103,7 +1335,7 @@ function normalizePhone(raw) {
 // so re-blurring the same number doesn't re-hit Firestore.
 async function lookupPhoneDiscount() {
   const raw = (document.getElementById("phone")?.value || "").trim();
-  const norm = raw ? normalizePhone(raw) : "";
+  const norm = raw ? normalizePhone(raw, selectedDial(document.getElementById("phoneDial"))) : "";
   if (!norm || norm.length < 10) {
     if (PHONE_DISCOUNT) { PHONE_DISCOUNT = null; PHONE_DISCOUNT_FOR = ""; refreshPriceDisplay(); }
     return;
@@ -1590,6 +1822,16 @@ let _discDebounce = null;
 document.getElementById("phone").addEventListener("input", () => {
   clearTimeout(_discDebounce);
   _discDebounce = setTimeout(lookupPhoneDiscount, 600);
+});
+
+// Build the country-code <select>s on the public form + sign-in modal,
+// default Lebanon. Re-run the discount lookup if the runner changes the
+// country (their normalized phone — and so the discount key — changes).
+populateDialSelect(document.getElementById("phoneDial"));
+populateDialSelect(document.getElementById("siPhoneDial"));
+document.getElementById("phoneDial")?.addEventListener("change", () => {
+  PHONE_DISCOUNT_FOR = ""; // invalidate the cache so the new country triggers a refetch
+  lookupPhoneDiscount();
 });
 
 // ============================================================
@@ -2357,7 +2599,7 @@ form.addEventListener("submit", async (e) => {
   };
 
   try {
-    const phoneNorm = normalizePhone(payload.phone);
+    const phoneNorm = normalizePhone(payload.phone, selectedDial(document.getElementById("phoneDial")));
     if (!phoneNorm || phoneNorm.length < 8) throw new Error("Invalid phone number.");
     payload.phone = phoneNorm;
 
@@ -2546,7 +2788,7 @@ siSubmit.addEventListener("click", async () => {
     showSigninError("Please enter both your mobile number and reference code.");
     return;
   }
-  const phoneNorm = normalizePhone(phoneRaw);
+  const phoneNorm = normalizePhone(phoneRaw, selectedDial(document.getElementById("siPhoneDial")));
   if (!phoneNorm || phoneNorm.length < 8) {
     showSigninError("That mobile number doesn't look right. Please double-check.");
     return;
