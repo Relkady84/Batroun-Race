@@ -299,7 +299,6 @@
           <select data-filter-id="gender"       id="filterGender">
             <option value="">Any gender</option>
             <option>Female</option><option>Male</option>
-            <option>Non-binary</option><option>Prefer not to say</option>
           </select>
           <select data-filter-id="tshirt"       id="filterTshirt">
             <option value="">Any T-shirt</option>
@@ -3917,7 +3916,7 @@ function openParticipantEditor(r) {
         <label>Gender</label>
         <select id="pe_gender">
           <option value="">—</option>
-          ${["Female","Male","Non-binary","Prefer not to say"].map(sel(isEdit ? r.gender : "")).join("")}
+          ${["Female","Male"].map(sel(isEdit ? r.gender : "")).join("")}
         </select>
       </div>
       <div>
@@ -3966,7 +3965,7 @@ function openParticipantEditor(r) {
           <label>Gender</label>
           <select id="pe_tGender">
             <option value="">—</option>
-            ${["Female","Male","Non-binary","Prefer not to say"].map(opt(isEdit ? r.teammate?.gender || "" : "")).join("")}
+            ${["Female","Male"].map(opt(isEdit ? r.teammate?.gender || "" : "")).join("")}
           </select>
         </div>
       </div>
