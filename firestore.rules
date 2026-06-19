@@ -128,13 +128,15 @@ service cloud.firestore {
         allow delete: if isAdmin();
       }
 
-      // Sponsors: NOT public (contains amounts + private contacts).
-      //   - admin + viewer (staff) can read, create and update — so staff
-      //     can log sponsors during the event, not just admins.
-      //   - only admin can hard-delete.
+      // Sponsors and Expenses: ADMIN-ONLY (contain money figures and
+      // private contact info; staff don't need access). Tabs are also
+      // hidden from staff in the admin UI as a UX layer; this rule is
+      // the real gate.
       match /sponsors/{sponsorId} {
-        allow read, create, update: if canReadDashboard();
-        allow delete: if isAdmin();
+        allow read, write: if isAdmin();
+      }
+      match /expenses/{expenseId} {
+        allow read, write: if isAdmin();
       }
 
       // Phone-based discount pool. Doc id = normalized phone.
