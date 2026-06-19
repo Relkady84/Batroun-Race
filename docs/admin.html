@@ -267,6 +267,7 @@
     <button data-tab="registrations" class="active">Registrations</button>
     <button data-tab="confirmed">Confirmed</button>
     <button data-tab="sponsors">Sponsors</button>
+    <button data-tab="expenses">Expenses</button>
     <button data-tab="backup">Backup</button>
     <button data-tab="dashboard">Dashboard</button>
     <button data-tab="categories">Categories</button>
@@ -423,6 +424,54 @@
               <th></th>
             </tr></thead>
             <tbody><tr><td colspan="8" class="empty">No sponsors yet. Click “+ Add sponsor” to log your first one.</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ Expenses ============ -->
+    <section id="tab-expenses" class="tab">
+      <div class="stats" id="expenseStats"></div>
+
+      <div class="card">
+        <div class="filters-grid">
+          <input type="search" id="expenseSearch" placeholder="Search title, vendor, notes…">
+          <select id="expenseCategoryFilter">
+            <option value="">All categories</option>
+            <option value="permits">Permits &amp; insurance</option>
+            <option value="bibs-shirts">Bibs &amp; t-shirts</option>
+            <option value="medals">Medals &amp; trophies</option>
+            <option value="food-water">Food &amp; water</option>
+            <option value="venue-equipment">Venue &amp; equipment</option>
+            <option value="marketing">Marketing &amp; promo</option>
+            <option value="staff-services">Staff &amp; services</option>
+            <option value="photo-timing">Photography &amp; timing</option>
+            <option value="transportation">Transportation</option>
+            <option value="other">Other</option>
+          </select>
+          <select id="expenseStatusFilter">
+            <option value="">All statuses</option>
+            <option value="paid">Paid</option>
+            <option value="pending">Pending</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+          <button id="addExpenseBtn" class="btn">+ Add expense</button>
+          <button id="expenseExportBtn" class="btn sec">Export CSV</button>
+        </div>
+
+        <div class="table-wrap">
+          <table id="expenseTable">
+            <thead><tr>
+              <th class="sortable" data-esort="title">Title</th>
+              <th class="sortable" data-esort="category">Category</th>
+              <th class="sortable" data-esort="amountUSD">Amount (USD)</th>
+              <th class="sortable" data-esort="vendor">Vendor / Payee</th>
+              <th class="sortable" data-esort="expenseDate">Date</th>
+              <th class="sortable" data-esort="status">Status</th>
+              <th class="sortable" data-esort="createdAt">Added</th>
+              <th></th>
+            </tr></thead>
+            <tbody><tr><td colspan="8" class="empty">No expenses yet. Click “+ Add expense” to log your first one.</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -975,6 +1024,7 @@ const db = getFirestore(app);
 let regs = [];
 let cats = [];
 let sponsors = [];
+let expenses = []; // /expenses — outgoing money for the race (permits, bibs, etc.)
 let discounts = []; // /discounts — phone-based discount pool
 let competition = {};
 let theme = {}; // /config/theme — read by buildWhatsAppUrl etc. for editable copy
@@ -1258,8 +1308,9 @@ function showApp(user) {
 }
 
 function applyRoleVisibility() {
-  // Viewers (staff) see Registrations + Confirmed + Sponsors.
-  const VIEWER_TABS = ["registrations", "confirmed", "sponsors"];
+  // Viewers (staff) see Registrations + Confirmed only. Sponsors and
+  // Expenses contain money/private contact info — admin-only.
+  const VIEWER_TABS = ["registrations", "confirmed"];
   document.querySelectorAll('nav.tabs button[data-tab]').forEach(btn => {
     if (userRole === "viewer" && !VIEWER_TABS.includes(btn.dataset.tab)) {
       btn.style.display = "none";
@@ -1329,15 +1380,27 @@ function startListeners() {
     err => toast("Registrations listener: " + err.message, true)
   );
 
-  // Sponsors
-  onSnapshot(
-    collection(db, "competitions", COMPETITION_ID, "sponsors"),
-    snap => {
-      sponsors = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      renderSponsorsTab();
-    },
-    err => toast("Sponsors listener: " + err.message, true)
-  );
+  // Sponsors + Expenses — admin only (contain money + private contacts).
+  // Staff (viewer) skips both subscriptions entirely so the Firestore rule
+  // never has to deny them and the console stays clean.
+  if (userRole === "admin") {
+    onSnapshot(
+      collection(db, "competitions", COMPETITION_ID, "sponsors"),
+      snap => {
+        sponsors = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderSponsorsTab();
+      },
+      err => toast("Sponsors listener: " + err.message, true)
+    );
+    onSnapshot(
+      collection(db, "competitions", COMPETITION_ID, "expenses"),
+      snap => {
+        expenses = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderExpensesTab();
+      },
+      err => toast("Expenses listener: " + err.message, true)
+    );
+  }
 
   // Discount pool (by phone)
   onSnapshot(
@@ -2377,6 +2440,265 @@ document.getElementById("sponsorExportBtn")?.addEventListener("click", () => {
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = `batroun-race-sponsors-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+// ===== Expenses tab =====
+const expenseSort = { key: "expenseDate", dir: "desc" };
+const EXPENSE_CATEGORY_LABEL = {
+  "permits":         "Permits & insurance",
+  "bibs-shirts":     "Bibs & t-shirts",
+  "medals":          "Medals & trophies",
+  "food-water":      "Food & water",
+  "venue-equipment": "Venue & equipment",
+  "marketing":       "Marketing & promo",
+  "staff-services":  "Staff & services",
+  "photo-timing":    "Photography & timing",
+  "transportation":  "Transportation",
+  "other":           "Other",
+};
+
+function expenseFiltered() {
+  const q   = ($("#expenseSearch")?.value || "").trim().toLowerCase();
+  const cat = $("#expenseCategoryFilter")?.value || "";
+  const st  = $("#expenseStatusFilter")?.value || "";
+  return expenses.filter(e => {
+    if (e.deletedAt) return false;
+    if (cat && e.category !== cat) return false;
+    if (st  && e.status   !== st)  return false;
+    if (q) {
+      const hay = [e.title, e.vendor, e.note]
+        .map(x => (x || "").toLowerCase()).join(" ");
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function expenseSorted(rows) {
+  if (!expenseSort.key) return rows;
+  const k = expenseSort.key, dir = expenseSort.dir === "asc" ? 1 : -1;
+  return [...rows].sort((a, b) => {
+    let av = a[k], bv = b[k];
+    if (av?.toDate) av = av.toDate().getTime();
+    if (bv?.toDate) bv = bv.toDate().getTime();
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1;
+    if (bv == null) return -1;
+    if (typeof av === "string" && typeof bv === "string")
+      return dir * av.localeCompare(bv, undefined, { sensitivity: "base" });
+    return av < bv ? -dir : av > bv ? dir : 0;
+  });
+}
+
+function renderExpenseStats() {
+  const live = expenses.filter(e => !e.deletedAt);
+  const total   = live.length;
+  const totalPaid     = live.filter(e => e.status === "paid")
+                            .reduce((s, e) => s + (Number(e.amountUSD) || 0), 0);
+  const totalPending  = live.filter(e => e.status === "pending")
+                            .reduce((s, e) => s + (Number(e.amountUSD) || 0), 0);
+  // Sponsors money for the same-screen 'net' read.
+  const sponsorMoney = sponsors
+    .filter(s => !s.deletedAt && s.supportType === "money" && s.status === "confirmed")
+    .reduce((s, sp) => s + (Number(sp.amountUSD) || 0), 0);
+  const net = sponsorMoney - totalPaid;
+  const el = $("#expenseStats");
+  if (el) el.innerHTML = `
+    <div class="stat"><div class="label">Expenses</div><div class="value accent">${total}</div></div>
+    <div class="stat"><div class="label">Total paid</div><div class="value">$${totalPaid}</div></div>
+    <div class="stat"><div class="label">Total pending</div><div class="value" style="color:var(--warn,#ffae50)">$${totalPending}</div></div>
+    <div class="stat"><div class="label">Sponsor money (confirmed)</div><div class="value" style="color:var(--accent2)">$${sponsorMoney}</div></div>
+    <div class="stat"><div class="label">Net (sponsors − paid)</div><div class="value ${net >= 0 ? "accent" : ""}" ${net < 0 ? 'style="color:var(--danger)"' : ""}>$${net}</div></div>
+  `;
+}
+
+function renderExpensesTab() {
+  renderExpenseStats();
+  const tbody = $("#expenseTable tbody");
+  if (!tbody) return;
+  const rows = expenseSorted(expenseFiltered());
+  document.querySelectorAll('#expenseTable th.sortable').forEach(th => {
+    th.classList.remove("sorted-asc", "sorted-desc");
+    if (th.dataset.esort === expenseSort.key)
+      th.classList.add(expenseSort.dir === "asc" ? "sorted-asc" : "sorted-desc");
+  });
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="8" class="empty">No expenses match. Click “+ Add expense” to log one.</td></tr>`;
+    return;
+  }
+  const statusPill = e => {
+    const st = e.status || "paid";
+    const color = st === "paid"      ? "var(--accent)"
+                : st === "pending"   ? "var(--warn,#ffae50)"
+                : st === "cancelled" ? "var(--muted)"
+                : "var(--muted)";
+    return `<span style="color:${color};font-weight:700;text-transform:capitalize">${escapeHtml(st)}</span>`;
+  };
+  const fmtDateOnly = v => {
+    if (!v) return "—";
+    if (typeof v === "string") return v;
+    if (v.toDate) return v.toDate().toISOString().slice(0,10);
+    return "—";
+  };
+  tbody.innerHTML = rows.map(e => `
+    <tr>
+      <td><strong>${escapeHtml(e.title || "—")}</strong>${e.note ? `<br><span class="muted" style="font-size:.8rem">${escapeHtml(e.note)}</span>` : ""}</td>
+      <td>${escapeHtml(EXPENSE_CATEGORY_LABEL[e.category] || e.category || "—")}</td>
+      <td><strong>$${Number(e.amountUSD) || 0}</strong></td>
+      <td>${escapeHtml(e.vendor || "—")}</td>
+      <td>${escapeHtml(fmtDateOnly(e.expenseDate))}</td>
+      <td>${statusPill(e)}</td>
+      <td>${fmtDate(e.createdAt)}</td>
+      <td class="actions">
+        <button class="btn tiny sec" data-exact="edit" data-id="${e.id}">Edit</button>
+        ${userRole === "admin"
+          ? `<button class="btn tiny danger" data-exact="del" data-id="${e.id}" title="Delete expense (admin only)">Delete</button>`
+          : ""}
+      </td>
+    </tr>
+  `).join("");
+  tbody.querySelectorAll('button[data-exact]').forEach(b => {
+    b.addEventListener("click", () => {
+      const e = expenses.find(x => x.id === b.dataset.id);
+      if (!e) return;
+      if (b.dataset.exact === "edit") openExpenseEditor(e);
+      if (b.dataset.exact === "del")  deleteExpense(e);
+    });
+  });
+}
+
+function openExpenseEditor(e) {
+  const isEdit = !!e;
+  const v = (k) => escapeHtml((isEdit && e[k] != null) ? String(e[k]) : "");
+  const catOpt = (val, label) =>
+    `<option value="${val}" ${(isEdit ? e.category : "permits") === val ? "selected" : ""}>${label}</option>`;
+  const statusOpt = (val) =>
+    `<option value="${val}" ${(isEdit ? e.status : "paid") === val ? "selected" : ""}>${val}</option>`;
+  // Default today's date for a new entry.
+  const todayIso = new Date().toISOString().slice(0,10);
+  openModal(`
+    <h3 style="margin:0 0 14px">${isEdit ? "Edit expense" : "Add expense"}</h3>
+
+    <div class="row two">
+      <div><label>Title *</label><input id="ex_title" value="${v("title")}" placeholder="e.g. Police permit"></div>
+      <div>
+        <label>Category</label>
+        <select id="ex_category">
+          ${Object.entries(EXPENSE_CATEGORY_LABEL).map(([val, label]) => catOpt(val, label)).join("")}
+        </select>
+      </div>
+    </div>
+
+    <div class="row three">
+      <div><label>Amount (USD) *</label><input id="ex_amount" type="number" min="0" step="0.5" value="${isEdit && e.amountUSD != null ? Number(e.amountUSD) : ""}" placeholder="e.g. 250"></div>
+      <div><label>Date</label><input id="ex_date" type="date" value="${isEdit && e.expenseDate ? (typeof e.expenseDate === "string" ? e.expenseDate : (e.expenseDate.toDate ? e.expenseDate.toDate().toISOString().slice(0,10) : "")) : todayIso}"></div>
+      <div>
+        <label>Status</label>
+        <select id="ex_status">
+          ${statusOpt("paid")}
+          ${statusOpt("pending")}
+          ${statusOpt("cancelled")}
+        </select>
+      </div>
+    </div>
+
+    <div class="row">
+      <label>Vendor / Payee</label>
+      <input id="ex_vendor" value="${v("vendor")}" placeholder="e.g. ABC Printing">
+    </div>
+
+    <div class="row">
+      <label>Notes (optional)</label>
+      <textarea id="ex_note" rows="2" placeholder="Invoice number, payment method, anything else worth recording.">${v("note")}</textarea>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn sec" id="exCancel">Cancel</button>
+      <button class="btn" id="exSave">${isEdit ? "Save changes" : "Add expense"}</button>
+    </div>
+  `);
+
+  $("#exCancel").onclick = closeModal;
+  $("#exSave").onclick = async () => {
+    const title  = $("#ex_title").value.trim();
+    if (!title) { toast("Title is required", true); $("#ex_title").focus(); return; }
+    const amount = parseFloat($("#ex_amount").value);
+    if (!(amount >= 0)) { toast("Amount must be 0 or more", true); $("#ex_amount").focus(); return; }
+    const payload = {
+      title,
+      category:   $("#ex_category").value,
+      amountUSD:  amount,
+      expenseDate:$("#ex_date").value || null,
+      vendor:     $("#ex_vendor").value.trim() || null,
+      note:       $("#ex_note").value.trim()   || null,
+      status:     $("#ex_status").value,
+      updatedAt:  serverTimestamp(),
+      updatedBy:  currentUserEmail || "unknown",
+    };
+    try {
+      if (isEdit) {
+        await updateDoc(doc(db, "competitions", COMPETITION_ID, "expenses", e.id), payload);
+        toast("Expense updated");
+      } else {
+        await addDoc(collection(db, "competitions", COMPETITION_ID, "expenses"), {
+          ...payload,
+          createdAt: serverTimestamp(),
+          createdBy: currentUserEmail || "unknown",
+        });
+        toast("Expense added");
+      }
+      closeModal();
+    } catch (err) {
+      console.error(err);
+      toast(err.message || "Save failed", true);
+    }
+  };
+}
+
+async function deleteExpense(e) {
+  if (!confirm(`Permanently delete expense "${e.title || "(no title)"}"? This can't be undone.`)) return;
+  try {
+    await deleteDoc(doc(db, "competitions", COMPETITION_ID, "expenses", e.id));
+    toast("Expense deleted");
+  } catch (err) {
+    console.error(err);
+    toast(err.message || "Delete failed (admin only)", true);
+  }
+}
+
+// Wire filters, sort headers, add + export.
+["expenseSearch", "expenseCategoryFilter", "expenseStatusFilter"].forEach(id => {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const evt = el.tagName === "INPUT" ? "input" : "change";
+  el.addEventListener(evt, renderExpensesTab);
+});
+document.querySelectorAll('#expenseTable thead th.sortable').forEach(th => {
+  th.addEventListener("click", () => {
+    const key = th.dataset.esort;
+    if (expenseSort.key === key) expenseSort.dir = expenseSort.dir === "asc" ? "desc" : "asc";
+    else { expenseSort.key = key; expenseSort.dir = "asc"; }
+    renderExpensesTab();
+  });
+});
+document.getElementById("addExpenseBtn")?.addEventListener("click", () => openExpenseEditor(null));
+document.getElementById("expenseExportBtn")?.addEventListener("click", () => {
+  const rows = expenseSorted(expenseFiltered());
+  if (!rows.length) { toast("Nothing to export"); return; }
+  const headers = ["title", "category", "amountUSD", "vendor", "expenseDate",
+                   "status", "note", "addedBy", "addedAt"];
+  const csv = [headers.join(",")].concat(rows.map(e => [
+    e.title, EXPENSE_CATEGORY_LABEL[e.category] || e.category,
+    e.amountUSD ?? "", e.vendor, e.expenseDate || "",
+    e.status, e.note, e.createdBy,
+    e.createdAt ? fmtDate(e.createdAt) : ""
+  ].map(csvCell).join(","))).join("\n");
+  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `batroun-race-expenses-${new Date().toISOString().slice(0,10)}.csv`;
   a.click();
   URL.revokeObjectURL(a.href);
 });
