@@ -2503,14 +2503,27 @@ function renderExpenseStats() {
   const sponsorMoney = sponsors
     .filter(s => !s.deletedAt && s.supportType === "money" && s.status === "confirmed")
     .reduce((s, sp) => s + (Number(sp.amountUSD) || 0), 0);
-  const net = sponsorMoney - totalPaid;
+  // Registration revenue: sum of priceUSD across confirmed runners
+  // (paymentStatus 'paid' OR 'free' — free entries are 0 so they don't
+  // contribute, kept for symmetry with the Confirmed tab's Revenue stat).
+  const regRevenue = regs
+    .filter(r => !r.deletedAt && (r.paymentStatus === "paid" || r.paymentStatus === "free"))
+    .reduce((s, r) => s + (Number(r.priceUSD) || 0), 0);
+  // Net = total income (confirmed sponsors + confirmed registration revenue)
+  //     − total outgo (expenses that are paid OR pending).
+  // Pending expenses count against net because they're money committed
+  // even if not yet handed over — the bottom line should reflect them.
+  const totalIn  = sponsorMoney + regRevenue;
+  const totalOut = totalPaid + totalPending;
+  const net      = totalIn - totalOut;
   const el = $("#expenseStats");
   if (el) el.innerHTML = `
     <div class="stat"><div class="label">Expenses</div><div class="value accent">${total}</div></div>
-    <div class="stat"><div class="label">Total paid</div><div class="value">$${totalPaid}</div></div>
-    <div class="stat"><div class="label">Total pending</div><div class="value" style="color:var(--warn,#ffae50)">$${totalPending}</div></div>
-    <div class="stat"><div class="label">Sponsor money (confirmed)</div><div class="value" style="color:var(--accent2)">$${sponsorMoney}</div></div>
-    <div class="stat"><div class="label">Net (sponsors − paid)</div><div class="value ${net >= 0 ? "accent" : ""}" ${net < 0 ? 'style="color:var(--danger)"' : ""}>$${net}</div></div>
+    <div class="stat"><div class="label">Paid</div><div class="value">$${totalPaid}</div></div>
+    <div class="stat"><div class="label">Pending</div><div class="value" style="color:var(--warn,#ffae50)">$${totalPending}</div></div>
+    <div class="stat"><div class="label">Sponsors (confirmed)</div><div class="value" style="color:var(--accent2)">$${sponsorMoney}</div></div>
+    <div class="stat"><div class="label">Registration revenue</div><div class="value" style="color:var(--accent2)">$${regRevenue}</div></div>
+    <div class="stat"><div class="label">Net (in − out)</div><div class="value ${net >= 0 ? "accent" : ""}" ${net < 0 ? 'style="color:var(--danger)"' : ""}>$${net}</div></div>
   `;
 }
 
