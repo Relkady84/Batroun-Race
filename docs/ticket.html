@@ -41,6 +41,18 @@
                  color:#ecf6ff;padding:22px 22px 26px;text-align:center;position:relative}
   .ticket-header::after{content:"";position:absolute;left:-10px;right:-10px;bottom:-10px;height:20px;
                         background:radial-gradient(circle at 10px 10px, var(--paper) 9px, transparent 10px) 0 0/20px 20px}
+  /* Optional sponsor / partner marks in the ticket-header top corners.
+     Hidden until the live-fetch script below finds them on theme.ticketLeftLogo
+     / theme.ticketRightLogo — so a ticket with no sponsors stays clean. */
+  .ticket-sponsor{position:absolute;top:10px;max-height:40px;max-width:110px;
+                  object-fit:contain;z-index:2}
+  .ticket-sponsor.left{left:14px}
+  .ticket-sponsor.right{right:14px}
+  @media (max-width:520px){
+    .ticket-sponsor{max-height:32px;max-width:84px;top:8px}
+    .ticket-sponsor.left{left:10px}
+    .ticket-sponsor.right{right:10px}
+  }
   .brand{font-weight:900;font-size:.74rem;letter-spacing:.22em;
          text-transform:uppercase;color:var(--accent2);margin:0 0 4px}
   .ticket-title{margin:0;font-size:clamp(20px,5.2vw,28px);font-weight:900;letter-spacing:-.01em;color:#fff}
@@ -139,6 +151,8 @@
 
   <article class="ticket" id="ticket">
     <div class="ticket-header">
+      <img class="ticket-sponsor left"  id="sponsorLeft"  alt="" hidden>
+      <img class="ticket-sponsor right" id="sponsorRight" alt="" hidden>
       <p class="brand">Batroun Race 2026</p>
       <h1 class="ticket-title">Official Race Ticket</h1>
       <p class="ticket-sub" id="subName">Present this ticket on race day</p>
@@ -307,6 +321,12 @@ const catId  = (params.get("cat_id") || "").trim();
       const el = document.getElementById("pickupSchedule");
       if (el) el.textContent = customPickup;
     }
+    // Sponsor / partner marks in the ticket-header corners. Either may be
+    // unset — only the slots the admin filled in light up.
+    const leftLogo  = (theme.ticketLeftLogo  || "").trim();
+    const rightLogo = (theme.ticketRightLogo || "").trim();
+    if (leftLogo)  { const el = document.getElementById("sponsorLeft");  if (el) { el.src = leftLogo;  el.hidden = false; } }
+    if (rightLogo) { const el = document.getElementById("sponsorRight"); if (el) { el.src = rightLogo; el.hidden = false; } }
   } catch (err) {
     // Stay with the URL-param values silently — they are the fallback.
     console.warn("live-ticket fetch failed, using URL values:", err);
