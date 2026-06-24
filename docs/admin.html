@@ -835,6 +835,18 @@ Masters Men-Women 35-39 (1987-1991)
                border-radius:14px;max-width:520px;margin:0 auto;border:1px solid var(--line);
                aspect-ratio: 520 / 130; overflow:hidden;
                touch-action:none; user-select:none; -webkit-user-select:none">
+            <!-- Snap guide rendered while the admin drags one logo and it
+                 lines up with the other. Top-edge match shows the dashed
+                 horizontal line at that y; size match toggles a dashed
+                 outline on the other logo so it's visually paired. -->
+            <div id="thTicketHeaderPreviewGuideY" hidden
+                 style="position:absolute;left:0;right:0;height:0;
+                        border-top:1px dashed #3dd6c6;pointer-events:none;z-index:5"></div>
+            <div id="thTicketHeaderPreviewSnapHint" hidden
+                 style="position:absolute;left:50%;top:6px;transform:translateX(-50%);
+                        background:rgba(61,214,198,.18);color:#3dd6c6;
+                        padding:2px 8px;border-radius:10px;font-size:.7rem;font-weight:700;
+                        letter-spacing:.04em;text-transform:uppercase;pointer-events:none;z-index:6"></div>
             <div class="ticket-logo-wrap" id="thTicketHeaderPreviewLeftWrap" hidden
                  data-side="left"
                  style="position:absolute;left:2%;top:8%;width:18%;cursor:move">
@@ -5491,12 +5503,48 @@ async function reapplyBgRemoval(side) {
   } catch (err) { console.error(err); toast(err.message, true); }
 }
 
+// Snap thresholds for the alignment guides: tolerated drift before we
+// stop calling it a match (in % of header dims). 2% feels precise without
+// fighting the user when they're trying to land just-off-aligned.
+const SNAP_THRESHOLD_PCT = 2;
+
+function showSnapGuideY(yPct) {
+  const g = $("#thTicketHeaderPreviewGuideY");
+  g.style.top = yPct + "%";
+  g.hidden = false;
+}
+function hideSnapGuideY() { $("#thTicketHeaderPreviewGuideY").hidden = true; }
+
+function showSnapHint(label) {
+  const h = $("#thTicketHeaderPreviewSnapHint");
+  h.textContent = label;
+  h.hidden = false;
+}
+function hideSnapHint() { $("#thTicketHeaderPreviewSnapHint").hidden = true; }
+
+function setSizeMatchOutline(otherSide, on) {
+  const cap = otherSide === "left" ? "Left" : "Right";
+  const wrap = $(`#thTicketHeaderPreview${cap}Wrap`);
+  wrap.style.outline = on ? "1px dashed #3dd6c6" : "";
+  wrap.style.outlineOffset = on ? "2px" : "";
+}
+
+function clearAllSnapAffordances() {
+  hideSnapGuideY(); hideSnapHint();
+  setSizeMatchOutline("left",  false);
+  setSizeMatchOutline("right", false);
+}
+
 // Pointer-driven drag + resize on each preview wrapper. Same handler
 // services both sides — picks the side from data-side on the element.
+// While dragging, snaps and shows alignment guides when the dragged
+// logo's top y or scale matches the *other* logo's (so both corners
+// can be lined up by eye without a ruler).
 function wireTicketLogoDrag(side) {
   const cap  = side === "left" ? "Left" : "Right";
   const wrap = $(`#thTicketHeaderPreview${cap}Wrap`);
   const header = $("#thTicketHeaderPreview");
+  const otherSide = side === "left" ? "right" : "left";
   let mode = null, startX = 0, startY = 0, origX = 0, origY = 0, origScale = 0;
 
   wrap.addEventListener("pointerdown", (e) => {
@@ -5513,6 +5561,8 @@ function wireTicketLogoDrag(side) {
     if (!mode) return;
     const rect = header.getBoundingClientRect();
     const st = ticketLogoState[side];
+    const other = ticketLogoState[otherSide];
+    const otherVisible = !!other.src;
     if (mode === "drag") {
       const dxPct = (e.clientX - startX) / rect.width  * 100;
       const dyPct = (e.clientY - startY) / rect.height * 100;
@@ -5521,20 +5571,51 @@ function wireTicketLogoDrag(side) {
       // Keep at least a sliver visible — don't let the logo slide fully off.
       st.x = Math.min(st.x, 100 - 4);
       st.y = Math.min(st.y, 100 - 4);
+      // Y-snap to the other logo's top edge when close, plus the visual line.
+      if (otherVisible && Math.abs(st.y - other.y) <= SNAP_THRESHOLD_PCT) {
+        st.y = other.y;
+        showSnapGuideY(st.y);
+        showSnapHint("Aligned");
+      } else {
+        hideSnapGuideY();
+        if (!sizeMatching(side)) hideSnapHint();
+      }
     } else {
       // Resize uses horizontal drag from the handle: rightward = bigger.
       const dxPct = (e.clientX - startX) / rect.width * 100;
       st.scale = clampScale(origScale + dxPct, origScale);
+      // Scale-snap to match the other logo's width, plus a dashed outline
+      // on that other logo so the pairing is obvious.
+      if (otherVisible && Math.abs(st.scale - other.scale) <= SNAP_THRESHOLD_PCT) {
+        st.scale = other.scale;
+        setSizeMatchOutline(otherSide, true);
+        showSnapHint("Same size");
+      } else {
+        setSizeMatchOutline(otherSide, false);
+        if (!yMatching(side)) hideSnapHint();
+      }
     }
     renderTicketLogo(side);
   });
   const end = (e) => {
     if (!mode) return;
     mode = null;
+    clearAllSnapAffordances();
     if (wrap.hasPointerCapture?.(e.pointerId)) wrap.releasePointerCapture(e.pointerId);
   };
   wrap.addEventListener("pointerup", end);
   wrap.addEventListener("pointercancel", end);
+}
+
+// Lookups used while drag/resize is mid-flight to avoid hiding a still-
+// active snap hint when the other axis hasn't matched yet.
+function yMatching(side) {
+  const a = ticketLogoState[side], b = ticketLogoState[side === "left" ? "right" : "left"];
+  return !!b.src && a.y === b.y;
+}
+function sizeMatching(side) {
+  const a = ticketLogoState[side], b = ticketLogoState[side === "left" ? "right" : "left"];
+  return !!b.src && a.scale === b.scale;
 }
 
 function wireTicketLogoSlot(side) {
