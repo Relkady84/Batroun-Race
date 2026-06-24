@@ -769,12 +769,64 @@ Masters Men-Women 35-39 (1987-1991)
       </div>
 
       <div class="card">
-        <h2>Post-payment WhatsApp message — bib pickup info</h2>
-        <p class="muted" style="margin:0 0 12px">
-          The block appended to every confirmed-payment WhatsApp message,
-          right before "See you at the start line!". Leave blank to use the
-          built-in default. One line per entry — plain text only, no emojis
-          (some Android devices render unknown emojis as "?" in WhatsApp).
+        <h2>Race ticket &mdash; sponsor logos &amp; bib pickup info</h2>
+
+        <p class="muted" style="margin:0 0 8px">
+          Optional sponsor / partner marks shown on the top-left and top-right corners of every runner's race ticket. Either can be left blank &mdash; only the one(s) you set will show. Best as transparent PNG / SVG, landscape ratio.
+        </p>
+
+        <div class="row two" style="margin-top:12px">
+          <div>
+            <label>Top-left logo</label>
+            <input id="thTicketLeftLogoFile" type="file" accept="image/*">
+            <div id="thTicketLeftLogoProgress" class="muted" style="font-size:.85rem;margin-top:6px;min-height:1.2em"></div>
+            <label style="margin-top:10px">Or paste a URL</label>
+            <input id="thTicketLeftLogoUrl" type="url" placeholder="https://...">
+            <div id="thTicketLeftLogoPreview" style="margin-top:8px;display:none">
+              <img id="thTicketLeftLogoPreviewImg" alt="Top-left logo preview"
+                   style="max-width:140px;max-height:60px;background:#fff;padding:6px;border-radius:6px;border:1px solid var(--line)">
+              <button id="thTicketLeftLogoClearBtn" class="btn tiny sec" style="margin-top:6px;display:block">Clear top-left logo</button>
+            </div>
+          </div>
+          <div>
+            <label>Top-right logo</label>
+            <input id="thTicketRightLogoFile" type="file" accept="image/*">
+            <div id="thTicketRightLogoProgress" class="muted" style="font-size:.85rem;margin-top:6px;min-height:1.2em"></div>
+            <label style="margin-top:10px">Or paste a URL</label>
+            <input id="thTicketRightLogoUrl" type="url" placeholder="https://...">
+            <div id="thTicketRightLogoPreview" style="margin-top:8px;display:none">
+              <img id="thTicketRightLogoPreviewImg" alt="Top-right logo preview"
+                   style="max-width:140px;max-height:60px;background:#fff;padding:6px;border-radius:6px;border:1px solid var(--line)">
+              <button id="thTicketRightLogoClearBtn" class="btn tiny sec" style="margin-top:6px;display:block">Clear top-right logo</button>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top:18px">
+          <div class="muted" style="font-size:.85rem;margin-bottom:6px">Live preview &mdash; how the ticket header will look once you save:</div>
+          <div id="thTicketHeaderPreview" style="
+               background:linear-gradient(135deg,#08172b 0%,#11365e 100%);
+               color:#ecf6ff;padding:18px 22px 22px;text-align:center;position:relative;
+               border-radius:14px;max-width:520px;margin:0 auto;border:1px solid var(--line)">
+            <img id="thTicketHeaderPreviewLeft"  alt="" hidden
+                 style="position:absolute;top:10px;left:12px;max-height:36px;max-width:96px;object-fit:contain">
+            <img id="thTicketHeaderPreviewRight" alt="" hidden
+                 style="position:absolute;top:10px;right:12px;max-height:36px;max-width:96px;object-fit:contain">
+            <p style="font-weight:900;font-size:.74rem;letter-spacing:.22em;text-transform:uppercase;color:#3dd6c6;margin:0 0 4px">Batroun Race 2026</p>
+            <h1 style="margin:0;font-size:1.25rem;font-weight:900;color:#fff">Official Race Ticket</h1>
+            <p style="color:#a9c5dd;margin:6px 0 0;font-size:.85rem">Present this ticket on race day</p>
+          </div>
+        </div>
+
+        <hr style="margin:22px 0 14px;border:0;border-top:1px solid var(--line)">
+
+        <p class="muted" style="margin:0 0 8px">
+          The block below is appended to every confirmed-payment WhatsApp
+          message (right before "See you at the start line!") <strong>and</strong>
+          shown on the race ticket under "Show this QR at bib pickup". Edit
+          once &mdash; both places update. Leave blank to use the built-in
+          default. One line per entry &mdash; plain text only, no emojis (some
+          Android devices render unknown emojis as "?" in WhatsApp).
         </p>
         <label>Bib pickup lines</label>
         <textarea id="thBibPickup" rows="4" placeholder="BIB PICKUP — bring your ticket (printed or on your phone):
@@ -5164,6 +5216,10 @@ function loadThemeIntoEditor(t) {
   $("#thWhishConfirm").value = t.whishConfirmText  || "";
   $("#thWhishInvoice").value = t.whishInvoiceText  || "";
   $("#thBibPickup").value    = t.bibPickupText     || "";
+  $("#thTicketLeftLogoUrl").value  = t.ticketLeftLogo  || "";
+  $("#thTicketRightLogoUrl").value = t.ticketRightLogo || "";
+  updateTicketLogoPreview("left",  t.ticketLeftLogo  || null);
+  updateTicketLogoPreview("right", t.ticketRightLogo || null);
   updateBgPreview(t.bgImage);
   updateLogoPreview(t.logoImage);
   applyAdminLogo(t.logoImage);
@@ -5225,6 +5281,73 @@ $("#thLogoClearBtn").addEventListener("click", () => {
   $("#thLogoProgress").textContent = "Logo cleared — click Save to apply.";
   updateLogoPreview(null);
 });
+
+// ===== Ticket sponsor logos (top-left + top-right) =====
+// Two optional sponsor marks that overlay the ticket header. Either can be
+// blank. Updates the side-card thumbnail + the live mini ticket-header
+// preview every time a slot changes, so the admin sees the layout before
+// saving.
+function updateTicketLogoPreview(side, url) {
+  const card = side === "left" ? $("#thTicketLeftLogoPreview")    : $("#thTicketRightLogoPreview");
+  const img  = side === "left" ? $("#thTicketLeftLogoPreviewImg") : $("#thTicketRightLogoPreviewImg");
+  const mini = side === "left" ? $("#thTicketHeaderPreviewLeft")  : $("#thTicketHeaderPreviewRight");
+  if (url) {
+    img.src = url; card.style.display = "";
+    mini.src = url; mini.hidden = false;
+  } else {
+    img.removeAttribute("src"); card.style.display = "none";
+    mini.removeAttribute("src"); mini.hidden = true;
+  }
+}
+
+function wireTicketLogoSlot(side) {
+  const cap        = side === "left" ? "Left" : "Right";
+  const fileEl     = $(`#thTicket${cap}LogoFile`);
+  const urlEl      = $(`#thTicket${cap}LogoUrl`);
+  const progressEl = $(`#thTicket${cap}LogoProgress`);
+  const clearBtn   = $(`#thTicket${cap}LogoClearBtn`);
+  const labelLow   = side === "left" ? "top-left" : "top-right";
+
+  urlEl.addEventListener("input", () => {
+    updateTicketLogoPreview(side, urlEl.value.trim());
+  });
+
+  fileEl.addEventListener("change", async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast("Pick an image file", true); e.target.value = ""; return;
+    }
+    progressEl.textContent = `Compressing ${labelLow} logo…`;
+    try {
+      const dataUrl = await compressImageToDataURL(file, 600, 600, 0.9);
+      const approxKB = Math.round(dataUrl.length / 1024);
+      if (dataUrl.length > 250 * 1024) {
+        progressEl.textContent = `${cap} logo too large (~${approxKB} KB). Use a smaller image.`;
+        toast(`${cap} logo too large`, true); e.target.value = ""; return;
+      }
+      urlEl.value = dataUrl;
+      updateTicketLogoPreview(side, dataUrl);
+      progressEl.textContent = `${cap} logo ready (~${approxKB} KB) — click 'Save theme & copy' to apply.`;
+      toast(`${cap} logo ready — remember to save`);
+    } catch (err) {
+      console.error(err);
+      progressEl.textContent = `Failed to process ${labelLow} logo: ` + err.message;
+      toast(err.message, true);
+    }
+    e.target.value = "";
+  });
+
+  clearBtn.addEventListener("click", () => {
+    if (!confirm(`Clear the ${labelLow} logo? (Click 'Save theme & copy' to apply.)`)) return;
+    urlEl.value = "";
+    fileEl.value = "";
+    progressEl.textContent = `${cap} logo cleared — click Save to apply.`;
+    updateTicketLogoPreview(side, null);
+  });
+}
+wireTicketLogoSlot("left");
+wireTicketLogoSlot("right");
 
 function updateWhishPreview(url) {
   const wrap = $("#thWhishPreview");
@@ -5374,6 +5497,8 @@ $("#themeSaveBtn").addEventListener("click", async () => {
         whishConfirmText: $("#thWhishConfirm").value.trim() || null,
         whishInvoiceText: $("#thWhishInvoice").value.trim() || null,
         bibPickupText:    $("#thBibPickup").value.trim()    || null,
+        ticketLeftLogo:   $("#thTicketLeftLogoUrl").value.trim()  || null,
+        ticketRightLogo:  $("#thTicketRightLogoUrl").value.trim() || null,
         updatedAt:  serverTimestamp()
       },
       { merge: true }
