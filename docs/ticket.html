@@ -41,9 +41,13 @@
                  color:#ecf6ff;padding:22px 22px 26px;text-align:center;position:relative}
   .ticket-header::after{content:"";position:absolute;left:-10px;right:-10px;bottom:-10px;height:20px;
                         background:radial-gradient(circle at 10px 10px, var(--paper) 9px, transparent 10px) 0 0/20px 20px}
-  /* Optional sponsor / partner marks in the ticket-header top corners.
-     Hidden until the live-fetch script below finds them on theme.ticketLeftLogo
-     / theme.ticketRightLogo — so a ticket with no sponsors stays clean. */
+  /* Optional sponsor / partner marks in the ticket header. Default to
+     the top corners (so legacy string-format theme.ticketLeftLogo /
+     ticketRightLogo values still land in the corners after the editor
+     ships). When the new {src,x,y,scale} object format is present, the
+     live-fetch script below sets inline left/top/width straight from
+     admin's drag-and-resize state, with maxWidth/maxHeight cleared so
+     the scale value is what wins. */
   .ticket-sponsor{position:absolute;top:10px;max-height:40px;max-width:110px;
                   object-fit:contain;z-index:2}
   .ticket-sponsor.left{left:14px}
@@ -288,6 +292,36 @@ const COMPETITION_ID_LIVE = "batroun-race-2026";
 const params = new URLSearchParams(location.search);
 const catId  = (params.get("cat_id") || "").trim();
 
+function applyTicketSponsor(elId, value) {
+  if (!value) return;
+  const el = document.getElementById(elId);
+  if (!el) return;
+  if (typeof value === "string") {
+    const src = value.trim();
+    if (!src) return;
+    el.src = src;
+    el.hidden = false;
+    return;
+  }
+  const src = (value.src || "").trim();
+  if (!src) return;
+  el.src = src;
+  // Object format: override the corner-default CSS with the admin's
+  // drag-and-resize values. The right-side default rule sets `right:14px`,
+  // so we explicitly clear right / bottom to avoid CSS resolving width
+  // from two anchored edges. Clearing max-width / max-height lets the
+  // saved scale% win against the 110px cap.
+  el.style.left   = Number(value.x) + "%";
+  el.style.top    = Number(value.y) + "%";
+  el.style.right  = "auto";
+  el.style.bottom = "auto";
+  el.style.width     = Number(value.scale) + "%";
+  el.style.height    = "auto";
+  el.style.maxWidth  = "none";
+  el.style.maxHeight = "none";
+  el.hidden = false;
+}
+
 (async () => {
   try {
     const [compSnap, catSnap, themeSnap] = await Promise.all([
@@ -321,12 +355,13 @@ const catId  = (params.get("cat_id") || "").trim();
       const el = document.getElementById("pickupSchedule");
       if (el) el.textContent = customPickup;
     }
-    // Sponsor / partner marks in the ticket-header corners. Either may be
-    // unset — only the slots the admin filled in light up.
-    const leftLogo  = (theme.ticketLeftLogo  || "").trim();
-    const rightLogo = (theme.ticketRightLogo || "").trim();
-    if (leftLogo)  { const el = document.getElementById("sponsorLeft");  if (el) { el.src = leftLogo;  el.hidden = false; } }
-    if (rightLogo) { const el = document.getElementById("sponsorRight"); if (el) { el.src = rightLogo; el.hidden = false; } }
+    // Sponsor / partner marks in the ticket header. Either side may be
+    // unset — only the slots the admin filled in light up. Accepts the
+    // legacy string format (just a data URL / src — corner-positioned by
+    // CSS) and the new object format ({src, x, y, scale} — exact position
+    // + size as dragged in admin, as % of the header).
+    applyTicketSponsor("sponsorLeft",  theme.ticketLeftLogo);
+    applyTicketSponsor("sponsorRight", theme.ticketRightLogo);
   } catch (err) {
     // Stay with the URL-param values silently — they are the fallback.
     console.warn("live-ticket fetch failed, using URL values:", err);
