@@ -773,11 +773,12 @@ Masters Men-Women 35-39 (1987-1991)
 
         <p class="muted" style="margin:0 0 8px">
           Optional sponsor / partner marks shown on the race ticket header.
-          Upload a logo &mdash; if it has a white background, it&apos;s
-          removed automatically (use the slider to fine-tune). Then drag
-          each logo to wherever you want it in the preview below, and pull
-          its corner handle to resize. Whatever you set here is what every
-          runner sees on their ticket.
+          Upload a logo &mdash; the background colour is auto-detected from
+          the image corners (works for white, black, or any solid colour)
+          and removed. Override the colour or tweak the strength below if
+          needed. Then drag each logo to wherever you want it in the
+          preview below, and pull its corner handle to resize. Whatever
+          you set here is what every runner sees on their ticket.
         </p>
 
         <div class="row two" style="margin-top:12px">
@@ -786,7 +787,13 @@ Masters Men-Women 35-39 (1987-1991)
             <input id="thTicketLeftLogoFile" type="file" accept="image/*">
             <div id="thTicketLeftLogoProgress" class="muted" style="font-size:.85rem;margin-top:6px;min-height:1.2em"></div>
             <div id="thTicketLeftLogoTolWrap" style="margin-top:8px;display:none">
-              <label style="font-size:.85rem">White background removal: <span id="thTicketLeftLogoTolVal">30</span></label>
+              <label style="font-size:.85rem">Background colour to remove</label>
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                <input id="thTicketLeftLogoBg" type="color" value="#ffffff"
+                       style="width:42px;height:32px;padding:2px;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer">
+                <span class="muted" style="font-size:.8rem">Auto-detected from the image corners on upload &mdash; tap to override</span>
+              </div>
+              <label style="font-size:.85rem">Removal strength: <span id="thTicketLeftLogoTolVal">30</span></label>
               <input id="thTicketLeftLogoTol" type="range" min="0" max="120" value="30" style="width:100%">
             </div>
             <label style="margin-top:10px">Or paste a URL</label>
@@ -800,7 +807,13 @@ Masters Men-Women 35-39 (1987-1991)
             <input id="thTicketRightLogoFile" type="file" accept="image/*">
             <div id="thTicketRightLogoProgress" class="muted" style="font-size:.85rem;margin-top:6px;min-height:1.2em"></div>
             <div id="thTicketRightLogoTolWrap" style="margin-top:8px;display:none">
-              <label style="font-size:.85rem">White background removal: <span id="thTicketRightLogoTolVal">30</span></label>
+              <label style="font-size:.85rem">Background colour to remove</label>
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                <input id="thTicketRightLogoBg" type="color" value="#ffffff"
+                       style="width:42px;height:32px;padding:2px;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer">
+                <span class="muted" style="font-size:.8rem">Auto-detected from the image corners on upload &mdash; tap to override</span>
+              </div>
+              <label style="font-size:.85rem">Removal strength: <span id="thTicketRightLogoTolVal">30</span></label>
               <input id="thTicketRightLogoTol" type="range" min="0" max="120" value="30" style="width:100%">
             </div>
             <label style="margin-top:10px">Or paste a URL</label>
@@ -5320,9 +5333,19 @@ $("#thLogoClearBtn").addEventListener("click", () => {
 // happen via pointer-events directly on the live preview — what the admin
 // sees is what every runner gets on their ticket.
 const ticketLogoState = {
-  left:  { src: null, x: 2,  y: 8, scale: 18, raw: null, tolerance: 30 },
-  right: { src: null, x: 80, y: 8, scale: 18, raw: null, tolerance: 30 }
+  left:  { src: null, x: 2,  y: 8, scale: 18, raw: null, tolerance: 30, bgColor: "#ffffff" },
+  right: { src: null, x: 80, y: 8, scale: 18, raw: null, tolerance: 30, bgColor: "#ffffff" }
 };
+
+function hexToRgb(hex) {
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec((hex || "").trim());
+  if (!m) return { r: 255, g: 255, b: 255 };
+  return { r: parseInt(m[1], 16), g: parseInt(m[2], 16), b: parseInt(m[3], 16) };
+}
+function rgbToHex(r, g, b) {
+  const h = (n) => Math.max(0, Math.min(255, n | 0)).toString(16).padStart(2, "0");
+  return "#" + h(r) + h(g) + h(b);
+}
 
 // Normalize: accept the legacy "<dataUrl>" string format from before the
 // editor existed, plus the new {src, x, y, scale} object. Either is fine
@@ -5389,11 +5412,12 @@ function renderTicketLogo(side) {
   }
 }
 
-// Drop near-white pixels to alpha=0 on a canvas. tolerance 0 = only exact
-// white; ~30 handles most JPEG-compressed white backgrounds; 80+ starts
-// nibbling into pale-grey logos. Soft falloff over the last ~15 levels
-// keeps anti-aliased edges from looking harsh.
-function removeWhiteBackground(rawDataUrl, tolerance) {
+// Drop pixels close to `bgColor` (Euclidean RGB distance) to alpha=0.
+// tolerance 0 = only exact matches; ~30 handles JPEG noise; 80+ starts
+// nibbling into logo detail. Soft falloff over the last ~15 distance
+// units keeps anti-aliased edges from looking harsh against the dark
+// header. Works for white, black, or any solid bg colour.
+function removeBackgroundColor(rawDataUrl, bgColor, tolerance) {
   return new Promise((resolve, reject) => {
     if (!rawDataUrl) { resolve(null); return; }
     if (!tolerance) { resolve(rawDataUrl); return; }
@@ -5406,15 +5430,17 @@ function removeWhiteBackground(rawDataUrl, tolerance) {
       ctx.drawImage(img, 0, 0);
       const id = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const d = id.data;
-      const hard = 255 - tolerance;
-      const soft = Math.max(0, hard - 15);
+      const { r: br, g: bg, b: bb } = hexToRgb(bgColor);
+      const hard = tolerance;
+      const soft = hard + 15;
       for (let i = 0; i < d.length; i += 4) {
-        const m = Math.min(d[i], d[i+1], d[i+2]);
-        if (m >= hard) { d[i+3] = 0; }
-        else if (m >= soft) {
-          // Linear falloff over the soft window so pale edge pixels fade
-          // instead of producing a hard halo against the dark header.
-          d[i+3] = Math.round(d[i+3] * (hard - m) / 15);
+        const dr = d[i] - br, dg = d[i+1] - bg, db = d[i+2] - bb;
+        const dist = Math.sqrt(dr*dr + dg*dg + db*db);
+        if (dist <= hard) { d[i+3] = 0; }
+        else if (dist < soft) {
+          // Linear falloff: pixels just outside the threshold fade to
+          // partial transparency instead of staying fully opaque.
+          d[i+3] = Math.round(d[i+3] * (dist - hard) / 15);
         }
       }
       ctx.putImageData(id, 0, 0);
@@ -5424,11 +5450,43 @@ function removeWhiteBackground(rawDataUrl, tolerance) {
   });
 }
 
-async function reapplyTolerance(side) {
+// Sample the 4 corners + 4 edge midpoints of the source image, return
+// the median R/G/B as a hex string. Median (not mean) ignores a logo
+// that happens to touch one or two edges. This is what we default the
+// bgColor picker to right after upload.
+function detectBgColor(rawDataUrl) {
+  return new Promise((resolve, reject) => {
+    if (!rawDataUrl) { resolve("#ffffff"); return; }
+    const img = new Image();
+    img.onerror = () => reject(new Error("Could not decode image for bg detect"));
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0);
+      const w = canvas.width, h = canvas.height;
+      const pts = [
+        [0, 0], [w - 1, 0], [0, h - 1], [w - 1, h - 1],
+        [Math.floor(w / 2), 0], [Math.floor(w / 2), h - 1],
+        [0, Math.floor(h / 2)], [w - 1, Math.floor(h / 2)]
+      ];
+      const rs = [], gs = [], bs = [];
+      for (const [x, y] of pts) {
+        const p = ctx.getImageData(x, y, 1, 1).data;
+        rs.push(p[0]); gs.push(p[1]); bs.push(p[2]);
+      }
+      const median = (arr) => arr.slice().sort((a, b) => a - b)[Math.floor(arr.length / 2)];
+      resolve(rgbToHex(median(rs), median(gs), median(bs)));
+    };
+    img.src = rawDataUrl;
+  });
+}
+
+async function reapplyBgRemoval(side) {
   const st = ticketLogoState[side];
   if (!st.raw) return;
   try {
-    st.src = await removeWhiteBackground(st.raw, st.tolerance);
+    st.src = await removeBackgroundColor(st.raw, st.bgColor, st.tolerance);
     renderTicketLogo(side);
   } catch (err) { console.error(err); toast(err.message, true); }
 }
@@ -5488,6 +5546,7 @@ function wireTicketLogoSlot(side) {
   const tolWrap    = $(`#thTicket${cap}LogoTolWrap`);
   const tolEl      = $(`#thTicket${cap}LogoTol`);
   const tolVal     = $(`#thTicket${cap}LogoTolVal`);
+  const bgEl       = $(`#thTicket${cap}LogoBg`);
   const labelLow   = side;
 
   urlEl.addEventListener("input", () => {
@@ -5502,7 +5561,12 @@ function wireTicketLogoSlot(side) {
   tolEl.addEventListener("input", async () => {
     ticketLogoState[side].tolerance = Number(tolEl.value);
     tolVal.textContent = tolEl.value;
-    await reapplyTolerance(side);
+    await reapplyBgRemoval(side);
+  });
+
+  bgEl.addEventListener("input", async () => {
+    ticketLogoState[side].bgColor = bgEl.value;
+    await reapplyBgRemoval(side);
   });
 
   fileEl.addEventListener("change", async (e) => {
@@ -5515,9 +5579,14 @@ function wireTicketLogoSlot(side) {
     try {
       const raw = await compressImageToDataURL(file, 600, 600, 0.92);
       ticketLogoState[side].raw = raw;
-      // Initial pass with the current slider value so a default upload
-      // looks right immediately; admin can then nudge the slider.
-      const processed = await removeWhiteBackground(raw, ticketLogoState[side].tolerance);
+      // Auto-detect bg colour from the corners so dark / coloured
+      // backgrounds get stripped out of the box, not just white ones.
+      const detected = await detectBgColor(raw);
+      ticketLogoState[side].bgColor = detected;
+      bgEl.value = detected;
+      const processed = await removeBackgroundColor(
+        raw, ticketLogoState[side].bgColor, ticketLogoState[side].tolerance
+      );
       if (processed.length > 250 * 1024) {
         const approxKB = Math.round(processed.length / 1024);
         progressEl.textContent = `${cap} logo too large after processing (~${approxKB} KB). Use a smaller / simpler image.`;
@@ -5529,7 +5598,7 @@ function wireTicketLogoSlot(side) {
       tolVal.textContent = String(ticketLogoState[side].tolerance);
       renderTicketLogo(side);
       const approxKB = Math.round(processed.length / 1024);
-      progressEl.textContent = `${cap} logo ready (~${approxKB} KB). Drag it in the preview, then click 'Save theme & copy'.`;
+      progressEl.textContent = `${cap} logo ready (~${approxKB} KB, bg ${detected}). Drag in the preview, then click 'Save theme & copy'.`;
       toast(`${cap} logo ready — drag, resize, then save`);
     } catch (err) {
       console.error(err);
