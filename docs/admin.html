@@ -790,6 +790,39 @@ Spots are limited, so confirming early helps us reserve your place. Your bib and
       </div>
 
       <div class="card">
+        <h2>Second WhatsApp message (sent after payment is confirmed)</h2>
+        <p class="muted" style="margin:0 0 12px">
+          The message sent once you confirm a runner's payment &mdash; it
+          carries their bib number and race-ticket link. Leave blank for the
+          built-in default. Plain text only, no emojis (some Android devices
+          render unknown emojis as "?" in WhatsApp). Placeholders &mdash;
+          type them inside curly braces and we substitute the live value:
+          <code>{name}</code> (first name),
+          <code>{ref}</code> (reference code),
+          <code>{bib}</code> (bib number),
+          <code>{category}</code> (category),
+          <code>{amount}</code> (amount paid or "Entry: Free"),
+          <code>{ticket}</code> (their race-ticket link),
+          <code>{pickup}</code> (the bib-pickup block you set below).
+        </p>
+        <label>Custom confirmation message — leave blank for the default</label>
+        <textarea id="thConfirmedWa" rows="10" placeholder="Hi {name}, your Batroun Race 2026 registration is confirmed!
+
+Status: PAYMENT RECEIVED
+Reference: {ref}
+Bib number: {bib}
+Category: {category}
+{amount}
+
+Open your official race ticket below (with QR code, all your details, and a &quot;Save as PDF&quot; button):
+{ticket}
+
+{pickup}
+
+See you at the start line!"></textarea>
+      </div>
+
+      <div class="card">
         <h2>Race ticket &mdash; sponsor logos &amp; bib pickup info</h2>
 
         <p class="muted" style="margin:0 0 8px">
@@ -4113,23 +4146,40 @@ function buildWhatsAppUrl(r) {
   const bibPickupBlock = (theme && theme.bibPickupText && theme.bibPickupText.trim())
     || DEFAULT_BIB_PICKUP;
 
-  const lines = [
-    `Hi ${r.firstName}, your Batroun Race 2026 registration is confirmed!`,
-    ``,
-    `Status: PAYMENT RECEIVED`,
-    `Reference: ${r.whishReference}`,
-    `Bib number: ${r.bibNumber}${teammateName ? ` (shared with teammate ${teammateName})` : ""}`,
-    `Category: ${r.categoryName || ""}${r.subQuestionAnswer ? " - " + r.subQuestionAnswer : ""}`,
-    r.priceUSD ? `Amount paid: $${r.priceUSD}` : `Entry: Free`,
-    ``,
-    `Open your official race ticket below (with QR code, all your details, and a "Save as PDF" button):`,
-    ticketUrl,
-    ``,
-    bibPickupBlock,
-    ``,
-    `See you at the start line!`
-  ];
-  return `https://wa.me/${phone}?text=${encodeURIComponent(lines.join("\n"))}`;
+  // Field values the placeholders resolve to.
+  const bibText = `${r.bibNumber}${teammateName ? ` (shared with teammate ${teammateName})` : ""}`;
+  const catText = `${r.categoryName || ""}${r.subQuestionAnswer ? " - " + r.subQuestionAnswer : ""}`;
+  const amountText = r.priceUSD ? `Amount paid: $${r.priceUSD}` : `Entry: Free`;
+
+  // Confirmed-payment message — admin-editable under Theme & copy. The
+  // {pickup} placeholder injects the bib-pickup block (itself editable),
+  // so editing either field works. Blank falls back to the default below,
+  // which reproduces the original hardcoded wording exactly.
+  const DEFAULT_CONFIRMED_MSG =
+    `Hi {name}, your Batroun Race 2026 registration is confirmed!\n\n` +
+    `Status: PAYMENT RECEIVED\n` +
+    `Reference: {ref}\n` +
+    `Bib number: {bib}\n` +
+    `Category: {category}\n` +
+    `{amount}\n\n` +
+    `Open your official race ticket below (with QR code, all your details, and a "Save as PDF" button):\n` +
+    `{ticket}\n\n` +
+    `{pickup}\n\n` +
+    `See you at the start line!`;
+
+  const template = (theme && theme.confirmedWaText && theme.confirmedWaText.trim())
+    || DEFAULT_CONFIRMED_MSG;
+
+  const text = template
+    .replace(/\{name\}/g,     r.firstName || "")
+    .replace(/\{ref\}/g,      r.whishReference || "")
+    .replace(/\{bib\}/g,      bibText)
+    .replace(/\{category\}/g, catText)
+    .replace(/\{amount\}/g,   amountText)
+    .replace(/\{ticket\}/g,   ticketUrl)
+    .replace(/\{pickup\}/g,   bibPickupBlock);
+
+  return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
 }
 
 // Each category has its own BIB pool. nextBibFor picks the lowest
@@ -5295,6 +5345,7 @@ function loadThemeIntoEditor(t) {
   $("#thWhishConfirm").value = t.whishConfirmText  || "";
   $("#thWhishInvoice").value = t.whishInvoiceText  || "";
   $("#thPendingWa").value    = t.pendingWaText     || "";
+  $("#thConfirmedWa").value  = t.confirmedWaText   || "";
   $("#thBibPickup").value    = t.bibPickupText     || "";
   hydrateTicketLogo("left",  t.ticketLeftLogo);
   hydrateTicketLogo("right", t.ticketRightLogo);
@@ -5807,6 +5858,7 @@ $("#themeSaveBtn").addEventListener("click", async () => {
         whishConfirmText: $("#thWhishConfirm").value.trim() || null,
         whishInvoiceText: $("#thWhishInvoice").value.trim() || null,
         pendingWaText:    $("#thPendingWa").value.trim()    || null,
+        confirmedWaText:  $("#thConfirmedWa").value.trim()  || null,
         bibPickupText:    $("#thBibPickup").value.trim()    || null,
         ticketLeftLogo:   serializeTicketLogo("left"),
         ticketRightLogo:  serializeTicketLogo("right"),
