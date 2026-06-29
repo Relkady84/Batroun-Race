@@ -769,6 +769,28 @@ Masters Men-Women 35-39 (1987-1991)
       </div>
 
       <div class="card">
+        <h2>First WhatsApp message (sent right after registration)</h2>
+        <p class="muted" style="margin:0 0 12px">
+          The message you send a runner from the Registrations tab to give
+          them their payment link &mdash; before the payment is confirmed.
+          Leave blank for the built-in default. Plain text only, no emojis
+          (some Android devices render unknown emojis as "?" in WhatsApp).
+          Placeholders &mdash; type them inside curly braces and we
+          substitute the live value:
+          <code>{name}</code> (runner's first name),
+          <code>{ref}</code> (reference code),
+          <code>{link}</code> (their live invoice / payment link).
+        </p>
+        <label>Custom first message — leave blank for the default</label>
+        <textarea id="thPendingWa" rows="6" placeholder="Hi {name}, your Batroun Race 2026 registration is received.
+
+Open your invoice and payment instructions here:
+{link}
+
+It will update automatically once we confirm the payment."></textarea>
+      </div>
+
+      <div class="card">
         <h2>Race ticket &mdash; sponsor logos &amp; bib pickup info</h2>
 
         <p class="muted" style="margin:0 0 8px">
@@ -4039,21 +4061,34 @@ function buildTicketUrl(r) {
 // (amount, Whish recipient number, reference code, instructions) live
 // on the invoice card the runner sees after tapping the link, so they
 // can't go stale in the chat history.
+//
+// Admin can override the wording under Theme & copy. The custom template
+// supports {name} (runner first name), {ref} (reference code), and {link}
+// (the live invoice URL). When blank, the built-in default below is used.
 function buildPendingWhatsAppUrl(r) {
   const phone = String(r.phone || "").replace(/\D/g, "");
   if (!phone) return null;
   const ref = r.whishReference || r.id || "";
   // Custom domain — see TICKET_BASE_URL note above.
   const invoiceUrl = `https://register.batrounrace.com/?signin=${encodeURIComponent(ref)}`;
-  const lines = [
-    `Hi ${r.firstName || ""}, your Batroun Race 2026 registration is received.`,
-    ``,
-    `Open your invoice and payment instructions here:`,
-    invoiceUrl,
-    ``,
-    `It will update automatically once we confirm the payment.`
-  ];
-  return `https://wa.me/${phone}?text=${encodeURIComponent(lines.join("\n"))}`;
+
+  const DEFAULT_PENDING_MSG =
+    `Hi {name}, your Batroun Race 2026 registration is received.\n\n` +
+    `Open your invoice and payment instructions here:\n` +
+    `{link}\n\n` +
+    `It will update automatically once we confirm the payment.`;
+
+  const template = (theme && theme.pendingWaText && theme.pendingWaText.trim())
+    || DEFAULT_PENDING_MSG;
+
+  // Substitute placeholders. {link} last isn't required, but keep all three
+  // global so repeated placeholders all resolve.
+  const text = template
+    .replace(/\{name\}/g, r.firstName || "")
+    .replace(/\{ref\}/g,  ref)
+    .replace(/\{link\}/g, invoiceUrl);
+
+  return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
 }
 
 function buildWhatsAppUrl(r) {
@@ -5258,6 +5293,7 @@ function loadThemeIntoEditor(t) {
   $("#thWhishName").value    = t.whishRecipient    || "";
   $("#thWhishConfirm").value = t.whishConfirmText  || "";
   $("#thWhishInvoice").value = t.whishInvoiceText  || "";
+  $("#thPendingWa").value    = t.pendingWaText     || "";
   $("#thBibPickup").value    = t.bibPickupText     || "";
   hydrateTicketLogo("left",  t.ticketLeftLogo);
   hydrateTicketLogo("right", t.ticketRightLogo);
@@ -5769,6 +5805,7 @@ $("#themeSaveBtn").addEventListener("click", async () => {
         whishRecipient:   $("#thWhishName").value.trim()    || null,
         whishConfirmText: $("#thWhishConfirm").value.trim() || null,
         whishInvoiceText: $("#thWhishInvoice").value.trim() || null,
+        pendingWaText:    $("#thPendingWa").value.trim()    || null,
         bibPickupText:    $("#thBibPickup").value.trim()    || null,
         ticketLeftLogo:   serializeTicketLogo("left"),
         ticketRightLogo:  serializeTicketLogo("right"),
