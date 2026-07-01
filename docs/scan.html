@@ -298,6 +298,17 @@ async function lookupAndShow(ref) {
       return;
     }
     const r = { id: docSnap.id, ...docSnap.data() };
+    // Pull the category's bib colour so the scanned bib number shows in the
+    // same colour it has on the ticket. Stored on the category (not the
+    // registration), so one extra get. Non-fatal if it fails — the bib just
+    // renders in the default colour. Kept on r (transient _bibColor) so
+    // re-renders after check-in preserve it.
+    if (r.categoryId) {
+      try {
+        const catSnap = await getDoc(doc(db, "competitions", COMPETITION_ID, "categories", r.categoryId));
+        if (catSnap.exists()) r._bibColor = catSnap.data().bibColor || null;
+      } catch (_) { /* leave uncoloured */ }
+    }
     renderResult(r);
   } catch (err) {
     console.error(err);
@@ -345,13 +356,22 @@ function renderResult(r) {
     cls = "ok"; headline = `🔁 RELAY · Person 1 received · Now Person 2`;
   }
 
+  // Only trust a strict #RRGGBB hex before dropping it into an inline style.
+  const safeBibColor = /^#[0-9a-fA-F]{6}$/.test(r._bibColor || "") ? r._bibColor : null;
+
   const rows = scannerFields.map(key => {
     const label = SCANNER_FIELD_LABELS[key] || key;
     let val = fieldValue(r, key);
     if (val == null || val === "") val = "—";
-    const html = key === "whishReference"
-      ? `<code>${escapeHtml(val)}</code>`
-      : escapeHtml(val);
+    let html;
+    if (key === "whishReference") {
+      html = `<code>${escapeHtml(val)}</code>`;
+    } else if (key === "bibNumber" && safeBibColor && val !== "—") {
+      // Keep the bib number in its category colour, same as on the ticket.
+      html = `<span style="color:${safeBibColor};font-weight:800">${escapeHtml(val)}</span>`;
+    } else {
+      html = escapeHtml(val);
+    }
     return `<div class="row"><span class="k">${label}</span><span class="v">${html}</span></div>`;
   }).join("");
 
