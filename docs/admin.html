@@ -838,6 +838,16 @@ See you at the start line!"></textarea>
           <label>Message &mdash; leave blank for the default</label>
           <textarea id="thConfirmMessage" rows="4" placeholder="Your participation is not confirmed until your Whish Money payment is verified. Save this reference code — you'll need it as your payment identifier in Whish Money and to look up your invoice anytime."></textarea>
         </div>
+
+        <div style="margin-top:16px">
+          <div class="muted" style="font-size:.85rem;margin-bottom:6px">Preview &mdash; how applicants see it:</div>
+          <div style="border:1px solid var(--line);border-radius:14px;padding:18px;background:rgba(4,14,28,.6);max-width:520px">
+            <h3 id="confirmPreviewHeading" style="color:var(--accent);margin:0 0 10px;font-size:1.15rem;font-weight:900;line-height:1.3">&#10003; Application received</h3>
+            <p id="confirmPreviewMessage" style="margin:0 0 12px;line-height:1.6;color:var(--ink);white-space:pre-line"></p>
+            <div style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:1.4rem;font-weight:900;letter-spacing:2px;color:var(--accent);text-align:center;padding:12px;background:rgba(0,0,0,.25);border-radius:12px;border:1px dashed rgba(61,214,198,.5)">BTN-2026-A4K9</div>
+            <div class="muted" style="font-size:.75rem;text-align:center;margin-top:6px">the reference code fills in automatically for each applicant</div>
+          </div>
+        </div>
       </div>
 
       <div class="card">
@@ -5393,7 +5403,20 @@ function loadThemeIntoEditor(t) {
   updateBgPreview(t.bgImage);
   updateLogoPreview(t.logoImage);
   applyAdminLogo(t.logoImage);
+  updateConfirmPreview();
 }
+
+// Live WYSIWYG preview of the confirmation panel — renders the heading +
+// message exactly as an applicant sees them (accent heading, wrapped
+// paragraph, reference-code box) so the admin isn't guessing from raw text.
+function updateConfirmPreview() {
+  const h = $("#thConfirmHeading").value.trim() || DEFAULT_CONFIRM_HEADING;
+  const m = $("#thConfirmMessage").value.trim() || DEFAULT_CONFIRM_MESSAGE;
+  $("#confirmPreviewHeading").textContent = h;
+  $("#confirmPreviewMessage").textContent = m;
+}
+$("#thConfirmHeading").addEventListener("input", updateConfirmPreview);
+$("#thConfirmMessage").addEventListener("input", updateConfirmPreview);
 
 function updateLogoPreview(url) {
   const wrap = $("#thLogoPreview");
