@@ -891,13 +891,13 @@
       <div class="card">
         <h3 class="title" style="color:var(--accent)">
           <span id="confirmHeading">✓ Application received</span>
-          <span lang="ar" dir="rtl" style="display:block;font-size:.85em;opacity:.9;margin-top:2px">تمّ استلام طلبك ✓</span>
+          <span id="confirmHeadingAr" lang="ar" dir="rtl" style="display:block;font-size:.85em;opacity:.9;margin-top:2px">تمّ استلام طلبك ✓</span>
         </h3>
         <p id="confirmMessage">
           Your participation is <strong>not confirmed</strong> until your Whish Money payment is verified.
           Save this reference code — you'll need it as your <strong>payment identifier</strong> in Whish Money and to look up your invoice anytime.
         </p>
-        <p lang="ar" dir="rtl" style="opacity:.9">
+        <p id="confirmMessageAr" lang="ar" dir="rtl" style="opacity:.9">
           مشاركتك <strong>غير مؤكَّدة</strong> حتى يتمّ التحقّق من الدفع عبر ويش موني. احفظ رمز المرجع هذا — ستحتاج إليه <strong>كمُعرِّف للدفع</strong> داخل تطبيق ويش موني ولاستعراض فاتورتك في أيّ وقت.
         </p>
         <div class="reference" id="refCode">—</div>
@@ -909,23 +909,23 @@
           </p>
 
           <div style="background:rgba(61,214,198,.07);border:1px solid rgba(61,214,198,.35);border-radius:12px;padding:14px;margin-top:14px">
-            <p style="margin:0 0 10px;font-weight:800;color:var(--accent)">📲 How to pay via Whish Money</p>
+            <p id="payHeading" style="margin:0 0 10px;font-weight:800;color:var(--accent)">📲 How to pay via Whish Money</p>
             <ol style="margin:0;padding-left:22px;line-height:1.7">
               <li id="whishConfirmStep">Send <strong>$X</strong> via <strong>Whish Money</strong> (app or any branch) to <strong style="color:#e6204e">81 300 625</strong> <span class="muted">(Nizar El Kady)</span>.</li>
-              <li><strong>In the note / comment field of the transfer, write your reference code <span id="refInline" style="color:var(--accent);font-family:ui-monospace,Menlo,monospace">BTN-2026-XXXX</span></strong> exactly. Without it, we cannot match your payment and <strong>your registration will not be approved</strong>.</li>
-              <li><strong>Save this reference</strong> — keep this page open, take a screenshot, or write it down.</li>
+              <li id="payStep2"><strong>In the note / comment field of the transfer, write your reference code <span id="refInline" style="color:var(--accent);font-family:ui-monospace,Menlo,monospace">BTN-2026-XXXX</span></strong> exactly. Without it, we cannot match your payment and <strong>your registration will not be approved</strong>.</li>
+              <li id="payStep3"><strong>Save this reference</strong> — keep this page open, take a screenshot, or write it down.</li>
             </ol>
 
-            <p lang="ar" dir="rtl" style="margin:14px 0 6px;font-weight:800;color:var(--accent)">📲 طريقة الدفع عبر ويش موني</p>
+            <p id="payHeadingAr" lang="ar" dir="rtl" style="margin:14px 0 6px;font-weight:800;color:var(--accent)">📲 طريقة الدفع عبر ويش موني</p>
             <ol lang="ar" dir="rtl" style="margin:0;padding-right:22px;padding-left:0;line-height:1.7">
               <li id="whishConfirmStepAr">أرسل المبلغ المطلوب عبر <strong>ويش موني</strong> (التطبيق أو أيّ فرع) إلى الرقم <bdi dir="ltr"><strong style="color:#e6204e">81 300 625</strong></bdi> <span class="muted"><bdi dir="ltr">(Nizar El Kady)</bdi></span>.</li>
-              <li>في حقل الملاحظة / التعليق على التحويل، اكتب رمز المرجع الخاص بك تمامًا كما هو. بدونه لن نتمكّن من مطابقة الدفع و<strong>لن يتمّ تأكيد تسجيلك</strong>.</li>
-              <li><strong>احفظ هذا الرمز</strong> — اترك هذه الصفحة مفتوحة، أو خذ لقطة شاشة، أو دوّنه على الورق.</li>
+              <li id="payStep2Ar">في حقل الملاحظة / التعليق على التحويل، اكتب رمز المرجع الخاص بك تمامًا كما هو. بدونه لن نتمكّن من مطابقة الدفع و<strong>لن يتمّ تأكيد تسجيلك</strong>.</li>
+              <li id="payStep3Ar"><strong>احفظ هذا الرمز</strong> — اترك هذه الصفحة مفتوحة، أو خذ لقطة شاشة، أو دوّنه على الورق.</li>
             </ol>
           </div>
 
-          <p style="margin-top:12px">Once we verify your Whish payment, you'll receive a <strong>WhatsApp message</strong> with your bib number and a QR code ticket to show at pickup.</p>
-          <p lang="ar" dir="rtl" style="margin-top:6px;opacity:.9">
+          <p id="payClosing" style="margin-top:12px">Once we verify your Whish payment, you'll receive a <strong>WhatsApp message</strong> with your bib number and a QR code ticket to show at pickup.</p>
+          <p id="payClosingAr" lang="ar" dir="rtl" style="margin-top:6px;opacity:.9">
             بمجرّد التحقّق من دفعتك عبر ويش موني، ستصلك <strong>رسالة على واتساب</strong> تحتوي على رقم البِب ورمز QR لعرضه عند نقطة الاستلام.
           </p>
         </div>
@@ -2213,6 +2213,7 @@ let WHISH_LOGO_URL = null;
 let WHISH_NUMBER       = "81 300 625";
 let WHISH_RECIPIENT    = "Nizar El Kady";
 let WHISH_CONFIRM_TEXT = null;   // null = use the default styled HTML below
+let WHISH_CONFIRM_TEXT_AR = null; // Arabic payment line override (null = default)
 let WHISH_INVOICE_TEXT = null;   // null = same
 
 function applyTheme(t) {
@@ -2221,6 +2222,7 @@ function applyTheme(t) {
   WHISH_NUMBER       = (t.whishNumber    || "").trim() || "81 300 625";
   WHISH_RECIPIENT    = (t.whishRecipient || "").trim() || "Nizar El Kady";
   WHISH_CONFIRM_TEXT = (t.whishConfirmText || "").trim() || null;
+  WHISH_CONFIRM_TEXT_AR = (t.whishConfirmTextAr || "").trim() || null;
   WHISH_INVOICE_TEXT = (t.whishInvoiceText || "").trim() || null;
   const root = document.documentElement.style;
   if (t.accent)   root.setProperty("--accent", t.accent);
@@ -2247,19 +2249,44 @@ function applyTheme(t) {
   applyTopBanner(t.bannerText);
   applyLogo(t.logoImage, t.logoText, t.logoHeight);
 
-  // Confirmation panel copy (shown after the form is submitted). English
-  // heading + message are admin-overridable; the Arabic mirror stays
-  // built-in, same convention as the Whish payment line. Custom text is
-  // treated as plain text (textContent) so no markup/injection; newlines
-  // in the message become line breaks via white-space:pre-line.
-  if (t.confirmHeading) {
-    const ch = document.getElementById("confirmHeading");
-    if (ch) ch.textContent = t.confirmHeading;
-  }
-  if (t.confirmMessage) {
-    const cm = document.getElementById("confirmMessage");
-    if (cm) { cm.textContent = t.confirmMessage; cm.style.whiteSpace = "pre-line"; }
-  }
+  // Confirmation panel copy (shown after the form is submitted). Every
+  // visible line is admin-overridable in English AND Arabic. Custom text is
+  // applied via textContent (plain text — no markup/injection); newlines
+  // become line breaks via white-space:pre-line. The two payment "step 2"
+  // lines are the only ones with an inline reference-code slot, handled
+  // separately so the live code still fills in.
+  setConfirmText("confirmHeading",   t.confirmHeading);
+  setConfirmText("confirmHeadingAr", t.confirmHeadingAr);
+  setConfirmText("confirmMessage",   t.confirmMessage,   true);
+  setConfirmText("confirmMessageAr", t.confirmMessageAr, true);
+  setConfirmText("payHeading",       t.payHeading);
+  setConfirmText("payHeadingAr",     t.payHeadingAr);
+  setConfirmText("payStep3",         t.payStep3,   true);
+  setConfirmText("payStep3Ar",       t.payStep3Ar, true);
+  setConfirmText("payClosing",       t.payClosing,   true);
+  setConfirmText("payClosingAr",     t.payClosingAr, true);
+  setPayStep2("payStep2",   t.payStep2,   "refInline");
+  setPayStep2("payStep2Ar", t.payStep2Ar, "refInlineAr");
+}
+
+// Override a confirmation-panel line with plain admin text (safe: textContent).
+function setConfirmText(id, val, preLine) {
+  if (!val) return;
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = val;
+  if (preLine) el.style.whiteSpace = "pre-line";
+}
+
+// Override a payment "step 2" line. Admin text is escaped; a {ref} token is
+// rendered as a styled span that keeps the given id, so showConfirmation()
+// can drop the live reference code into it. No {ref} → no inline code slot.
+function setPayStep2(id, val, refSpanId) {
+  if (!val) return;
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.innerHTML = escHtml(val).replace(/\{ref\}/g,
+    `<span id="${refSpanId}" style="color:var(--accent);font-family:ui-monospace,Menlo,monospace">BTN-2026-XXXX</span>`);
 }
 
 function applyLogo(url, text, heightPx) {
@@ -2287,10 +2314,13 @@ applyTheme({});
 // default for the not-customised case.
 function whishConfirmHtml(vars) {
   if (WHISH_CONFIRM_TEXT) {
+    // Style the substituted values the same way the default does (bold
+    // amount, red number, muted recipient) so a custom template keeps the
+    // look. The admin's own text is escaped — only these tokens add markup.
     return escHtml(WHISH_CONFIRM_TEXT)
-      .replace(/\{amount\}/g,    escHtml(vars.amount))
-      .replace(/\{number\}/g,    escHtml(vars.number))
-      .replace(/\{recipient\}/g, escHtml(vars.recipient))
+      .replace(/\{amount\}/g,    `<strong>${escHtml(vars.amount)}</strong>`)
+      .replace(/\{number\}/g,    `<strong style="color:#e6204e">${escHtml(vars.number)}</strong>`)
+      .replace(/\{recipient\}/g, `<span class="muted">${escHtml(vars.recipient)}</span>`)
       .replace(/\{ref\}/g,       escHtml(vars.ref || ""));
   }
   return `Send <strong>${escHtml(vars.amount)}</strong> via <strong>Whish Money</strong> (app or any branch) to <strong style="color:#e6204e">${escHtml(vars.number)}</strong> <span class="muted">(${escHtml(vars.recipient)})</span>.`;
@@ -2303,6 +2333,15 @@ function whishConfirmHtmlAr(vars) {
   // the browser's bidi algorithm doesn't flip the digit groups inside
   // the RTL paragraph (which is what makes "81 300 625" render as
   // "625 300 81" without the isolation).
+  if (WHISH_CONFIRM_TEXT_AR) {
+    // Latin values wrapped in <bdi dir="ltr"> so the RTL bidi algorithm
+    // doesn't reorder the digit groups; styled to match the default.
+    return escHtml(WHISH_CONFIRM_TEXT_AR)
+      .replace(/\{amount\}/g,    `<bdi dir="ltr"><strong>${escHtml(vars.amount)}</strong></bdi>`)
+      .replace(/\{number\}/g,    `<bdi dir="ltr"><strong style="color:#e6204e">${escHtml(vars.number)}</strong></bdi>`)
+      .replace(/\{recipient\}/g, `<span class="muted"><bdi dir="ltr">${escHtml(vars.recipient)}</bdi></span>`)
+      .replace(/\{ref\}/g,       escHtml(vars.ref || ""));
+  }
   return `أرسل <bdi dir="ltr"><strong>${escHtml(vars.amount)}</strong></bdi> عبر <strong>ويش موني</strong> (التطبيق أو أيّ فرع) إلى الرقم <bdi dir="ltr"><strong style="color:#e6204e">${escHtml(vars.number)}</strong></bdi> <span class="muted"><bdi dir="ltr">(${escHtml(vars.recipient)})</bdi></span>.`;
 }
 
@@ -2738,8 +2777,12 @@ function showConfirmation(created, total, cat) {
   };
   if (confirmStep)   confirmStep.innerHTML   = whishConfirmHtml(confirmVars);
   if (confirmStepAr) confirmStepAr.innerHTML = whishConfirmHtmlAr(confirmVars);
+  const refText = N === 1 ? created[0].ref : created.map(p => p.ref).join(" , ");
   const refInline = document.getElementById("refInline");
-  if (refInline) refInline.textContent = N === 1 ? created[0].ref : created.map(p => p.ref).join(" , ");
+  if (refInline) refInline.textContent = refText;
+  // Arabic step 2 only has an inline code slot if the admin put {ref} in it.
+  const refInlineAr = document.getElementById("refInlineAr");
+  if (refInlineAr) refInlineAr.textContent = refText;
 
   if (total === 0) {
     document.getElementById("paymentBlock").style.display = "none";
