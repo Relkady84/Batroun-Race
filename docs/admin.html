@@ -4105,6 +4105,43 @@ function buildTicketUrl(r) {
   return `${TICKET_BASE_URL}?${params}`;
 }
 
+// ===== Default message copy =====
+// Single source of truth for the built-in wording of the editable
+// messages. Used BOTH as the send-time fallback (when the theme field is
+// blank) AND to pre-fill the Theme-tab editors, so the admin sees the
+// actual current text and can edit it — instead of an empty box. Keeping
+// them here (not inline in the builders) means the editor and the sent
+// message can never drift.
+const DEFAULT_PENDING_MSG =
+  `Hi {name}, thank you for registering for Batroun Race 2026!\n` +
+  `To secure your spot, please complete your payment at your earliest convenience:\n` +
+  `{link}\n` +
+  `Reference: {ref}\n` +
+  `Spots are limited, so confirming early helps us reserve your place.\n` +
+  `Your bib and QR ticket are sent the moment we receive the payment.`;
+
+const DEFAULT_CONFIRMED_MSG =
+  `Hi {name}, your Batroun Race 2026 registration is confirmed!\n\n` +
+  `Status: PAYMENT RECEIVED\n` +
+  `Reference: {ref}\n` +
+  `Bib number: {bib}\n` +
+  `Category: {category}\n` +
+  `{amount}\n\n` +
+  `Open your official race ticket below (with QR code, all your details, and a "Save as PDF" button):\n` +
+  `{ticket}\n\n` +
+  `{pickup}\n\n` +
+  `See you at the start line!`;
+
+// Confirmation-screen defaults — must match the hardcoded English copy in
+// docs/index.html (#confirmHeading / #confirmMessage). Plain text (the
+// public page applies a custom value via textContent).
+const DEFAULT_CONFIRM_HEADING =
+  `✓ Application received`;
+const DEFAULT_CONFIRM_MESSAGE =
+  `Your participation is not confirmed until your Whish Money payment is verified. ` +
+  `Save this reference code — you'll need it as your payment identifier in Whish Money ` +
+  `and to look up your invoice anytime.`;
+
 // WhatsApp message for pending registrations — intentionally minimal:
 // just a greeting + the live-invoice deep link. All payment details
 // (amount, Whish recipient number, reference code, instructions) live
@@ -4120,14 +4157,6 @@ function buildPendingWhatsAppUrl(r) {
   const ref = r.whishReference || r.id || "";
   // Custom domain — see TICKET_BASE_URL note above.
   const invoiceUrl = `https://register.batrounrace.com/?signin=${encodeURIComponent(ref)}`;
-
-  const DEFAULT_PENDING_MSG =
-    `Hi {name}, thank you for registering for Batroun Race 2026!\n` +
-    `To secure your spot, please complete your payment at your earliest convenience:\n` +
-    `{link}\n` +
-    `Reference: {ref}\n` +
-    `Spots are limited, so confirming early helps us reserve your place.\n` +
-    `Your bib and QR ticket are sent the moment we receive the payment.`;
 
   const template = (theme && theme.pendingWaText && theme.pendingWaText.trim())
     || DEFAULT_PENDING_MSG;
@@ -4170,20 +4199,8 @@ function buildWhatsAppUrl(r) {
 
   // Confirmed-payment message — admin-editable under Theme & copy. The
   // {pickup} placeholder injects the bib-pickup block (itself editable),
-  // so editing either field works. Blank falls back to the default below,
-  // which reproduces the original hardcoded wording exactly.
-  const DEFAULT_CONFIRMED_MSG =
-    `Hi {name}, your Batroun Race 2026 registration is confirmed!\n\n` +
-    `Status: PAYMENT RECEIVED\n` +
-    `Reference: {ref}\n` +
-    `Bib number: {bib}\n` +
-    `Category: {category}\n` +
-    `{amount}\n\n` +
-    `Open your official race ticket below (with QR code, all your details, and a "Save as PDF" button):\n` +
-    `{ticket}\n\n` +
-    `{pickup}\n\n` +
-    `See you at the start line!`;
-
+  // so editing either field works. Blank falls back to DEFAULT_CONFIRMED_MSG
+  // (defined once above), which reproduces the original wording exactly.
   const template = (theme && theme.confirmedWaText && theme.confirmedWaText.trim())
     || DEFAULT_CONFIRMED_MSG;
 
@@ -5361,10 +5378,13 @@ function loadThemeIntoEditor(t) {
   $("#thWhishName").value    = t.whishRecipient    || "";
   $("#thWhishConfirm").value = t.whishConfirmText  || "";
   $("#thWhishInvoice").value = t.whishInvoiceText  || "";
-  $("#thPendingWa").value    = t.pendingWaText     || "";
-  $("#thConfirmedWa").value  = t.confirmedWaText   || "";
-  $("#thConfirmHeading").value = t.confirmHeading  || "";
-  $("#thConfirmMessage").value = t.confirmMessage  || "";
+  // Pre-fill the editable message boxes with the actual current text (the
+  // saved custom value, or the built-in default) so the admin can see and
+  // edit the wording directly — not stare at an empty field.
+  $("#thPendingWa").value      = t.pendingWaText   || DEFAULT_PENDING_MSG;
+  $("#thConfirmedWa").value    = t.confirmedWaText || DEFAULT_CONFIRMED_MSG;
+  $("#thConfirmHeading").value = t.confirmHeading  || DEFAULT_CONFIRM_HEADING;
+  $("#thConfirmMessage").value = t.confirmMessage  || DEFAULT_CONFIRM_MESSAGE;
   $("#thBibPickup").value    = t.bibPickupText     || "";
   hydrateTicketLogo("left",  t.ticketLeftLogo);
   hydrateTicketLogo("right", t.ticketRightLogo);
