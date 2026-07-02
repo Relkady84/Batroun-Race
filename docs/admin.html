@@ -824,6 +824,23 @@ See you at the start line!"></textarea>
       </div>
 
       <div class="card">
+        <h2>Confirmation screen (shown after the form is submitted)</h2>
+        <p class="muted" style="margin:0 0 12px">
+          The on-screen message a runner sees right after they finish and
+          submit the registration form (the "Application received" panel).
+          Leave either field blank for the built-in default. Plain text only.
+          The Arabic version and the payment instructions below it stay
+          built-in &mdash; only the heading and the message here change.
+        </p>
+        <label>Heading &mdash; leave blank for the default ("&#10003; Application received")</label>
+        <input id="thConfirmHeading" placeholder="&#10003; Application received">
+        <div style="margin-top:8px">
+          <label>Message &mdash; leave blank for the default</label>
+          <textarea id="thConfirmMessage" rows="4" placeholder="Your participation is not confirmed until your Whish Money payment is verified. Save this reference code — you'll need it as your payment identifier in Whish Money and to look up your invoice anytime."></textarea>
+        </div>
+      </div>
+
+      <div class="card">
         <h2>Race ticket &mdash; sponsor logos &amp; bib pickup info</h2>
 
         <p class="muted" style="margin:0 0 8px">
@@ -5346,6 +5363,8 @@ function loadThemeIntoEditor(t) {
   $("#thWhishInvoice").value = t.whishInvoiceText  || "";
   $("#thPendingWa").value    = t.pendingWaText     || "";
   $("#thConfirmedWa").value  = t.confirmedWaText   || "";
+  $("#thConfirmHeading").value = t.confirmHeading  || "";
+  $("#thConfirmMessage").value = t.confirmMessage  || "";
   $("#thBibPickup").value    = t.bibPickupText     || "";
   hydrateTicketLogo("left",  t.ticketLeftLogo);
   hydrateTicketLogo("right", t.ticketRightLogo);
@@ -5859,6 +5878,8 @@ $("#themeSaveBtn").addEventListener("click", async () => {
         whishInvoiceText: $("#thWhishInvoice").value.trim() || null,
         pendingWaText:    $("#thPendingWa").value.trim()    || null,
         confirmedWaText:  $("#thConfirmedWa").value.trim()  || null,
+        confirmHeading:   $("#thConfirmHeading").value.trim() || null,
+        confirmMessage:   $("#thConfirmMessage").value.trim() || null,
         bibPickupText:    $("#thBibPickup").value.trim()    || null,
         ticketLeftLogo:   serializeTicketLogo("left"),
         ticketRightLogo:  serializeTicketLogo("right"),

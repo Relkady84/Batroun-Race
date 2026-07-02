@@ -890,10 +890,10 @@
     <div class="confirm" id="confirmPanel">
       <div class="card">
         <h3 class="title" style="color:var(--accent)">
-          ✓ Application received
+          <span id="confirmHeading">✓ Application received</span>
           <span lang="ar" dir="rtl" style="display:block;font-size:.85em;opacity:.9;margin-top:2px">تمّ استلام طلبك ✓</span>
         </h3>
-        <p>
+        <p id="confirmMessage">
           Your participation is <strong>not confirmed</strong> until your Whish Money payment is verified.
           Save this reference code — you'll need it as your <strong>payment identifier</strong> in Whish Money and to look up your invoice anytime.
         </p>
@@ -2246,6 +2246,20 @@ function applyTheme(t) {
   if (t.subtitle) document.getElementById("reg-subtitle").textContent = t.subtitle;
   applyTopBanner(t.bannerText);
   applyLogo(t.logoImage, t.logoText, t.logoHeight);
+
+  // Confirmation panel copy (shown after the form is submitted). English
+  // heading + message are admin-overridable; the Arabic mirror stays
+  // built-in, same convention as the Whish payment line. Custom text is
+  // treated as plain text (textContent) so no markup/injection; newlines
+  // in the message become line breaks via white-space:pre-line.
+  if (t.confirmHeading) {
+    const ch = document.getElementById("confirmHeading");
+    if (ch) ch.textContent = t.confirmHeading;
+  }
+  if (t.confirmMessage) {
+    const cm = document.getElementById("confirmMessage");
+    if (cm) { cm.textContent = t.confirmMessage; cm.style.whiteSpace = "pre-line"; }
+  }
 }
 
 function applyLogo(url, text, heightPx) {
