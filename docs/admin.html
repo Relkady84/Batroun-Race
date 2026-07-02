@@ -758,9 +758,15 @@ Masters Men-Women 35-39 (1987-1991)
           <div><label>Whish recipient number</label><input id="thWhishNum" placeholder="81 300 625"></div>
           <div><label>Recipient name</label><input id="thWhishName" placeholder="Nizar El Kady"></div>
         </div>
-        <div style="margin-top:8px">
-          <label>Custom confirmation message (shown right after a runner registers) — leave blank for the default</label>
-          <textarea id="thWhishConfirm" rows="2" placeholder="Send {amount} via Whish Money (app or any branch) to {number} ({recipient})."></textarea>
+        <div class="row two" style="margin-top:8px">
+          <div>
+            <label>Payment line — English (shown on the confirmation panel)</label>
+            <textarea id="thWhishConfirm" rows="3"></textarea>
+          </div>
+          <div>
+            <label>Payment line — Arabic (سطر الدفع بالعربية)</label>
+            <textarea id="thWhishConfirmAr" rows="3" dir="rtl"></textarea>
+          </div>
         </div>
         <div style="margin-top:8px">
           <label>Custom invoice message (shown on the signed-in cart) — leave blank for the default</label>
@@ -826,21 +832,47 @@ See you at the start line!"></textarea>
       <div class="card">
         <h2>Confirmation screen (shown after the form is submitted)</h2>
         <p class="muted" style="margin:0 0 12px">
-          The on-screen message a runner sees right after they finish and
-          submit the registration form (the "Application received" panel).
-          Leave either field blank for the built-in default. Plain text only.
-          The Arabic version and the payment instructions below it stay
-          built-in &mdash; only the heading and the message here change.
+          Every line of the "Application received" panel a runner sees after
+          submitting the form &mdash; editable in English and Arabic. Each box
+          is pre-filled with the current text; edit it, or clear it to fall
+          back to the built-in default. Plain text only. The reference code and
+          amount fill in automatically. In step&nbsp;2 you can type
+          <code>{ref}</code> where the runner's reference code should appear
+          inline.
         </p>
-        <label>Heading &mdash; leave blank for the default ("&#10003; Application received")</label>
-        <input id="thConfirmHeading" placeholder="&#10003; Application received">
-        <div style="margin-top:8px">
-          <label>Message &mdash; leave blank for the default</label>
-          <textarea id="thConfirmMessage" rows="4" placeholder="Your participation is not confirmed until your Whish Money payment is verified. Save this reference code — you'll need it as your payment identifier in Whish Money and to look up your invoice anytime."></textarea>
+
+        <div class="row two">
+          <div><label>Heading &mdash; English</label><input id="thConfirmHeading"></div>
+          <div><label>Heading &mdash; Arabic (العنوان)</label><input id="thConfirmHeadingAr" dir="rtl"></div>
+        </div>
+        <div class="row two" style="margin-top:8px">
+          <div><label>Message &mdash; English</label><textarea id="thConfirmMessage" rows="4"></textarea></div>
+          <div><label>Message &mdash; Arabic (الرسالة)</label><textarea id="thConfirmMessageAr" rows="4" dir="rtl"></textarea></div>
+        </div>
+
+        <h3 style="margin:20px 0 4px;font-size:1rem;color:var(--accent)">"How to pay via Whish Money" section</h3>
+        <p class="muted" style="font-size:.85rem;margin:0 0 8px">
+          The payment line (step&nbsp;1) is edited in the <strong>Whish Money payment</strong> card above (English + Arabic).
+        </p>
+        <div class="row two">
+          <div><label>Section title &mdash; English</label><input id="thPayHeading"></div>
+          <div><label>Section title &mdash; Arabic</label><input id="thPayHeadingAr" dir="rtl"></div>
+        </div>
+        <div class="row two" style="margin-top:8px">
+          <div><label>Step 2 &mdash; English (use {ref} for the code)</label><textarea id="thPayStep2" rows="3"></textarea></div>
+          <div><label>Step 2 &mdash; Arabic</label><textarea id="thPayStep2Ar" rows="3" dir="rtl"></textarea></div>
+        </div>
+        <div class="row two" style="margin-top:8px">
+          <div><label>Step 3 &mdash; English</label><textarea id="thPayStep3" rows="2"></textarea></div>
+          <div><label>Step 3 &mdash; Arabic</label><textarea id="thPayStep3Ar" rows="2" dir="rtl"></textarea></div>
+        </div>
+        <div class="row two" style="margin-top:8px">
+          <div><label>Closing note &mdash; English</label><textarea id="thPayClosing" rows="2"></textarea></div>
+          <div><label>Closing note &mdash; Arabic</label><textarea id="thPayClosingAr" rows="2" dir="rtl"></textarea></div>
         </div>
 
         <div style="margin-top:16px">
-          <div class="muted" style="font-size:.85rem;margin-bottom:6px">Preview &mdash; how applicants see it:</div>
+          <div class="muted" style="font-size:.85rem;margin-bottom:6px">Preview &mdash; the heading + message as applicants see them:</div>
           <div style="border:1px solid var(--line);border-radius:14px;padding:18px;background:rgba(4,14,28,.6);max-width:520px">
             <h3 id="confirmPreviewHeading" style="color:var(--accent);margin:0 0 10px;font-size:1.15rem;font-weight:900;line-height:1.3">&#10003; Application received</h3>
             <p id="confirmPreviewMessage" style="margin:0 0 12px;line-height:1.6;color:var(--ink);white-space:pre-line"></p>
@@ -4142,15 +4174,41 @@ const DEFAULT_CONFIRMED_MSG =
   `{pickup}\n\n` +
   `See you at the start line!`;
 
-// Confirmation-screen defaults — must match the hardcoded English copy in
-// docs/index.html (#confirmHeading / #confirmMessage). Plain text (the
-// public page applies a custom value via textContent).
+// Confirmation-screen defaults — must match the hardcoded copy in
+// docs/index.html so the editors pre-fill with the real current text.
+// Plain text (the public page applies custom values via textContent);
+// the payment lines use {amount}/{number}/{recipient}/{ref} placeholders.
 const DEFAULT_CONFIRM_HEADING =
   `✓ Application received`;
+const DEFAULT_CONFIRM_HEADING_AR =
+  `تمّ استلام طلبك ✓`;
 const DEFAULT_CONFIRM_MESSAGE =
   `Your participation is not confirmed until your Whish Money payment is verified. ` +
   `Save this reference code — you'll need it as your payment identifier in Whish Money ` +
   `and to look up your invoice anytime.`;
+const DEFAULT_CONFIRM_MESSAGE_AR =
+  `مشاركتك غير مؤكَّدة حتى يتمّ التحقّق من الدفع عبر ويش موني. ` +
+  `احفظ رمز المرجع هذا — ستحتاج إليه كمُعرِّف للدفع داخل تطبيق ويش موني ولاستعراض فاتورتك في أيّ وقت.`;
+
+// "How to pay via Whish Money" section defaults.
+const DEFAULT_PAY_HEADING     = `📲 How to pay via Whish Money`;
+const DEFAULT_PAY_HEADING_AR  = `📲 طريقة الدفع عبر ويش موني`;
+const DEFAULT_WHISH_CONFIRM    = `Send {amount} via Whish Money (app or any branch) to {number} ({recipient}).`;
+const DEFAULT_WHISH_CONFIRM_AR = `أرسل {amount} عبر ويش موني (التطبيق أو أيّ فرع) إلى الرقم {number} ({recipient}).`;
+const DEFAULT_PAY_STEP2 =
+  `In the note / comment field of the transfer, write your reference code {ref} exactly. ` +
+  `Without it, we cannot match your payment and your registration will not be approved.`;
+const DEFAULT_PAY_STEP2_AR =
+  `في حقل الملاحظة / التعليق على التحويل، اكتب رمز المرجع الخاص بك تمامًا كما هو. ` +
+  `بدونه لن نتمكّن من مطابقة الدفع ولن يتمّ تأكيد تسجيلك.`;
+const DEFAULT_PAY_STEP3 =
+  `Save this reference — keep this page open, take a screenshot, or write it down.`;
+const DEFAULT_PAY_STEP3_AR =
+  `احفظ هذا الرمز — اترك هذه الصفحة مفتوحة، أو خذ لقطة شاشة، أو دوّنه على الورق.`;
+const DEFAULT_PAY_CLOSING =
+  `Once we verify your Whish payment, you'll receive a WhatsApp message with your bib number and a QR code ticket to show at pickup.`;
+const DEFAULT_PAY_CLOSING_AR =
+  `بمجرّد التحقّق من دفعتك عبر ويش موني، ستصلك رسالة على واتساب تحتوي على رقم البِب ورمز QR لعرضه عند نقطة الاستلام.`;
 
 // WhatsApp message for pending registrations — intentionally minimal:
 // just a greeting + the live-invoice deep link. All payment details
@@ -5386,15 +5444,27 @@ function loadThemeIntoEditor(t) {
   $("#thLogoSize").value = t.logoHeight || "";
   $("#thWhishNum").value     = t.whishNumber       || "";
   $("#thWhishName").value    = t.whishRecipient    || "";
-  $("#thWhishConfirm").value = t.whishConfirmText  || "";
   $("#thWhishInvoice").value = t.whishInvoiceText  || "";
   // Pre-fill the editable message boxes with the actual current text (the
   // saved custom value, or the built-in default) so the admin can see and
   // edit the wording directly — not stare at an empty field.
   $("#thPendingWa").value      = t.pendingWaText   || DEFAULT_PENDING_MSG;
   $("#thConfirmedWa").value    = t.confirmedWaText || DEFAULT_CONFIRMED_MSG;
-  $("#thConfirmHeading").value = t.confirmHeading  || DEFAULT_CONFIRM_HEADING;
-  $("#thConfirmMessage").value = t.confirmMessage  || DEFAULT_CONFIRM_MESSAGE;
+  // Confirmation screen — full bilingual copy.
+  $("#thWhishConfirm").value    = t.whishConfirmText   || DEFAULT_WHISH_CONFIRM;
+  $("#thWhishConfirmAr").value  = t.whishConfirmTextAr || DEFAULT_WHISH_CONFIRM_AR;
+  $("#thConfirmHeading").value   = t.confirmHeading   || DEFAULT_CONFIRM_HEADING;
+  $("#thConfirmHeadingAr").value = t.confirmHeadingAr || DEFAULT_CONFIRM_HEADING_AR;
+  $("#thConfirmMessage").value   = t.confirmMessage   || DEFAULT_CONFIRM_MESSAGE;
+  $("#thConfirmMessageAr").value = t.confirmMessageAr || DEFAULT_CONFIRM_MESSAGE_AR;
+  $("#thPayHeading").value      = t.payHeading    || DEFAULT_PAY_HEADING;
+  $("#thPayHeadingAr").value    = t.payHeadingAr  || DEFAULT_PAY_HEADING_AR;
+  $("#thPayStep2").value        = t.payStep2      || DEFAULT_PAY_STEP2;
+  $("#thPayStep2Ar").value      = t.payStep2Ar    || DEFAULT_PAY_STEP2_AR;
+  $("#thPayStep3").value        = t.payStep3      || DEFAULT_PAY_STEP3;
+  $("#thPayStep3Ar").value      = t.payStep3Ar    || DEFAULT_PAY_STEP3_AR;
+  $("#thPayClosing").value      = t.payClosing    || DEFAULT_PAY_CLOSING;
+  $("#thPayClosingAr").value    = t.payClosingAr  || DEFAULT_PAY_CLOSING_AR;
   $("#thBibPickup").value    = t.bibPickupText     || "";
   hydrateTicketLogo("left",  t.ticketLeftLogo);
   hydrateTicketLogo("right", t.ticketRightLogo);
@@ -5917,12 +5987,23 @@ $("#themeSaveBtn").addEventListener("click", async () => {
         whishLogo:  $("#thWhishUrl").value.trim() || null,
         whishNumber:      $("#thWhishNum").value.trim()     || null,
         whishRecipient:   $("#thWhishName").value.trim()    || null,
-        whishConfirmText: $("#thWhishConfirm").value.trim() || null,
+        whishConfirmText:   $("#thWhishConfirm").value.trim()   || null,
+        whishConfirmTextAr: $("#thWhishConfirmAr").value.trim() || null,
         whishInvoiceText: $("#thWhishInvoice").value.trim() || null,
         pendingWaText:    $("#thPendingWa").value.trim()    || null,
         confirmedWaText:  $("#thConfirmedWa").value.trim()  || null,
-        confirmHeading:   $("#thConfirmHeading").value.trim() || null,
-        confirmMessage:   $("#thConfirmMessage").value.trim() || null,
+        confirmHeading:    $("#thConfirmHeading").value.trim()    || null,
+        confirmHeadingAr:  $("#thConfirmHeadingAr").value.trim()  || null,
+        confirmMessage:    $("#thConfirmMessage").value.trim()    || null,
+        confirmMessageAr:  $("#thConfirmMessageAr").value.trim()  || null,
+        payHeading:        $("#thPayHeading").value.trim()    || null,
+        payHeadingAr:      $("#thPayHeadingAr").value.trim()  || null,
+        payStep2:          $("#thPayStep2").value.trim()      || null,
+        payStep2Ar:        $("#thPayStep2Ar").value.trim()    || null,
+        payStep3:          $("#thPayStep3").value.trim()      || null,
+        payStep3Ar:        $("#thPayStep3Ar").value.trim()    || null,
+        payClosing:        $("#thPayClosing").value.trim()    || null,
+        payClosingAr:      $("#thPayClosingAr").value.trim()  || null,
         bibPickupText:    $("#thBibPickup").value.trim()    || null,
         ticketLeftLogo:   serializeTicketLogo("left"),
         ticketRightLogo:  serializeTicketLogo("right"),
