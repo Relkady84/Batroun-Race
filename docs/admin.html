@@ -1660,7 +1660,11 @@ function renderStats() {
   const paid = active.filter(r => r.paymentStatus === "paid").length;
   const pending = active.filter(r => r.paymentStatus === "pending").length;
   const free = active.filter(r => r.paymentStatus === "free").length;
-  const checkedIn = active.filter(r => r.checkedInAt).length;
+  // "BIB received" is measured against confirmed members only (paid + free),
+  // not the whole registration list — a pending runner can't receive a bib.
+  const confirmedCount = paid + free;
+  const checkedIn = active.filter(r =>
+    (r.paymentStatus === "paid" || r.paymentStatus === "free") && r.checkedInAt).length;
   const revenue = active
     .filter(r => r.paymentStatus === "paid")
     .reduce((sum, r) => sum + (r.priceUSD || 0), 0);
@@ -1670,7 +1674,7 @@ function renderStats() {
     <div class="stat"><div class="label">Paid</div><div class="value accent">${paid}</div></div>
     <div class="stat"><div class="label">Pending</div><div class="value" style="color:var(--warn)">${pending}</div></div>
     <div class="stat"><div class="label">Free entries</div><div class="value" style="color:var(--accent2)">${free}</div></div>
-    <div class="stat"><div class="label">BIB received</div><div class="value accent">${checkedIn} <span style="font-size:.5em;opacity:.7">/ ${total}</span></div></div>
+    <div class="stat"><div class="label">BIB received</div><div class="value accent">${checkedIn} <span style="font-size:.5em;opacity:.7">/ ${confirmedCount}</span></div></div>
     <div class="stat"><div class="label">Revenue collected</div><div class="value accent">$${revenue}</div></div>
   `;
 }
@@ -2354,6 +2358,9 @@ function renderConfirmedTab() {
         : `<span style="color:var(--warn)">Not yet</span>`}</td>
       <td class="actions">
         <button class="btn tiny sec" data-cact="view" data-id="${r.id}">View</button>
+        ${r.checkedInAt
+          ? `<button class="btn tiny sec" data-cact="uncheckin" data-id="${r.id}" title="Undo — mark BIB as not received">↺ Undo BIB</button>`
+          : `<button class="btn tiny" data-cact="checkin" data-id="${r.id}" title="Manually mark this runner's BIB as received">✓ BIB received</button>`}
         ${r.bibNumber ? `<button class="btn tiny sec" data-cact="wa" data-id="${r.id}" title="Resend WhatsApp ticket">WA</button>` : ""}
         <button class="btn tiny sec" data-cact="revert" data-id="${r.id}" title="Move back to Registrations as pending">↩ Revert</button>
         <button class="btn tiny danger" data-cact="del" data-id="${r.id}" title="Delete (soft, undoable for 10s)">Delete</button>
@@ -2364,9 +2371,11 @@ function renderConfirmedTab() {
     b.addEventListener("click", () => {
       const r = regs.find(x => x.id === b.dataset.id);
       if (!r) return;
-      if (b.dataset.cact === "view")   openRegDetails(r);
-      if (b.dataset.cact === "del")    return deleteRegistration(r);
-      if (b.dataset.cact === "revert") return revertToPending(r);
+      if (b.dataset.cact === "view")      openRegDetails(r);
+      if (b.dataset.cact === "del")       return deleteRegistration(r);
+      if (b.dataset.cact === "revert")    return revertToPending(r);
+      if (b.dataset.cact === "checkin")   return markBibReceived(r);
+      if (b.dataset.cact === "uncheckin") return undoBibReceived(r);
       if (b.dataset.cact === "wa")   {
         const waUrl = buildWhatsAppUrl(r);
         if (waUrl) window.open(waUrl, "_blank", "noopener");
@@ -2374,6 +2383,40 @@ function renderConfirmedTab() {
       }
     });
   });
+}
+
+// Manually mark a confirmed runner's BIB as received, without the scanner.
+// Mirrors the scanner's check-in write. For a relay team (shared bib) it
+// marks BOTH teammates, since a manual mark means the team collected it.
+async function markBibReceived(r) {
+  const name = `${r.firstName || ""} ${r.lastName || ""}`.trim() || "(no name)";
+  const hasTeammate = !!r.teammate && !!(r.teammate.firstName || r.teammate.lastName);
+  if (!confirm(`Mark BIB as received for ${name}${hasTeammate ? " (relay team — both teammates)" : ""}?`)) return;
+  const who = currentUserEmail || "unknown";
+  const patch = { checkedInAt: serverTimestamp(), checkedInBy: who };
+  if (hasTeammate) { patch.teammateCheckedInAt = serverTimestamp(); patch.teammateCheckedInBy = who; }
+  try {
+    await updateDoc(doc(db, "competitions", COMPETITION_ID, "registrations", r.id), patch);
+    toast(`BIB marked received for ${name}`);
+  } catch (e) {
+    console.error(e);
+    toast(e.message || "Couldn't mark BIB received", true);
+  }
+}
+
+async function undoBibReceived(r) {
+  const name = `${r.firstName || ""} ${r.lastName || ""}`.trim() || "(no name)";
+  const hasTeammate = !!r.teammate && !!(r.teammate.firstName || r.teammate.lastName);
+  if (!confirm(`Undo BIB received for ${name}? (marks it as not received again)`)) return;
+  const patch = { checkedInAt: null, checkedInBy: null };
+  if (hasTeammate) { patch.teammateCheckedInAt = null; patch.teammateCheckedInBy = null; }
+  try {
+    await updateDoc(doc(db, "competitions", COMPETITION_ID, "registrations", r.id), patch);
+    toast(`BIB received undone for ${name}`);
+  } catch (e) {
+    console.error(e);
+    toast(e.message || "Couldn't undo BIB received", true);
+  }
 }
 
 // ===== Sponsors tab =====
