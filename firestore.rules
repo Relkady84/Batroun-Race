@@ -29,6 +29,10 @@ service cloud.firestore {
 
     function isAdmin()  { return isSuperAdmin() || inDynamicList('admins'); }
     function isViewer() { return inDynamicList('viewers'); }
+    // Scanner-only staff: may look a registration up by its known ref and
+    // mark bib pickup (check-in fields), but cannot list registrations or
+    // reach the admin dashboard.
+    function isScanner() { return inDynamicList('scanners'); }
     function canReadDashboard() { return isAdmin() || isViewer(); }
 
     function isValidNewRegistration() {
@@ -112,7 +116,13 @@ service cloud.firestore {
         // their correct ref-as-id path even after registration closes.
         allow create: if canReadDashboard()
                        || (isValidNewRegistration() && registrationOpen(competitionId));
-        allow update: if canReadDashboard();
+        // Admin / viewer can update any field. Scanner-only staff may update
+        // ONLY the bib-pickup / check-in fields — nothing else.
+        allow update: if canReadDashboard()
+                       || (isScanner()
+                           && request.resource.data.diff(resource.data).affectedKeys()
+                                .hasOnly(['checkedInAt', 'checkedInBy',
+                                          'teammateCheckedInAt', 'teammateCheckedInBy']));
         allow delete: if isAdmin();
       }
 

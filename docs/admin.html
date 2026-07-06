@@ -1064,6 +1064,14 @@ See you at the start line!"></textarea>
           <button id="addViewerBtn" class="btn">Add staff</button>
         </div>
 
+        <h3 style="margin:24px 0 6px;font-size:1rem;color:var(--accent)">Scanner-only staff</h3>
+        <p class="muted" style="font-size:.85rem;margin:0 0 8px">Can sign in to <strong>scan.html only</strong> — scan tickets and mark BIB received. They <strong>cannot open this admin dashboard</strong> or see any registration list / stats.</p>
+        <div id="scannerList" style="margin-bottom:10px"></div>
+        <div class="row two">
+          <input id="newScannerEmail" type="email" placeholder="email@example.com">
+          <button id="addScannerBtn" class="btn">Add scanner-only</button>
+        </div>
+
         <p class="muted" style="font-size:.8rem;margin-top:16px">
           Changes take effect immediately on the server (Firestore rules read
           this same list). The added user just needs to sign in.
@@ -1214,9 +1222,11 @@ const SUPER_ADMINS = ["raedelkady@gmail.com", "nizarelkady@gmail.com"];
 // Dynamic lists, hydrated from /config/access on app start.
 let dynamicAdmins = [];
 let dynamicViewers = [];
+let dynamicScanners = []; // scanner-only staff — can use scan.html, NOT this dashboard
 
 function isAdminEmail(email)  { return SUPER_ADMINS.includes(email) || dynamicAdmins.includes(email); }
 function isViewerEmail(email) { return dynamicViewers.includes(email); }
+function isScannerEmail(email){ return dynamicScanners.includes(email); }
 function isAllowed(email)     { return isAdminEmail(email) || isViewerEmail(email); }
 
 let userRole = "guest"; // 'admin' | 'viewer'
@@ -1470,10 +1480,15 @@ function evaluateAuth() {
   else userRole = "guest";
 
   if (userRole === "guest") {
-    console.warn("[auth] Rejected — not on allowlist:", email);
-    $("#signInError").innerHTML =
-      `Access denied. You signed in as <code style="background:rgba(0,0,0,.25);padding:1px 6px;border-radius:4px">${email}</code>, which isn't on the staff list.<br>` +
-      `Ask an admin to add you in Settings, then try again.`;
+    console.warn("[auth] Rejected — not on dashboard allowlist:", email);
+    const codeEmail = `<code style="background:rgba(0,0,0,.25);padding:1px 6px;border-radius:4px">${email}</code>`;
+    $("#signInError").innerHTML = isScannerEmail(email)
+      // Scanner-only staff have a role, just not for this dashboard — point
+      // them at the page they can actually use.
+      ? `Your account ${codeEmail} has <strong>scanner-only</strong> access &mdash; it can't open the admin dashboard.<br>` +
+        `Please use the race-day scanner instead: <a href="scan.html" style="color:var(--accent)">scan.html</a>.`
+      : `Access denied. You signed in as ${codeEmail}, which isn't on the staff list.<br>` +
+        `Ask an admin to add you in Settings, then try again.`;
     signOut(auth);
     return;
   }
@@ -1486,8 +1501,9 @@ onSnapshot(
   doc(db, "competitions", COMPETITION_ID, "config", "access"),
   snap => {
     const data = snap.exists() ? snap.data() : {};
-    dynamicAdmins  = (Array.isArray(data.admins)  ? data.admins  : []).map(e => String(e).toLowerCase());
-    dynamicViewers = (Array.isArray(data.viewers) ? data.viewers : []).map(e => String(e).toLowerCase());
+    dynamicAdmins   = (Array.isArray(data.admins)   ? data.admins   : []).map(e => String(e).toLowerCase());
+    dynamicViewers  = (Array.isArray(data.viewers)  ? data.viewers  : []).map(e => String(e).toLowerCase());
+    dynamicScanners = (Array.isArray(data.scanners) ? data.scanners : []).map(e => String(e).toLowerCase());
     accessLoaded = true;
     renderAccessLists();
     evaluateAuth();
@@ -3306,6 +3322,11 @@ function renderAccessLists() {
     ? dynamicViewers.map(e => pill(e, false, "viewer")).join("")
     : `<div class="muted" style="font-size:.85rem">No staff yet.</div>`;
 
+  const scannerBox = document.getElementById("scannerList");
+  if (scannerBox) scannerBox.innerHTML = dynamicScanners.length
+    ? dynamicScanners.map(e => pill(e, false, "scanner")).join("")
+    : `<div class="muted" style="font-size:.85rem">No scanner-only staff yet.</div>`;
+
   document.querySelectorAll('[data-removeemail]').forEach(btn => {
     btn.onclick = () => removeUser(btn.dataset.removerole, btn.dataset.removeemail);
   });
@@ -3317,34 +3338,45 @@ async function writeAccess(payload) {
                { merge: true });
 }
 
+// role -> { list, field, inputId }. One place so admins/viewers/scanners
+// all share the add/remove machinery.
+function roleConfig(role) {
+  if (role === "admin")   return { list: dynamicAdmins,   field: "admins",   inputId: "newAdminEmail",   label: "admin" };
+  if (role === "viewer")  return { list: dynamicViewers,  field: "viewers",  inputId: "newViewerEmail",  label: "staff" };
+  if (role === "scanner") return { list: dynamicScanners, field: "scanners", inputId: "newScannerEmail", label: "scanner-only" };
+  return null;
+}
+
 async function addUser(role) {
-  const inputId = role === "admin" ? "newAdminEmail" : "newViewerEmail";
-  const raw = document.getElementById(inputId).value.trim().toLowerCase();
+  const cfg = roleConfig(role);
+  if (!cfg) return;
+  const raw = document.getElementById(cfg.inputId).value.trim().toLowerCase();
   if (!raw) { toast("Enter an email", true); return; }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw)) { toast("Not a valid email", true); return; }
-  const list = role === "admin" ? dynamicAdmins : dynamicViewers;
   if (SUPER_ADMINS.includes(raw)) { toast("Already a super admin", true); return; }
-  if (list.includes(raw)) { toast("Already added", true); return; }
+  if (cfg.list.includes(raw)) { toast("Already added", true); return; }
   try {
-    const next = [...list, raw];
-    await writeAccess(role === "admin" ? { admins: next } : { viewers: next });
-    document.getElementById(inputId).value = "";
-    toast(`${raw} added as ${role}`);
+    const next = [...cfg.list, raw];
+    await writeAccess({ [cfg.field]: next });
+    document.getElementById(cfg.inputId).value = "";
+    toast(`${raw} added as ${cfg.label}`);
   } catch (e) { toast(e.message || "Save failed", true); }
 }
 
 async function removeUser(role, email) {
-  if (!confirm(`Remove ${email} from ${role}s?`)) return;
-  const list = role === "admin" ? dynamicAdmins : dynamicViewers;
-  const next = list.filter(x => x !== email);
+  const cfg = roleConfig(role);
+  if (!cfg) return;
+  if (!confirm(`Remove ${email} from ${cfg.label}?`)) return;
+  const next = cfg.list.filter(x => x !== email);
   try {
-    await writeAccess(role === "admin" ? { admins: next } : { viewers: next });
+    await writeAccess({ [cfg.field]: next });
     toast(`${email} removed`);
   } catch (e) { toast(e.message || "Save failed", true); }
 }
 
 document.getElementById("addAdminBtn")?.addEventListener("click", () => addUser("admin"));
 document.getElementById("addViewerBtn")?.addEventListener("click", () => addUser("viewer"));
+document.getElementById("addScannerBtn")?.addEventListener("click", () => addUser("scanner"));
 
 // ===== Settings tab — phone special-pricing pool =====
 
