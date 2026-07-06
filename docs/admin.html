@@ -2398,7 +2398,7 @@ function renderScannedAlert() {
   const rows = misses.map(r => {
     const name = `${r.firstName || ""} ${r.lastName || ""}`.trim() || "(no name)";
     return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;background:rgba(0,0,0,.18);border:1px solid rgba(255,153,51,.35);border-radius:8px;margin-bottom:6px;flex-wrap:wrap">
-        <span><strong>${escapeHtml(name)}</strong> <span class="muted">· bib ${r.bibNumber ?? "—"} · scanned ${fmtDate(r.scannedAt)}</span></span>
+        <span><strong>${escapeHtml(name)}</strong> <span class="muted">· bib ${r.bibNumber ?? "—"} · scanned ${fmtDate(r.scannedAt)}${r.scannedBy ? ` by ${escapeHtml(r.scannedBy)}` : ""}</span></span>
         <button class="btn tiny" data-scan-checkin="${r.id}" title="Mark this runner's BIB as received">✓ Mark received</button>
       </div>`;
   }).join("");
@@ -2490,6 +2490,7 @@ function renderConfirmedTab() {
         ? (scannedNotReceived(r)
             ? `<span style="color:#ffae50;font-weight:700" title="Scanned but BIB not marked received — the operator may have forgotten to press the button">⚠ ${fmtDate(r.scannedAt)}</span>`
             : `<span class="muted">${fmtDate(r.scannedAt)}</span>`)
+          + (r.scannedBy ? `<br><small class="muted">by ${escapeHtml(r.scannedBy)}</small>` : "")
         : `<span class="muted">—</span>`}</td>
       <td>${r.checkedInAt
         ? `<span style="color:var(--accent);font-weight:700">✓ ${fmtDate(r.checkedInAt)}</span>`
