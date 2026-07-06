@@ -129,10 +129,12 @@ const firebaseConfig = {
 const SUPER_ADMINS = ["raedelkady@gmail.com", "nizarelkady@gmail.com"];
 let dynamicAdmins = [];
 let dynamicViewers = [];
+let dynamicScanners = [];   // scanner-only staff — this page is all they can use
 function isAllowed(email) {
   return SUPER_ADMINS.includes(email)
       || dynamicAdmins.includes(email)
-      || dynamicViewers.includes(email);
+      || dynamicViewers.includes(email)
+      || dynamicScanners.includes(email);
 }
 const COMPETITION_ID = "batroun-race-2026";
 
@@ -231,8 +233,9 @@ onSnapshot(
   doc(db, "competitions", COMPETITION_ID, "config", "access"),
   snap => {
     const data = snap.exists() ? snap.data() : {};
-    dynamicAdmins  = (Array.isArray(data.admins)  ? data.admins  : []).map(e => String(e).toLowerCase());
-    dynamicViewers = (Array.isArray(data.viewers) ? data.viewers : []).map(e => String(e).toLowerCase());
+    dynamicAdmins   = (Array.isArray(data.admins)   ? data.admins   : []).map(e => String(e).toLowerCase());
+    dynamicViewers  = (Array.isArray(data.viewers)  ? data.viewers  : []).map(e => String(e).toLowerCase());
+    dynamicScanners = (Array.isArray(data.scanners) ? data.scanners : []).map(e => String(e).toLowerCase());
     accessLoaded = true;
     evaluateAuth();
   },

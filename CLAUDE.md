@@ -63,9 +63,10 @@ GitHub Pages.
 | **Super admin** | Hardcoded in code + rules — `raedelkady@gmail.com`, `nizarelkady@gmail.com` — cannot be removed | Everything |
 | **Admin** | `/config/access.admins` array in Firestore (managed via admin Settings tab) | Everything including Settings |
 | **Staff / viewer** | `/config/access.viewers` array | Registrations · Confirmed · scanner only |
+| **Scanner-only** | `/config/access.scanners` array | `scan.html` only — scan + mark BIB received. No admin dashboard, no registration list/stats. |
 | **Public** | No auth | Just the registration page |
 
-`firestore.rules` `isAdmin()` checks super-admin list OR `/config/access.admins`. `isViewer()` checks `/config/access.viewers`. Rules read the access doc via `get()`.
+`firestore.rules` `isAdmin()` checks super-admin list OR `/config/access.admins`. `isViewer()` checks `/config/access.viewers`. `isScanner()` checks `/config/access.scanners` (may only `get` a registration by known ref and update the check-in fields — no `list`, no dashboard). Rules read the access doc via `get()`.
 
 ## Firestore data model
 
@@ -90,7 +91,7 @@ competitions/{competitionId}/config/{configId}   // public read except /access
   ├─ form:       { fields: [{ key, label, type, required, options }] }   // extra public-form fields
   ├─ publicForm: { builtIn: { <key>: { visible, required, label, deleted } }, includes: [string] }   // toggles + label overrides for built-in fields (email, gender, nationality, country, city, tshirt, blood, club, note, emergency) and the "Registration includes" list shown on the price card
   ├─ scanner:    { fields: [...] }    // which fields the hostess scanner shows
-  └─ access:     { admins: [email], viewers: [email] }   // authenticated read only
+  └─ access:     { admins: [email], viewers: [email], scanners: [email] }   // authenticated read only
 
 competitions/{competitionId}/registrations/{regId}    // doc ID = normalizePhone(phone)
   ├─ firstName, lastName, email, phone, dob, gender, nationality, country, city
