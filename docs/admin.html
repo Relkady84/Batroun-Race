@@ -2176,12 +2176,16 @@ function renderRegTable() {
                  : "Send Whish payment instructions on WhatsApp"}">
                WA${r.pendingWaSentAt ? " ✓" : ""}
              </button>
-             ${r.email ? `<button class="btn tiny sec" data-act="email-pending" data-id="${r.id}" title="Email the same payment instructions to ${escapeHtml(r.email)}">Email</button>` : ""}` : ""}
+             ${r.email ? `<button class="btn tiny ${r.pendingEmailSentAt ? "sent" : "sec"}" data-act="email-pending" data-id="${r.id}" title="${r.pendingEmailSentAt
+                 ? `Email already sent ${fmtDate(r.pendingEmailSentAt)}${r.pendingEmailSentBy ? ` by ${escapeHtml(r.pendingEmailSentBy)}` : ""} — click to resend`
+                 : `Email the same payment instructions to ${escapeHtml(r.email)}`}">Email${r.pendingEmailSentAt ? " ✓" : ""}</button>` : ""}` : ""}
         ${r.paymentStatus === "free" && !r.bibNumber
           ? `<button class="btn tiny" data-act="pay" data-id="${r.id}" title="Assign a bib number and send the QR ticket on WhatsApp">Assign bib</button>` : ""}
         ${(r.paymentStatus === "paid" || r.paymentStatus === "free") && r.bibNumber
           ? `<button class="btn tiny sec" data-act="wa" data-id="${r.id}" title="Resend WhatsApp ticket">WA</button>
-             ${r.email ? `<button class="btn tiny sec" data-act="email" data-id="${r.id}" title="Email the same ticket to ${escapeHtml(r.email)}">Email</button>` : ""}` : ""}
+             ${r.email ? `<button class="btn tiny ${r.confirmedEmailSentAt ? "sent" : "sec"}" data-act="email" data-id="${r.id}" title="${r.confirmedEmailSentAt
+                 ? `Ticket email already sent ${fmtDate(r.confirmedEmailSentAt)}${r.confirmedEmailSentBy ? ` by ${escapeHtml(r.confirmedEmailSentBy)}` : ""} — click to resend`
+                 : `Email the same ticket to ${escapeHtml(r.email)}`}">Email${r.confirmedEmailSentAt ? " ✓" : ""}</button>` : ""}` : ""}
         <button class="btn tiny danger" data-act="del" data-id="${r.id}" title="Delete (spam)">Delete</button>
       </td>
     </tr>
@@ -2240,14 +2244,14 @@ function renderRegTable() {
         else toast("No phone number on record", true);
       }
       if (b.dataset.act === "email") {
-        const mailUrl = buildConfirmedEmailUrl(r);
-        if (mailUrl) window.location.href = mailUrl;
-        else toast("No email address on record", true);
+        if (!r.email) { toast("No email address on record", true); return; }
+        markEmailSent(r, "confirmedEmailSent");
+        sendEmail(r, "confirmed");
       }
       if (b.dataset.act === "email-pending") {
-        const mailUrl = buildPendingEmailUrl(r);
-        if (mailUrl) window.location.href = mailUrl;
-        else toast("No email address on record", true);
+        if (!r.email) { toast("No email address on record", true); return; }
+        markEmailSent(r, "pendingEmailSent");
+        sendEmail(r, "pending");
       }
       if (b.dataset.act === "wa-pending") {
         const waUrl = buildPendingWhatsAppUrl(r);
@@ -2422,7 +2426,9 @@ function renderConfirmedTab() {
           ? `<button class="btn tiny sec" data-cact="uncheckin" data-id="${r.id}" title="Undo — mark BIB as not received">↺ Undo BIB</button>`
           : `<button class="btn tiny" data-cact="checkin" data-id="${r.id}" title="Manually mark this runner's BIB as received">✓ BIB received</button>`}
         ${r.bibNumber ? `<button class="btn tiny sec" data-cact="wa" data-id="${r.id}" title="Resend WhatsApp ticket">WA</button>` : ""}
-        ${r.bibNumber && r.email ? `<button class="btn tiny sec" data-cact="email" data-id="${r.id}" title="Email the same ticket to ${escapeHtml(r.email)}">Email</button>` : ""}
+        ${r.bibNumber && r.email ? `<button class="btn tiny ${r.confirmedEmailSentAt ? "sent" : "sec"}" data-cact="email" data-id="${r.id}" title="${r.confirmedEmailSentAt
+          ? `Ticket email already sent ${fmtDate(r.confirmedEmailSentAt)}${r.confirmedEmailSentBy ? ` by ${escapeHtml(r.confirmedEmailSentBy)}` : ""} — click to resend`
+          : `Email the same ticket to ${escapeHtml(r.email)}`}">Email${r.confirmedEmailSentAt ? " ✓" : ""}</button>` : ""}
         <button class="btn tiny sec" data-cact="revert" data-id="${r.id}" title="Move back to Registrations as pending">↩ Revert</button>
         <button class="btn tiny danger" data-cact="del" data-id="${r.id}" title="Delete (soft, undoable for 10s)">Delete</button>
       </td>
@@ -2443,9 +2449,9 @@ function renderConfirmedTab() {
         else toast("No phone number on record", true);
       }
       if (b.dataset.cact === "email") {
-        const mailUrl = buildConfirmedEmailUrl(r);
-        if (mailUrl) window.location.href = mailUrl;
-        else toast("No email address on record", true);
+        if (!r.email) { toast("No email address on record", true); return; }
+        markEmailSent(r, "confirmedEmailSent");
+        sendEmail(r, "confirmed");
       }
     });
   });
@@ -4372,24 +4378,56 @@ function buildWhatsAppUrl(r) {
   return `https://wa.me/${phone}?text=${encodeURIComponent(confirmedMessageText(r))}`;
 }
 
-// ===== Email senders (mailto:) =====
-// Same message body as WhatsApp, opened in the admin's email client with a
-// subject line and the runner's email pre-filled — admin clicks Send.
-// Returns null if the runner has no email on record.
-// Email clients expect CRLF line breaks in a mailto body; normalise \n so
-// the message doesn't arrive as one run-on paragraph.
-function mailtoBody(text) { return encodeURIComponent(String(text).replace(/\r?\n/g, "\r\n")); }
-function buildPendingEmailUrl(r) {
+// ===== Email senders (device-aware) =====
+// Same message body as WhatsApp. On a computer this opens Gmail web compose
+// (already signed in) in a new tab; on an iPhone/iPad it opens the Gmail app;
+// on Android it opens the default mail app (Gmail for most). The admin
+// reviews and hits Send — same semi-automatic flow as the wa.me links.
+function emailPartsFor(r, kind) {
   const to = String(r.email || "").trim();
   if (!to) return null;
-  const subject = "Batroun Race 2026 — Registration received, payment needed";
-  return `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${mailtoBody(pendingMessageText(r))}`;
+  const subject = kind === "pending"
+    ? "Batroun Race 2026 — Registration received, payment needed"
+    : "Batroun Race 2026 — Registration confirmed, your race ticket";
+  const body = kind === "pending" ? pendingMessageText(r) : confirmedMessageText(r);
+  return { to, subject, body };
 }
-function buildConfirmedEmailUrl(r) {
-  const to = String(r.email || "").trim();
-  if (!to) return null;
-  const subject = "Batroun Race 2026 — Registration confirmed, your race ticket";
-  return `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${mailtoBody(confirmedMessageText(r))}`;
+
+// Launch the right email surface for the current device. Returns true if we
+// launched something (so the caller can flag it as sent).
+function sendEmail(r, kind) {
+  const p = emailPartsFor(r, kind);
+  if (!p) { toast("No email address on record", true); return false; }
+  const enc = encodeURIComponent;
+  const ua = navigator.userAgent || "";
+  if (/iPhone|iPad|iPod/i.test(ua)) {
+    // iOS Gmail app compose scheme.
+    window.location.href = `googlegmail:///co?to=${enc(p.to)}&subject=${enc(p.subject)}&body=${enc(p.body)}`;
+  } else if (/Android/i.test(ua)) {
+    // Android — mailto opens the default mail app (Gmail for most people).
+    window.location.href = `mailto:${p.to}?subject=${enc(p.subject)}&body=${enc(p.body.replace(/\r?\n/g, "\r\n"))}`;
+  } else {
+    // Desktop — Gmail web compose in a new tab.
+    window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${enc(p.to)}&su=${enc(p.subject)}&body=${enc(p.body)}`, "_blank", "noopener");
+  }
+  return true;
+}
+
+// Record that an email was sent (opened in Gmail) so the button shows a ✓,
+// mirroring the WhatsApp "sent" tracking. `field` is a base like
+// "pendingEmailSent" → writes <field>At + <field>By. Optimistic local update
+// + best-effort Firestore write (allowed for admin/viewer).
+function markEmailSent(r, field) {
+  const who = currentUserEmail || "unknown";
+  const idx = regs.findIndex(x => x.id === r.id);
+  if (idx >= 0) {
+    regs[idx] = { ...regs[idx], [field + "At"]: new Date(), [field + "By"]: who };
+    rerenderAllTables();
+  }
+  updateDoc(doc(db, "competitions", COMPETITION_ID, "registrations", r.id), {
+    [field + "At"]: serverTimestamp(),
+    [field + "By"]: who
+  }).catch(e => console.warn("email-sent tracking failed:", e.message));
 }
 
 // Each category has its own BIB pool. nextBibFor picks the lowest
