@@ -2175,11 +2175,13 @@ function renderRegTable() {
                  ? `WhatsApp instructions already sent ${fmtDate(r.pendingWaSentAt)}${r.pendingWaSentBy ? ` by ${escapeHtml(r.pendingWaSentBy)}` : ""} — click to resend`
                  : "Send Whish payment instructions on WhatsApp"}">
                WA${r.pendingWaSentAt ? " ✓" : ""}
-             </button>` : ""}
+             </button>
+             ${r.email ? `<button class="btn tiny sec" data-act="email-pending" data-id="${r.id}" title="Email the same payment instructions to ${escapeHtml(r.email)}">Email</button>` : ""}` : ""}
         ${r.paymentStatus === "free" && !r.bibNumber
           ? `<button class="btn tiny" data-act="pay" data-id="${r.id}" title="Assign a bib number and send the QR ticket on WhatsApp">Assign bib</button>` : ""}
         ${(r.paymentStatus === "paid" || r.paymentStatus === "free") && r.bibNumber
-          ? `<button class="btn tiny sec" data-act="wa" data-id="${r.id}" title="Resend WhatsApp ticket">WA</button>` : ""}
+          ? `<button class="btn tiny sec" data-act="wa" data-id="${r.id}" title="Resend WhatsApp ticket">WA</button>
+             ${r.email ? `<button class="btn tiny sec" data-act="email" data-id="${r.id}" title="Email the same ticket to ${escapeHtml(r.email)}">Email</button>` : ""}` : ""}
         <button class="btn tiny danger" data-act="del" data-id="${r.id}" title="Delete (spam)">Delete</button>
       </td>
     </tr>
@@ -2236,6 +2238,16 @@ function renderRegTable() {
         const waUrl = buildWhatsAppUrl(r);
         if (waUrl) window.open(waUrl, "_blank", "noopener");
         else toast("No phone number on record", true);
+      }
+      if (b.dataset.act === "email") {
+        const mailUrl = buildConfirmedEmailUrl(r);
+        if (mailUrl) window.location.href = mailUrl;
+        else toast("No email address on record", true);
+      }
+      if (b.dataset.act === "email-pending") {
+        const mailUrl = buildPendingEmailUrl(r);
+        if (mailUrl) window.location.href = mailUrl;
+        else toast("No email address on record", true);
       }
       if (b.dataset.act === "wa-pending") {
         const waUrl = buildPendingWhatsAppUrl(r);
@@ -2410,6 +2422,7 @@ function renderConfirmedTab() {
           ? `<button class="btn tiny sec" data-cact="uncheckin" data-id="${r.id}" title="Undo — mark BIB as not received">↺ Undo BIB</button>`
           : `<button class="btn tiny" data-cact="checkin" data-id="${r.id}" title="Manually mark this runner's BIB as received">✓ BIB received</button>`}
         ${r.bibNumber ? `<button class="btn tiny sec" data-cact="wa" data-id="${r.id}" title="Resend WhatsApp ticket">WA</button>` : ""}
+        ${r.bibNumber && r.email ? `<button class="btn tiny sec" data-cact="email" data-id="${r.id}" title="Email the same ticket to ${escapeHtml(r.email)}">Email</button>` : ""}
         <button class="btn tiny sec" data-cact="revert" data-id="${r.id}" title="Move back to Registrations as pending">↩ Revert</button>
         <button class="btn tiny danger" data-cact="del" data-id="${r.id}" title="Delete (soft, undoable for 10s)">Delete</button>
       </td>
@@ -2428,6 +2441,11 @@ function renderConfirmedTab() {
         const waUrl = buildWhatsAppUrl(r);
         if (waUrl) window.open(waUrl, "_blank", "noopener");
         else toast("No phone number on record", true);
+      }
+      if (b.dataset.cact === "email") {
+        const mailUrl = buildConfirmedEmailUrl(r);
+        if (mailUrl) window.location.href = mailUrl;
+        else toast("No email address on record", true);
       }
     });
   });
@@ -4294,40 +4312,29 @@ const DEFAULT_PAY_CLOSING_AR =
 // Admin can override the wording under Theme & copy. The custom template
 // supports {name} (runner first name), {ref} (reference code), and {link}
 // (the live invoice URL). When blank, the built-in default below is used.
-function buildPendingWhatsAppUrl(r) {
-  const phone = String(r.phone || "").replace(/\D/g, "");
-  if (!phone) return null;
+// ===== Message text (shared by the WhatsApp + Email senders) =====
+// Pre-payment / "first" message: greeting + live invoice link. Placeholders
+// {name}/{ref}/{link} resolved. Same text whether sent via WhatsApp or email.
+function pendingMessageText(r) {
   const ref = r.whishReference || r.id || "";
   // Custom domain — see TICKET_BASE_URL note above.
   const invoiceUrl = `https://register.batrounrace.com/?signin=${encodeURIComponent(ref)}`;
-
   const template = (theme && theme.pendingWaText && theme.pendingWaText.trim())
     || DEFAULT_PENDING_MSG;
-
-  // Substitute placeholders. {link} last isn't required, but keep all three
-  // global so repeated placeholders all resolve.
-  const text = template
+  return template
     .replace(/\{name\}/g, r.firstName || "")
     .replace(/\{ref\}/g,  ref)
     .replace(/\{link\}/g, invoiceUrl);
-
-  return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
 }
 
-function buildWhatsAppUrl(r) {
-  // Phone is already canonical (e.g. "96171503555") because the registration
-  // doc ID is normalizePhone(...). Strip any leftover non-digits to be safe.
-  const phone = String(r.phone || "").replace(/\D/g, "");
-  if (!phone) return null;
+// Post-payment / "second" message: confirmation + bib + ticket link.
+function confirmedMessageText(r) {
   const ticketUrl = buildTicketUrl(r);
-  // Plain text labels — no emojis. Some older Android phones render unknown
-  // emojis as "?" inside WhatsApp; ASCII-safe lines work everywhere.
   const teammateName = r.teammate
     ? `${(r.teammate.firstName || "").trim()} ${(r.teammate.lastName || "").trim()}`.trim()
     : "";
   // Bib pickup block — admin-editable under Theme & copy. Falls back to a
-  // sensible default when blank. Plain text only (no emojis) so every
-  // Android phone renders it cleanly inside WhatsApp.
+  // sensible default when blank.
   const DEFAULT_BIB_PICKUP =
     `BIB PICKUP — bring your ticket (printed or on your phone):\n` +
     `- 6 July 2026: Experts Sport, Dbayyeh\n` +
@@ -4335,19 +4342,13 @@ function buildWhatsAppUrl(r) {
   const bibPickupBlock = (theme && theme.bibPickupText && theme.bibPickupText.trim())
     || DEFAULT_BIB_PICKUP;
 
-  // Field values the placeholders resolve to.
   const bibText = `${r.bibNumber}${teammateName ? ` (shared with teammate ${teammateName})` : ""}`;
   const catText = `${r.categoryName || ""}${r.subQuestionAnswer ? " - " + r.subQuestionAnswer : ""}`;
   const amountText = r.priceUSD ? `Amount paid: $${r.priceUSD}` : `Entry: Free`;
 
-  // Confirmed-payment message — admin-editable under Theme & copy. The
-  // {pickup} placeholder injects the bib-pickup block (itself editable),
-  // so editing either field works. Blank falls back to DEFAULT_CONFIRMED_MSG
-  // (defined once above), which reproduces the original wording exactly.
   const template = (theme && theme.confirmedWaText && theme.confirmedWaText.trim())
     || DEFAULT_CONFIRMED_MSG;
-
-  const text = template
+  return template
     .replace(/\{name\}/g,     r.firstName || "")
     .replace(/\{ref\}/g,      r.whishReference || "")
     .replace(/\{bib\}/g,      bibText)
@@ -4355,8 +4356,40 @@ function buildWhatsAppUrl(r) {
     .replace(/\{amount\}/g,   amountText)
     .replace(/\{ticket\}/g,   ticketUrl)
     .replace(/\{pickup\}/g,   bibPickupBlock);
+}
 
-  return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
+function buildPendingWhatsAppUrl(r) {
+  const phone = String(r.phone || "").replace(/\D/g, "");
+  if (!phone) return null;
+  return `https://wa.me/${phone}?text=${encodeURIComponent(pendingMessageText(r))}`;
+}
+
+function buildWhatsAppUrl(r) {
+  // Phone is already canonical (e.g. "96171503555") because the registration
+  // doc ID is normalizePhone(...). Strip any leftover non-digits to be safe.
+  const phone = String(r.phone || "").replace(/\D/g, "");
+  if (!phone) return null;
+  return `https://wa.me/${phone}?text=${encodeURIComponent(confirmedMessageText(r))}`;
+}
+
+// ===== Email senders (mailto:) =====
+// Same message body as WhatsApp, opened in the admin's email client with a
+// subject line and the runner's email pre-filled — admin clicks Send.
+// Returns null if the runner has no email on record.
+// Email clients expect CRLF line breaks in a mailto body; normalise \n so
+// the message doesn't arrive as one run-on paragraph.
+function mailtoBody(text) { return encodeURIComponent(String(text).replace(/\r?\n/g, "\r\n")); }
+function buildPendingEmailUrl(r) {
+  const to = String(r.email || "").trim();
+  if (!to) return null;
+  const subject = "Batroun Race 2026 — Registration received, payment needed";
+  return `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${mailtoBody(pendingMessageText(r))}`;
+}
+function buildConfirmedEmailUrl(r) {
+  const to = String(r.email || "").trim();
+  if (!to) return null;
+  const subject = "Batroun Race 2026 — Registration confirmed, your race ticket";
+  return `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${mailtoBody(confirmedMessageText(r))}`;
 }
 
 // Each category has its own BIB pool. nextBibFor picks the lowest
