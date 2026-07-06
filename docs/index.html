@@ -2215,6 +2215,11 @@ let WHISH_RECIPIENT    = "Nizar El Kady";
 let WHISH_CONFIRM_TEXT = null;   // null = use the default styled HTML below
 let WHISH_CONFIRM_TEXT_AR = null; // Arabic payment line override (null = default)
 let WHISH_INVOICE_TEXT = null;   // null = same
+let WHISH_INVOICE_TEXT_AR = null; // Arabic invoice payment line override
+// Signed-in cart / invoice card copy — admin-overridable, defaults below.
+let INVOICE_TITLE    = "Payment invoice";
+let INVOICE_HOWTO    = "How to pay.";
+let INVOICE_HOWTO_AR = "طريقة الدفع.";
 
 function applyTheme(t) {
   t = t || {};
@@ -2224,6 +2229,10 @@ function applyTheme(t) {
   WHISH_CONFIRM_TEXT = (t.whishConfirmText || "").trim() || null;
   WHISH_CONFIRM_TEXT_AR = (t.whishConfirmTextAr || "").trim() || null;
   WHISH_INVOICE_TEXT = (t.whishInvoiceText || "").trim() || null;
+  WHISH_INVOICE_TEXT_AR = (t.whishInvoiceTextAr || "").trim() || null;
+  INVOICE_TITLE    = (t.invoiceTitle    || "").trim() || "Payment invoice";
+  INVOICE_HOWTO    = (t.invoiceHowTo     || "").trim() || "How to pay.";
+  INVOICE_HOWTO_AR = (t.invoiceHowToAr   || "").trim() || "طريقة الدفع.";
   const root = document.documentElement.style;
   if (t.accent)   root.setProperty("--accent", t.accent);
   if (t.accent2)  root.setProperty("--accent2", t.accent2);
@@ -2348,11 +2357,14 @@ function whishConfirmHtmlAr(vars) {
 // Same for the signed-in cart's invoice card.
 function whishInvoiceHtml(vars) {
   if (WHISH_INVOICE_TEXT) {
+    // Style the substituted values like the default (red amount/number/ref,
+    // italic recipient) so a custom template keeps the look. Admin text is
+    // escaped — only these tokens add markup.
     return escHtml(WHISH_INVOICE_TEXT)
-      .replace(/\{amount\}/g,    escHtml(vars.amount))
-      .replace(/\{number\}/g,    escHtml(vars.number))
-      .replace(/\{recipient\}/g, escHtml(vars.recipient))
-      .replace(/\{ref\}/g,       escHtml(vars.ref || ""));
+      .replace(/\{amount\}/g,    `<strong style="color:#e6204e">${escHtml(vars.amount)}</strong>`)
+      .replace(/\{number\}/g,    `<strong style="color:#e6204e">${escHtml(vars.number)}</strong>`)
+      .replace(/\{recipient\}/g, `<em>${escHtml(vars.recipient)}</em>`)
+      .replace(/\{ref\}/g,       `<strong style="color:#e6204e">${escHtml(vars.ref || "")}</strong>`);
   }
   return `Send <strong style="color:#e6204e">${escHtml(vars.amount)}</strong> via <strong style="color:#1a2b3d">Whish Money</strong> (app or any branch) to <strong style="color:#e6204e">${escHtml(vars.number)}</strong> (<em>${escHtml(vars.recipient)}</em>), then write <strong style="color:#e6204e">${escHtml(vars.ref)}</strong> in the transfer note. Once we confirm the payment, your bib + QR ticket are sent to you on WhatsApp.`;
 }
@@ -2363,6 +2375,15 @@ function whishInvoiceHtml(vars) {
 // RTL paragraph. No admin override path for now — same pattern as
 // whishConfirmHtmlAr; admin can localise later if needed.
 function whishInvoiceHtmlAr(vars) {
+  if (WHISH_INVOICE_TEXT_AR) {
+    // Latin values wrapped in <bdi dir="ltr"> so RTL bidi doesn't reorder
+    // the digit groups; styled to match the default.
+    return escHtml(WHISH_INVOICE_TEXT_AR)
+      .replace(/\{amount\}/g,    `<bdi dir="ltr"><strong style="color:#e6204e">${escHtml(vars.amount)}</strong></bdi>`)
+      .replace(/\{number\}/g,    `<bdi dir="ltr"><strong style="color:#e6204e">${escHtml(vars.number)}</strong></bdi>`)
+      .replace(/\{recipient\}/g, `<em><bdi dir="ltr">${escHtml(vars.recipient)}</bdi></em>`)
+      .replace(/\{ref\}/g,       `<bdi dir="ltr"><strong style="color:#e6204e">${escHtml(vars.ref || "")}</strong></bdi>`);
+  }
   return `أرسل <bdi dir="ltr"><strong style="color:#e6204e">${escHtml(vars.amount)}</strong></bdi> عبر <strong style="color:#1a2b3d">ويش موني</strong> (من التطبيق أو من أيّ فرع) إلى <bdi dir="ltr"><strong style="color:#e6204e">${escHtml(vars.number)}</strong></bdi> (<em><bdi dir="ltr">${escHtml(vars.recipient)}</bdi></em>)، ثمّ اكتب <bdi dir="ltr"><strong style="color:#e6204e">${escHtml(vars.ref)}</strong></bdi> في حقل الملاحظة. بمجرّد تأكيد الدفع، يصلك رقم البِب وتذكرة الـ QR عبر واتساب.`;
 }
 
@@ -2986,7 +3007,7 @@ function renderCart(regs) {
       block = `
         <div class="invoice" role="region" aria-label="Whish payment invoice">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px">
-            <h3>Payment invoice</h3>
+            <h3>${escHtml(INVOICE_TITLE)}</h3>
             ${whishBadge}
           </div>
           <div class="row"><span class="k">Participant</span><span class="v">${escHtml(fullName)}</span></div>
@@ -2996,7 +3017,7 @@ function renderCart(regs) {
           <div class="row"><span class="k">Reference</span><span class="v"><span class="ref-pill">${escHtml(r.whishReference || r.ref || "—")}</span></span></div>
           <div class="row"><span class="k">Whish recipient</span><span class="v"><span class="ref-pill" style="color:#e6204e;background:rgba(230,32,78,.08);border-color:rgba(230,32,78,.4)">${escHtml(WHISH_NUMBER)}</span></span></div>
           <div style="margin-top:12px;padding:10px 12px;background:#fff5f7;border:1px solid #ffd6e0;border-radius:10px;font-size:.85rem;color:#5b6c80">
-            <p style="margin:0 0 4px"><strong style="color:#1a2b3d">How to pay.</strong>
+            <p style="margin:0 0 4px"><strong style="color:#1a2b3d">${escHtml(INVOICE_HOWTO)}</strong>
               ${whishInvoiceHtml({
                 amount: `$${r.priceUSD ?? 0}`,
                 number: WHISH_NUMBER,
@@ -3005,7 +3026,7 @@ function renderCart(regs) {
               })}
             </p>
             <p lang="ar" dir="rtl" style="margin:8px 0 0;padding-top:8px;border-top:1px dashed #ffd6e0;color:#5b6c80">
-              <strong style="color:#1a2b3d">طريقة الدفع.</strong>
+              <strong style="color:#1a2b3d">${escHtml(INVOICE_HOWTO_AR)}</strong>
               ${whishInvoiceHtmlAr({
                 amount: `$${r.priceUSD ?? 0}`,
                 number: WHISH_NUMBER,
