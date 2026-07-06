@@ -4495,6 +4495,8 @@ function nextBibFor(categoryId) {
 
 function openConfirmPay(r) {
   const priceFree = (r.priceUSD || 0) === 0;
+  const hasPhone = !!String(r.phone || "").replace(/\D/g, "");
+  const hasEmail = !!String(r.email || "").trim();
   const next = nextBibFor(r.categoryId);
   const autoOk = !next.error;
   const bibSwatch = autoOk && next.color
@@ -4518,14 +4520,25 @@ function openConfirmPay(r) {
       : "")}
     <p class="muted" style="margin:0 0 4px"><strong>Amount:</strong> ${fmtMoney(r.priceUSD || 0)}</p>
     <p class="muted" style="margin:8px 0 0;font-size:.85rem">${priceFree
-      ? "This is a free entry. Assigning the bib confirms the runner and we'll WhatsApp them their QR ticket."
-      : "Confirm the Whish payment matched this reference. The runner will receive a WhatsApp message with their QR ticket."}
+      ? "This is a free entry. Assigning the bib confirms the runner; then send their QR ticket via WhatsApp or email below."
+      : "Confirm the Whish payment matched this reference; then send the runner their QR ticket via WhatsApp or email below."}
     </p>
     ${bibBlock}
-    <label class="inline" style="display:flex;align-items:center;gap:8px;margin-top:10px;cursor:pointer">
-      <input type="checkbox" id="sendWaCb" checked>
-      <span>Open WhatsApp message after confirming</span>
-    </label>
+    <div style="margin-top:12px">
+      <div class="muted" style="font-size:.85rem;margin-bottom:6px">Send the ticket after confirming:</div>
+      <label class="inline" style="display:flex;align-items:center;gap:8px;margin:4px 0;cursor:pointer">
+        <input type="radio" name="sendVia" value="whatsapp" ${hasPhone ? "checked" : "disabled"}>
+        <span>WhatsApp${hasPhone ? "" : ` <span class="muted">(no phone on record)</span>`}</span>
+      </label>
+      <label class="inline" style="display:flex;align-items:center;gap:8px;margin:4px 0;cursor:pointer">
+        <input type="radio" name="sendVia" value="email" ${hasEmail ? (hasPhone ? "" : "checked") : "disabled"}>
+        <span>Email${hasEmail ? "" : ` <span class="muted">(no email on record)</span>`}</span>
+      </label>
+      <label class="inline" style="display:flex;align-items:center;gap:8px;margin:4px 0;cursor:pointer">
+        <input type="radio" name="sendVia" value="none" ${(!hasPhone && !hasEmail) ? "checked" : ""}>
+        <span>Don't send now</span>
+      </label>
+    </div>
     <div class="modal-actions">
       <button class="btn sec" id="cancelPay">Cancel</button>
       <button class="btn" id="okPay">${priceFree ? "Confirm + assign bib" : "Mark as paid"}</button>
@@ -4544,7 +4557,7 @@ function openConfirmPay(r) {
       toast(`Bib ${manualBib} is already used in ${r.categoryName || "this category"}${owner ? ` by ${(owner.firstName||"")} ${(owner.lastName||"")}`.trimEnd() : ""}. Pick another.`, true);
       return;
     }
-    const sendWa = $("#sendWaCb").checked;
+    const sendVia = document.querySelector('input[name="sendVia"]:checked')?.value || "none";
     try {
       // Atomic confirm: transaction reads the registration + category
       // doc so two admins clicking Confirm at the same time can never
@@ -4591,11 +4604,16 @@ function openConfirmPay(r) {
       });
       closeModal();
       toast((priceFree ? "Free entry confirmed — bib " : "Payment confirmed — bib ") + assignedBib + " assigned");
-      if (sendWa) {
+      if (sendVia !== "none") {
         const updated = { ...r, bibNumber: assignedBib, paymentStatus: priceFree ? "free" : "paid" };
-        const waUrl = buildWhatsAppUrl(updated);
-        if (waUrl) window.open(waUrl, "_blank", "noopener");
-        else toast("No phone number on record — couldn't open WhatsApp", true);
+        if (sendVia === "email") {
+          markEmailSent(updated, "confirmedEmailSent");
+          sendEmail(updated, "confirmed");
+        } else {
+          const waUrl = buildWhatsAppUrl(updated);
+          if (waUrl) window.open(waUrl, "_blank", "noopener");
+          else toast("No phone number on record — couldn't open WhatsApp", true);
+        }
       }
     } catch (e) { toast(e.message, true); }
   };
