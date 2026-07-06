@@ -768,9 +768,26 @@ Masters Men-Women 35-39 (1987-1991)
             <textarea id="thWhishConfirmAr" rows="3" dir="rtl"></textarea>
           </div>
         </div>
-        <div style="margin-top:8px">
-          <label>Custom invoice message (shown on the signed-in cart) — leave blank for the default</label>
-          <textarea id="thWhishInvoice" rows="3" placeholder="Send {amount} via Whish Money (app or any branch) to {number} ({recipient}), then write {ref} in the transfer note. Once we confirm the payment, your bib + QR ticket are sent to you on WhatsApp."></textarea>
+        <hr style="margin:16px 0 12px;border:0;border-top:1px solid var(--line)">
+        <p class="muted" style="font-size:.85rem;margin:0 0 8px">
+          <strong>Signed-in cart / invoice card</strong> — the payment info a runner sees when they
+          sign back in to pay. All text is editable in English and Arabic; each box is pre-filled with
+          the current wording, and clearing it falls back to the built-in default.
+        </p>
+        <div><label>Invoice title</label><input id="thInvoiceTitle"></div>
+        <div class="row two" style="margin-top:8px">
+          <div><label>"How to pay" heading — English</label><input id="thInvoiceHowTo"></div>
+          <div><label>"How to pay" heading — Arabic</label><input id="thInvoiceHowToAr" dir="rtl"></div>
+        </div>
+        <div class="row two" style="margin-top:8px">
+          <div>
+            <label>Invoice payment message — English</label>
+            <textarea id="thWhishInvoice" rows="4"></textarea>
+          </div>
+          <div>
+            <label>Invoice payment message — Arabic</label>
+            <textarea id="thWhishInvoiceAr" rows="4" dir="rtl"></textarea>
+          </div>
         </div>
       </div>
 
@@ -4294,6 +4311,19 @@ const DEFAULT_PAY_HEADING     = `📲 How to pay via Whish Money`;
 const DEFAULT_PAY_HEADING_AR  = `📲 طريقة الدفع عبر ويش موني`;
 const DEFAULT_WHISH_CONFIRM    = `Send {amount} via Whish Money (app or any branch) to {number} ({recipient}).`;
 const DEFAULT_WHISH_CONFIRM_AR = `أرسل {amount} عبر ويش موني (التطبيق أو أيّ فرع) إلى الرقم {number} ({recipient}).`;
+
+// Signed-in cart / invoice card defaults — must match the copy in
+// docs/index.html so the editors pre-fill with the real current text.
+const DEFAULT_INVOICE_TITLE    = `Payment invoice`;
+const DEFAULT_INVOICE_HOWTO    = `How to pay.`;
+const DEFAULT_INVOICE_HOWTO_AR = `طريقة الدفع.`;
+const DEFAULT_WHISH_INVOICE =
+  `Send {amount} via Whish Money (app or any branch) to {number} ({recipient}), ` +
+  `then write {ref} in the transfer note. Once we confirm the payment, ` +
+  `your bib + QR ticket are sent to you on WhatsApp.`;
+const DEFAULT_WHISH_INVOICE_AR =
+  `أرسل {amount} عبر ويش موني (من التطبيق أو من أيّ فرع) إلى {number} ({recipient})، ` +
+  `ثمّ اكتب {ref} في حقل الملاحظة. بمجرّد تأكيد الدفع، يصلك رقم البِب وتذكرة الـ QR عبر واتساب.`;
 const DEFAULT_PAY_STEP2 =
   `In the note / comment field of the transfer, write your reference code {ref} exactly. ` +
   `Without it, we cannot match your payment and your registration will not be approved.`;
@@ -5590,7 +5620,12 @@ function loadThemeIntoEditor(t) {
   $("#thLogoSize").value = t.logoHeight || "";
   $("#thWhishNum").value     = t.whishNumber       || "";
   $("#thWhishName").value    = t.whishRecipient    || "";
-  $("#thWhishInvoice").value = t.whishInvoiceText  || "";
+  // Invoice card (signed-in cart) — full bilingual copy, pre-filled.
+  $("#thWhishInvoice").value   = t.whishInvoiceText   || DEFAULT_WHISH_INVOICE;
+  $("#thWhishInvoiceAr").value = t.whishInvoiceTextAr || DEFAULT_WHISH_INVOICE_AR;
+  $("#thInvoiceTitle").value   = t.invoiceTitle       || DEFAULT_INVOICE_TITLE;
+  $("#thInvoiceHowTo").value   = t.invoiceHowTo       || DEFAULT_INVOICE_HOWTO;
+  $("#thInvoiceHowToAr").value = t.invoiceHowToAr     || DEFAULT_INVOICE_HOWTO_AR;
   // Pre-fill the editable message boxes with the actual current text (the
   // saved custom value, or the built-in default) so the admin can see and
   // edit the wording directly — not stare at an empty field.
@@ -6135,7 +6170,11 @@ $("#themeSaveBtn").addEventListener("click", async () => {
         whishRecipient:   $("#thWhishName").value.trim()    || null,
         whishConfirmText:   $("#thWhishConfirm").value.trim()   || null,
         whishConfirmTextAr: $("#thWhishConfirmAr").value.trim() || null,
-        whishInvoiceText: $("#thWhishInvoice").value.trim() || null,
+        whishInvoiceText:   $("#thWhishInvoice").value.trim()   || null,
+        whishInvoiceTextAr: $("#thWhishInvoiceAr").value.trim() || null,
+        invoiceTitle:       $("#thInvoiceTitle").value.trim()   || null,
+        invoiceHowTo:       $("#thInvoiceHowTo").value.trim()   || null,
+        invoiceHowToAr:     $("#thInvoiceHowToAr").value.trim() || null,
         pendingWaText:    $("#thPendingWa").value.trim()    || null,
         confirmedWaText:  $("#thConfirmedWa").value.trim()  || null,
         confirmHeading:    $("#thConfirmHeading").value.trim()    || null,
