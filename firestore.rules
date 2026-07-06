@@ -117,12 +117,14 @@ service cloud.firestore {
         allow create: if canReadDashboard()
                        || (isValidNewRegistration() && registrationOpen(competitionId));
         // Admin / viewer can update any field. Scanner-only staff may update
-        // ONLY the bib-pickup / check-in fields — nothing else.
+        // ONLY the bib-pickup / check-in fields plus the scan-tracking
+        // timestamp (written on every lookup) — nothing else.
         allow update: if canReadDashboard()
                        || (isScanner()
                            && request.resource.data.diff(resource.data).affectedKeys()
                                 .hasOnly(['checkedInAt', 'checkedInBy',
-                                          'teammateCheckedInAt', 'teammateCheckedInBy']));
+                                          'teammateCheckedInAt', 'teammateCheckedInBy',
+                                          'scannedAt', 'scannedBy']));
         allow delete: if isAdmin();
       }
 

@@ -363,6 +363,10 @@
     <section id="tab-confirmed" class="tab">
       <div class="stats" id="confirmedStats"></div>
 
+      <!-- Race-day alert: tickets scanned but the operator never pressed
+           "BIB received". Rendered by renderScannedAlert(); hidden when empty. -->
+      <div id="scannedNotReceivedAlert"></div>
+
       <div class="card">
         <div class="filters-grid">
           <input type="search" id="confirmedSearch" placeholder="Search name, ref, phone, email…">
@@ -371,6 +375,7 @@
             <option value="">All</option>
             <option value="no">BIB not received yet</option>
             <option value="yes">BIB received</option>
+            <option value="scanned-not-received">Scanned, BIB not received</option>
           </select>
           <button id="confirmedExportBtn" class="btn sec">Export CSV</button>
         </div>
@@ -384,10 +389,11 @@
               <th class="sortable" data-csort="subQuestionAnswer">Sub-category</th>
               <th class="sortable" data-csort="bibNumber">Bib</th>
               <th class="sortable" data-csort="paidAt">Confirmed at</th>
+              <th class="sortable" data-csort="scannedAt">Scanned</th>
               <th class="sortable" data-csort="checkedInAt">BIB received</th>
               <th></th>
             </tr></thead>
-            <tbody><tr><td colspan="8" class="empty">No confirmed registrations yet.</td></tr></tbody>
+            <tbody><tr><td colspan="9" class="empty">No confirmed registrations yet.</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -2351,6 +2357,13 @@ function confirmedSourceRegs() {
   return regs.filter(r => !r.deletedAt && (r.paymentStatus === "paid" || r.paymentStatus === "free"));
 }
 
+// A confirmed runner whose ticket was scanned but never marked BIB-received
+// (the operator likely forgot to press the button). For a relay team the bib
+// is shared, so "received" is the Person 1 check-in (checkedInAt).
+function scannedNotReceived(r) {
+  return !!r.scannedAt && !r.checkedInAt;
+}
+
 function renderConfirmedStats() {
   const src = confirmedSourceRegs();
   const total = src.length;
@@ -2366,6 +2379,43 @@ function renderConfirmedStats() {
     <div class="stat"><div class="label">BIB received</div><div class="value accent">${checkedIn} <span style="font-size:.5em;opacity:.7">/ ${total}</span></div></div>
     <div class="stat"><div class="label">Revenue</div><div class="value accent">$${revenue}</div></div>
   `;
+}
+
+// Race-day alert panel: everyone whose ticket was scanned but never marked
+// BIB-received. Clicking a name jumps to their row via the filter. Hidden
+// when the list is empty.
+function renderScannedAlert() {
+  const el = $("#scannedNotReceivedAlert");
+  if (!el) return;
+  const misses = confirmedSourceRegs()
+    .filter(scannedNotReceived)
+    .sort((a, b) => {
+      const av = a.scannedAt?.toDate ? a.scannedAt.toDate().getTime() : 0;
+      const bv = b.scannedAt?.toDate ? b.scannedAt.toDate().getTime() : 0;
+      return bv - av;
+    });
+  if (!misses.length) { el.innerHTML = ""; return; }
+  const rows = misses.map(r => {
+    const name = `${r.firstName || ""} ${r.lastName || ""}`.trim() || "(no name)";
+    return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;background:rgba(0,0,0,.18);border:1px solid rgba(255,153,51,.35);border-radius:8px;margin-bottom:6px;flex-wrap:wrap">
+        <span><strong>${escapeHtml(name)}</strong> <span class="muted">· bib ${r.bibNumber ?? "—"} · scanned ${fmtDate(r.scannedAt)}</span></span>
+        <button class="btn tiny" data-scan-checkin="${r.id}" title="Mark this runner's BIB as received">✓ Mark received</button>
+      </div>`;
+  }).join("");
+  el.innerHTML = `
+    <div class="card" style="border-color:rgba(255,153,51,.5);background:rgba(255,153,51,.06)">
+      <h2 style="color:#ffae50;margin:0 0 4px">⚠ Scanned but BIB not received (${misses.length})</h2>
+      <p class="muted" style="font-size:.85rem;margin:0 0 10px">
+        These tickets were scanned but nobody pressed "BIB received" — the operator may have forgotten. Confirm each once you're sure they got their bib.
+      </p>
+      ${rows}
+    </div>`;
+  el.querySelectorAll('[data-scan-checkin]').forEach(b => {
+    b.addEventListener("click", () => {
+      const r = regs.find(x => x.id === b.dataset.scanCheckin);
+      if (r) markBibReceived(r);
+    });
+  });
 }
 
 function renderConfirmedCategoryFilter() {
@@ -2385,6 +2435,7 @@ function confirmedFiltered() {
     if (cat && r.categoryId !== cat) return false;
     if (ci === "yes" && !r.checkedInAt) return false;
     if (ci === "no"  &&  r.checkedInAt) return false;
+    if (ci === "scanned-not-received" && !scannedNotReceived(r)) return false;
     if (q) {
       const hay = [r.firstName, r.lastName, r.email, r.phone, r.whishReference, r.subQuestionAnswer]
         .map(x => (x||"").toLowerCase()).join(" ");
@@ -2413,6 +2464,7 @@ function confirmedSorted(rows) {
 
 function renderConfirmedTab() {
   renderConfirmedStats();
+  renderScannedAlert();
   renderConfirmedCategoryFilter();
   const tbody = $("#confirmedTable tbody");
   if (!tbody) return;
@@ -2423,7 +2475,7 @@ function renderConfirmedTab() {
     if (th.dataset.csort === confirmedSort.key) th.classList.add(confirmedSort.dir === "asc" ? "sorted-asc" : "sorted-desc");
   });
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="8" class="empty">No confirmed registrations match.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="empty">No confirmed registrations match.</td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map(r => `
@@ -2434,6 +2486,11 @@ function renderConfirmedTab() {
       <td>${escapeHtml(r.subQuestionAnswer || "—")}</td>
       <td>${bibCell(r.bibNumber, r.categoryId)}</td>
       <td>${r.paidAt ? fmtDate(r.paidAt) : "—"}</td>
+      <td>${r.scannedAt
+        ? (scannedNotReceived(r)
+            ? `<span style="color:#ffae50;font-weight:700" title="Scanned but BIB not marked received — the operator may have forgotten to press the button">⚠ ${fmtDate(r.scannedAt)}</span>`
+            : `<span class="muted">${fmtDate(r.scannedAt)}</span>`)
+        : `<span class="muted">—</span>`}</td>
       <td>${r.checkedInAt
         ? `<span style="color:var(--accent);font-weight:700">✓ ${fmtDate(r.checkedInAt)}</span>`
         : `<span style="color:var(--warn)">Not yet</span>`}</td>
@@ -4052,11 +4109,12 @@ document.getElementById("confirmedExportBtn")?.addEventListener("click", () => {
   const rows = confirmedSorted(confirmedFiltered());
   if (!rows.length) { toast("Nothing to export"); return; }
   const headers = ["reference","firstName","lastName","email","phone","category","subCategory",
-                   "bib","amount","status","paidAt","checkedInAt","checkedInBy"];
+                   "bib","amount","status","paidAt","scannedAt","scannedBy","checkedInAt","checkedInBy"];
   const csv = [headers.join(",")].concat(rows.map(r => [
     r.whishReference, r.firstName, r.lastName, r.email, r.phone,
     r.categoryName, r.subQuestionAnswer, r.bibNumber, r.priceUSD,
     r.paymentStatus, r.paidAt ? fmtDate(r.paidAt) : "",
+    r.scannedAt ? fmtDate(r.scannedAt) : "", r.scannedBy || "",
     r.checkedInAt ? fmtDate(r.checkedInAt) : "", r.checkedInBy || ""
   ].map(csvCell).join(","))).join("\n");
   const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
