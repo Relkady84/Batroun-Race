@@ -301,6 +301,16 @@ async function lookupAndShow(ref) {
       return;
     }
     const r = { id: docSnap.id, ...docSnap.data() };
+    // Record the scan (best-effort, non-blocking) so admins can spot tickets
+    // that were scanned but never marked BIB-received — i.e. the operator
+    // forgot to press the button. Skip soft-deleted docs. Failure is silent;
+    // showing the card is the primary job.
+    if (!r.deletedAt) {
+      updateDoc(doc(db, "competitions", COMPETITION_ID, "registrations", r.id), {
+        scannedAt: serverTimestamp(),
+        scannedBy: auth.currentUser?.email || "unknown"
+      }).catch(e => console.warn("scan tracking failed:", e.message));
+    }
     // Pull the category's bib colour so the scanned bib number shows in the
     // same colour it has on the ticket. Stored on the category (not the
     // registration), so one extra get. Non-fatal if it fails — the bib just
