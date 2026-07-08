@@ -2206,7 +2206,9 @@ function renderRegTable() {
         ${r.paymentStatus === "free" && !r.bibNumber
           ? `<button class="btn tiny" data-act="pay" data-id="${r.id}" title="Assign a bib number and send the QR ticket on WhatsApp">Assign bib</button>` : ""}
         ${(r.paymentStatus === "paid" || r.paymentStatus === "free") && r.bibNumber
-          ? `<button class="btn tiny sec" data-act="wa" data-id="${r.id}" title="Resend WhatsApp ticket">WA</button>
+          ? `<button class="btn tiny ${r.confirmedWaSentAt ? "sent" : "sec"}" data-act="wa" data-id="${r.id}" title="${r.confirmedWaSentAt
+                 ? `Ticket WhatsApp already sent ${fmtDate(r.confirmedWaSentAt)}${r.confirmedWaSentBy ? ` by ${escapeHtml(r.confirmedWaSentBy)}` : ""} — click to resend`
+                 : `Resend WhatsApp ticket`}">WA${r.confirmedWaSentAt ? " ✓" : ""}</button>
              ${r.email ? `<button class="btn tiny ${r.confirmedEmailSentAt ? "sent" : "sec"}" data-act="email" data-id="${r.id}" title="${r.confirmedEmailSentAt
                  ? `Ticket email already sent ${fmtDate(r.confirmedEmailSentAt)}${r.confirmedEmailSentBy ? ` by ${escapeHtml(r.confirmedEmailSentBy)}` : ""} — click to resend`
                  : `Email the same ticket to ${escapeHtml(r.email)}`}">Email${r.confirmedEmailSentAt ? " ✓" : ""}</button>` : ""}` : ""}
@@ -2264,17 +2266,18 @@ function renderRegTable() {
       if (b.dataset.act === "pay")  openConfirmPay(r);
       if (b.dataset.act === "wa")   {
         const waUrl = buildWhatsAppUrl(r);
-        if (waUrl) window.open(waUrl, "_blank", "noopener");
-        else toast("No phone number on record", true);
+        if (!waUrl) { toast("No phone number on record", true); return; }
+        markSent(r, "confirmedWaSent");
+        window.open(waUrl, "_blank", "noopener");
       }
       if (b.dataset.act === "email") {
         if (!r.email) { toast("No email address on record", true); return; }
-        markEmailSent(r, "confirmedEmailSent");
+        markSent(r, "confirmedEmailSent");
         sendEmail(r, "confirmed");
       }
       if (b.dataset.act === "email-pending") {
         if (!r.email) { toast("No email address on record", true); return; }
-        markEmailSent(r, "pendingEmailSent");
+        markSent(r, "pendingEmailSent");
         sendEmail(r, "pending");
       }
       if (b.dataset.act === "wa-pending") {
@@ -2501,7 +2504,9 @@ function renderConfirmedTab() {
         ${r.checkedInAt
           ? `<button class="btn tiny sec" data-cact="uncheckin" data-id="${r.id}" title="Undo — mark BIB as not received">↺ Undo BIB</button>`
           : `<button class="btn tiny" data-cact="checkin" data-id="${r.id}" title="Manually mark this runner's BIB as received">✓ BIB received</button>`}
-        ${r.bibNumber ? `<button class="btn tiny sec" data-cact="wa" data-id="${r.id}" title="Resend WhatsApp ticket">WA</button>` : ""}
+        ${r.bibNumber ? `<button class="btn tiny ${r.confirmedWaSentAt ? "sent" : "sec"}" data-cact="wa" data-id="${r.id}" title="${r.confirmedWaSentAt
+          ? `Ticket WhatsApp already sent ${fmtDate(r.confirmedWaSentAt)}${r.confirmedWaSentBy ? ` by ${escapeHtml(r.confirmedWaSentBy)}` : ""} — click to resend`
+          : `Resend WhatsApp ticket`}">WA${r.confirmedWaSentAt ? " ✓" : ""}</button>` : ""}
         ${r.bibNumber && r.email ? `<button class="btn tiny ${r.confirmedEmailSentAt ? "sent" : "sec"}" data-cact="email" data-id="${r.id}" title="${r.confirmedEmailSentAt
           ? `Ticket email already sent ${fmtDate(r.confirmedEmailSentAt)}${r.confirmedEmailSentBy ? ` by ${escapeHtml(r.confirmedEmailSentBy)}` : ""} — click to resend`
           : `Email the same ticket to ${escapeHtml(r.email)}`}">Email${r.confirmedEmailSentAt ? " ✓" : ""}</button>` : ""}
@@ -2521,12 +2526,13 @@ function renderConfirmedTab() {
       if (b.dataset.cact === "uncheckin") return undoBibReceived(r);
       if (b.dataset.cact === "wa")   {
         const waUrl = buildWhatsAppUrl(r);
-        if (waUrl) window.open(waUrl, "_blank", "noopener");
-        else toast("No phone number on record", true);
+        if (!waUrl) { toast("No phone number on record", true); return; }
+        markSent(r, "confirmedWaSent");
+        window.open(waUrl, "_blank", "noopener");
       }
       if (b.dataset.cact === "email") {
         if (!r.email) { toast("No email address on record", true); return; }
-        markEmailSent(r, "confirmedEmailSent");
+        markSent(r, "confirmedEmailSent");
         sendEmail(r, "confirmed");
       }
     });
@@ -4503,11 +4509,11 @@ function sendEmail(r, kind) {
   return true;
 }
 
-// Record that an email was sent (opened in Gmail) so the button shows a ✓,
-// mirroring the WhatsApp "sent" tracking. `field` is a base like
-// "pendingEmailSent" → writes <field>At + <field>By. Optimistic local update
-// + best-effort Firestore write (allowed for admin/viewer).
-function markEmailSent(r, field) {
+// Record that a message was sent (WhatsApp or email opened) so the button
+// shows a ✓. `field` is a base like "confirmedEmailSent" / "confirmedWaSent"
+// → writes <field>At + <field>By. Optimistic local update (instant ✓) +
+// best-effort Firestore write (allowed for admin/viewer).
+function markSent(r, field) {
   const who = currentUserEmail || "unknown";
   const idx = regs.findIndex(x => x.id === r.id);
   if (idx >= 0) {
@@ -4517,7 +4523,7 @@ function markEmailSent(r, field) {
   updateDoc(doc(db, "competitions", COMPETITION_ID, "registrations", r.id), {
     [field + "At"]: serverTimestamp(),
     [field + "By"]: who
-  }).catch(e => console.warn("email-sent tracking failed:", e.message));
+  }).catch(e => console.warn("sent tracking failed:", e.message));
 }
 
 // Each category has its own BIB pool. nextBibFor picks the lowest
@@ -4655,10 +4661,20 @@ function openConfirmPay(r) {
           const prevCursor = Number.isFinite(c.bibCursor) ? c.bibCursor : start;
           tx.update(catRef, { bibCursor: Math.max(prevCursor, candidate + 1) });
         }
+        // Stamp the "sent" tracking in the SAME write as the confirm, so the
+        // ✓ can't be wiped by the confirm's own live snapshot arriving before
+        // a separate sent-write lands (that was the "click again to show ✓"
+        // bug). We record the chosen channel as sent since the admin's next
+        // tap (in WhatsApp/Gmail) is what they intend.
+        const sentBy = currentUserEmail || "unknown";
+        const sentPatch =
+          sendVia === "email"    ? { confirmedEmailSentAt: serverTimestamp(), confirmedEmailSentBy: sentBy } :
+          sendVia === "whatsapp" ? { confirmedWaSentAt:    serverTimestamp(), confirmedWaSentBy:    sentBy } : {};
         tx.update(regRef, {
           paymentStatus: (r.priceUSD || 0) === 0 ? "free" : "paid",
           bibNumber: bib,
-          paidAt: serverTimestamp()
+          paidAt: serverTimestamp(),
+          ...sentPatch
         });
         return bib;
       });
@@ -4667,7 +4683,6 @@ function openConfirmPay(r) {
       if (sendVia !== "none") {
         const updated = { ...r, bibNumber: assignedBib, paymentStatus: priceFree ? "free" : "paid" };
         if (sendVia === "email") {
-          markEmailSent(updated, "confirmedEmailSent");
           sendEmail(updated, "confirmed");
         } else {
           const waUrl = buildWhatsAppUrl(updated);
