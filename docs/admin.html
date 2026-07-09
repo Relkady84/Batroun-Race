@@ -1225,7 +1225,8 @@ import {
   signOut, onAuthStateChanged, browserLocalPersistence, setPersistence
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
 import {
-  getFirestore, collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc, writeBatch,
+  getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
+  collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc, writeBatch,
   onSnapshot, query, orderBy, serverTimestamp, runTransaction, arrayUnion
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 
@@ -1261,7 +1262,21 @@ const COMPETITION_ID = "batroun-race-2026";
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const db = getFirestore(app);
+// IndexedDB persistence: the dashboard's live listeners load from the local
+// cache and, on reload, sync only the docs that CHANGED since last time
+// (via a resume token) instead of re-reading the whole registrations
+// collection every open — the biggest read-quota saver for the admin.
+// Falls back to memory cache if the browser blocks IndexedDB (e.g. private
+// mode); multi-tab manager lets several admin tabs share one cache.
+let db;
+try {
+  db = initializeFirestore(app, {
+    localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+  });
+} catch (e) {
+  console.warn("Persistent cache unavailable, falling back to default:", e?.message);
+  db = getFirestore(app);
+}
 
 // State
 let regs = [];
