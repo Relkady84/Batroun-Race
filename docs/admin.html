@@ -4180,10 +4180,10 @@ document.querySelectorAll('#confirmedTable thead th.sortable').forEach(th => {
 document.getElementById("confirmedExportBtn")?.addEventListener("click", () => {
   const rows = confirmedSorted(confirmedFiltered());
   if (!rows.length) { toast("Nothing to export"); return; }
-  const headers = ["reference","firstName","lastName","email","phone","category","subCategory",
+  const headers = ["reference","firstName","lastName","email","phone","gender","tshirt","category","subCategory",
                    "bib","amount","status","paidAt","scannedAt","scannedBy","checkedInAt","checkedInBy"];
   const csv = [headers.join(",")].concat(rows.map(r => [
-    r.whishReference, r.firstName, r.lastName, r.email, r.phone,
+    r.whishReference, r.firstName, r.lastName, r.email, r.phone, r.gender, r.tshirtSize,
     r.categoryName, r.subQuestionAnswer, r.bibNumber, r.priceUSD,
     r.paymentStatus, r.paidAt ? fmtDate(r.paidAt) : "",
     r.scannedAt ? fmtDate(r.scannedAt) : "", r.scannedBy || "",
