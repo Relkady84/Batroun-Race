@@ -2401,68 +2401,107 @@ function whishInvoiceHtmlAr(vars) {
 // Load competition + categories + theme + custom fields from Firestore
 // Falls back silently to hardcoded constants if anything is missing.
 // ============================================================
-async function loadFromFirestore() {
+// ===== Config cache (cuts Firestore reads) =====
+// The page config (competition dates, categories, theme, form schema) is
+// read on every visit — ~9 doc reads each time, which is the main driver of
+// the Firestore read quota. Cache it in localStorage for a few minutes so
+// reloads and repeat visits from the same browser cost ZERO reads. Firestore
+// rules still enforce the real registration window + prices at submit time,
+// so a slightly stale cached UI can't let through anything invalid.
+const CONFIG_CACHE_KEY = "br-config-" + COMPETITION_ID + "-v1";
+const CONFIG_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+function readConfigCache() {
   try {
-    // Competition doc: dates
-    const compRef = doc(db, "competitions", COMPETITION_ID);
-    const compSnap = await getDoc(compRef);
-    if (compSnap.exists()) {
-      const c = compSnap.data();
-      if (c.registrationOpens) {
-        REGISTRATION_OPENS = c.registrationOpens?.toDate
-          ? c.registrationOpens.toDate() : new Date(c.registrationOpens);
-      }
-      if (c.registrationCloses) {
-        REGISTRATION_CLOSES = c.registrationCloses?.toDate
-          ? c.registrationCloses.toDate() : new Date(c.registrationCloses);
-      }
-      if (c.raceDay) {
-        RACE_DAY = typeof c.raceDay === "string" ? c.raceDay.slice(0,10)
-                 : c.raceDay.toDate().toISOString().slice(0,10);
-      }
-    }
+    const raw = localStorage.getItem(CONFIG_CACHE_KEY);
+    if (!raw) return null;
+    const obj = JSON.parse(raw);
+    if (!obj || !obj.t || (Date.now() - obj.t) > CONFIG_CACHE_TTL_MS) return null;
+    return obj.data || null;
+  } catch (_) { return null; }
+}
+function writeConfigCache(data) {
+  try {
+    localStorage.setItem(CONFIG_CACHE_KEY, JSON.stringify({ t: Date.now(), data }));
+  } catch (_) { /* quota/blocked — fine, we just won't cache this round */ }
+}
 
-    // Categories collection — supports new schema (cat.price) and legacy (cat.prices.wave1)
-    const catSnap = await getDocs(collection(db, "competitions", COMPETITION_ID, "categories"));
-    if (!catSnap.empty) {
-      CATEGORIES = {};
-      catSnap.forEach(d => {
-        const x = d.data();
-        CATEGORIES[d.id] = {
-          id: d.id, // needed for per-category special-pricing lookup
-          name: x.name || d.id,
-          timed: !!x.timed,
-          ageLimit:    x.ageLimit    || 0,
-          ageLimitMax: x.ageLimitMax || 0,
-          subQuestion: x.subQuestion || null,
-          distance: x.distanceKm || null,
-          capacity: x.capacity || null,
-          registeredCount: x.registeredCount || 0,
-          isRelay: !!x.isRelay,
-          allowMultiParticipant: !!x.allowMultiParticipant,
-          price: (typeof x.price === "number") ? x.price : (x.prices?.wave1 ?? 0)
-        };
-      });
-    }
-
-    const themeSnap = await getDoc(doc(db, "competitions", COMPETITION_ID, "config", "theme"));
-    if (themeSnap.exists()) applyTheme(themeSnap.data());
-
-    const formSnap = await getDoc(doc(db, "competitions", COMPETITION_ID, "config", "form"));
-    if (formSnap.exists() && Array.isArray(formSnap.data().fields)) {
-      CUSTOM_FIELDS = formSnap.data().fields;
-    }
-
-    const pfSnap = await getDoc(doc(db, "competitions", COMPETITION_ID, "config", "publicForm"));
-    if (pfSnap.exists()) {
-      const pf = pfSnap.data();
-      applyPublicFormConfig(pf.builtIn || {});
-      if (Array.isArray(pf.includes) && pf.includes.length) INCLUDES = pf.includes;
-    }
-  } catch (err) {
-    console.warn("Firestore load failed, using fallback constants:", err);
+// Read the config docs from Firestore and return a plain, cacheable object.
+async function fetchConfigData() {
+  const data = {};
+  const compSnap = await getDoc(doc(db, "competitions", COMPETITION_ID));
+  if (compSnap.exists()) {
+    const c = compSnap.data();
+    data.competition = {
+      registrationOpens: c.registrationOpens?.toDate ? c.registrationOpens.toDate().toISOString()
+                        : (typeof c.registrationOpens === "string" ? c.registrationOpens : null),
+      registrationCloses: c.registrationCloses?.toDate ? c.registrationCloses.toDate().toISOString()
+                        : (typeof c.registrationCloses === "string" ? c.registrationCloses : null),
+      raceDay: c.raceDay ? (typeof c.raceDay === "string" ? c.raceDay.slice(0,10)
+                          : c.raceDay.toDate().toISOString().slice(0,10)) : null
+    };
   }
+  // Categories — supports new schema (cat.price) and legacy (cat.prices.wave1)
+  const catSnap = await getDocs(collection(db, "competitions", COMPETITION_ID, "categories"));
+  if (!catSnap.empty) {
+    const cats = {};
+    catSnap.forEach(d => {
+      const x = d.data();
+      cats[d.id] = {
+        id: d.id,
+        name: x.name || d.id,
+        timed: !!x.timed,
+        ageLimit:    x.ageLimit    || 0,
+        ageLimitMax: x.ageLimitMax || 0,
+        subQuestion: x.subQuestion || null,
+        distance: x.distanceKm || null,
+        capacity: x.capacity || null,
+        registeredCount: x.registeredCount || 0,
+        isRelay: !!x.isRelay,
+        allowMultiParticipant: !!x.allowMultiParticipant,
+        price: (typeof x.price === "number") ? x.price : (x.prices?.wave1 ?? 0)
+      };
+    });
+    data.categories = cats;
+  }
+  const themeSnap = await getDoc(doc(db, "competitions", COMPETITION_ID, "config", "theme"));
+  if (themeSnap.exists()) data.theme = themeSnap.data();
+  const formSnap = await getDoc(doc(db, "competitions", COMPETITION_ID, "config", "form"));
+  if (formSnap.exists() && Array.isArray(formSnap.data().fields)) data.customFields = formSnap.data().fields;
+  const pfSnap = await getDoc(doc(db, "competitions", COMPETITION_ID, "config", "publicForm"));
+  if (pfSnap.exists()) data.publicForm = { builtIn: pfSnap.data().builtIn || {}, includes: pfSnap.data().includes || [] };
+  return data;
+}
 
+// Apply a config object (from Firestore or the cache) into module state.
+function applyConfigData(data) {
+  data = data || {};
+  const c = data.competition || {};
+  if (c.registrationOpens)  REGISTRATION_OPENS  = new Date(c.registrationOpens);
+  if (c.registrationCloses) REGISTRATION_CLOSES = new Date(c.registrationCloses);
+  if (c.raceDay)            RACE_DAY = c.raceDay;
+  if (data.categories)      CATEGORIES = data.categories;
+  if (data.theme)           applyTheme(data.theme);
+  if (Array.isArray(data.customFields)) CUSTOM_FIELDS = data.customFields;
+  if (data.publicForm) {
+    applyPublicFormConfig(data.publicForm.builtIn || {});
+    if (Array.isArray(data.publicForm.includes) && data.publicForm.includes.length) INCLUDES = data.publicForm.includes;
+  }
+}
+
+async function loadFromFirestore() {
+  const cached = readConfigCache();
+  if (cached) {
+    applyConfigData(cached);           // fresh cache → 0 Firestore reads
+  } else {
+    try {
+      const data = await fetchConfigData();
+      applyConfigData(data);
+      writeConfigCache(data);
+    } catch (err) {
+      console.warn("Firestore load failed, using fallback constants:", err);
+    }
+  }
   renderRegistrationBanner();
   populateCategorySelect();
   renderCustomFields();

@@ -322,46 +322,72 @@ function applyTicketSponsor(elId, value) {
   el.hidden = false;
 }
 
+// Cache the 3 live-fetch docs (competition + category + theme) in
+// localStorage for a few minutes so re-opening the ticket doesn't re-read
+// Firestore every time — the URL params already render instantly, this is
+// only the live-override refresh. Stored NORMALISED (plain strings, no
+// Firestore Timestamps) so it survives JSON round-tripping.
+const TICKET_CACHE_KEY = "br-ticket-" + COMPETITION_ID_LIVE + "-" + (catId || "none") + "-v1";
+const TICKET_CACHE_TTL_MS = 10 * 60 * 1000;
+function readTicketCache() {
+  try {
+    const o = JSON.parse(localStorage.getItem(TICKET_CACHE_KEY) || "null");
+    if (!o || !o.t || (Date.now() - o.t) > TICKET_CACHE_TTL_MS) return null;
+    return o.data || null;
+  } catch (_) { return null; }
+}
+function writeTicketCache(data) {
+  try { localStorage.setItem(TICKET_CACHE_KEY, JSON.stringify({ t: Date.now(), data })); } catch (_) {}
+}
+
 (async () => {
   try {
-    const [compSnap, catSnap, themeSnap] = await Promise.all([
-      getDoc(doc(db, "competitions", COMPETITION_ID_LIVE)),
-      catId ? getDoc(doc(db, "competitions", COMPETITION_ID_LIVE, "categories", catId)) : Promise.resolve(null),
-      getDoc(doc(db, "competitions", COMPETITION_ID_LIVE, "config", "theme"))
-    ]);
-    const c = compSnap.exists() ? compSnap.data() : {};
-    const cat = catSnap && catSnap.exists() ? catSnap.data() : {};
-    const theme = themeSnap.exists() ? themeSnap.data() : {};
-    const liveRaceDay =
-      typeof c.raceDay === "string" ? c.raceDay.slice(0,10) :
-      c.raceDay?.toDate ? c.raceDay.toDate().toISOString().slice(0,10) : null;
-    if (liveRaceDay) window.renderDate(liveRaceDay);
-    const liveStart = cat.startTime || c.raceStartTime || null;
+    let b = readTicketCache();
+    if (!b) {
+      const [compSnap, catSnap, themeSnap] = await Promise.all([
+        getDoc(doc(db, "competitions", COMPETITION_ID_LIVE)),
+        catId ? getDoc(doc(db, "competitions", COMPETITION_ID_LIVE, "categories", catId)) : Promise.resolve(null),
+        getDoc(doc(db, "competitions", COMPETITION_ID_LIVE, "config", "theme"))
+      ]);
+      const c = compSnap.exists() ? compSnap.data() : {};
+      const cat = catSnap && catSnap.exists() ? catSnap.data() : {};
+      const theme = themeSnap.exists() ? themeSnap.data() : {};
+      b = {
+        raceDay: typeof c.raceDay === "string" ? c.raceDay.slice(0,10)
+               : (c.raceDay?.toDate ? c.raceDay.toDate().toISOString().slice(0,10) : null),
+        raceStartTime: c.raceStartTime || null,
+        raceLocation:  c.raceLocation  || null,
+        catStartTime:  cat.startTime    || null,
+        catBibColor:   cat.bibColor      || null,
+        catName:       cat.name          || null,
+        bibPickupText: theme.bibPickupText || null,
+        ticketLeftLogo:  theme.ticketLeftLogo  || null,
+        ticketRightLogo: theme.ticketRightLogo || null
+      };
+      writeTicketCache(b);
+    }
+    if (b.raceDay) window.renderDate(b.raceDay);
+    const liveStart = b.catStartTime || b.raceStartTime || null;
     if (liveStart) window.renderStart(liveStart);
-    if (c.raceLocation) window.renderLoc(c.raceLocation);
-    if (cat.bibColor)   window.renderColor(cat.bibColor);
+    if (b.raceLocation) window.renderLoc(b.raceLocation);
+    if (b.catBibColor)  window.renderColor(b.catBibColor);
     // Refresh the category name + sub-question label if the admin renamed
     // them after this ticket URL was first generated.
-    if (cat.name) {
+    if (b.catName) {
       const subQ = params.get("subQuestionAnswer") || "";
-      window.set("cat", cat.name + (subQ ? " — " + subQ : ""));
+      window.set("cat", b.catName + (subQ ? " — " + subQ : ""));
     }
     // Bib pickup schedule — sourced from the same theme.bibPickupText the
-    // post-payment WhatsApp message uses, so editing once in admin updates
-    // both surfaces. The static HTML above already shows the default; this
-    // only overrides when the admin has typed a custom block.
-    const customPickup = (theme.bibPickupText || "").trim();
+    // post-payment WhatsApp message uses. The static HTML shows the default;
+    // this only overrides when the admin has typed a custom block.
+    const customPickup = (b.bibPickupText || "").trim();
     if (customPickup) {
       const el = document.getElementById("pickupSchedule");
       if (el) el.textContent = customPickup;
     }
-    // Sponsor / partner marks in the ticket header. Either side may be
-    // unset — only the slots the admin filled in light up. Accepts the
-    // legacy string format (just a data URL / src — corner-positioned by
-    // CSS) and the new object format ({src, x, y, scale} — exact position
-    // + size as dragged in admin, as % of the header).
-    applyTicketSponsor("sponsorLeft",  theme.ticketLeftLogo);
-    applyTicketSponsor("sponsorRight", theme.ticketRightLogo);
+    // Sponsor / partner marks in the ticket header (string or {src,x,y,scale}).
+    applyTicketSponsor("sponsorLeft",  b.ticketLeftLogo);
+    applyTicketSponsor("sponsorRight", b.ticketRightLogo);
   } catch (err) {
     // Stay with the URL-param values silently — they are the fallback.
     console.warn("live-ticket fetch failed, using URL values:", err);
