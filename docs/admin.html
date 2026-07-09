@@ -372,8 +372,16 @@
         <div class="filters-grid">
           <input type="search" id="confirmedSearch" placeholder="Search name, ref, phone, email…">
           <select id="confirmedCategoryFilter"><option value="">All categories</option></select>
+          <select id="confirmedSubCatFilter"><option value="">All sub-categories</option></select>
+          <select id="confirmedGenderFilter"><option value="">All genders</option></select>
+          <select id="confirmedTshirtFilter"><option value="">All T-shirt sizes</option></select>
+          <select id="confirmedPayType">
+            <option value="">Paid + Free</option>
+            <option value="paid">Paid only</option>
+            <option value="free">Free only</option>
+          </select>
           <select id="confirmedCheckedIn">
-            <option value="">All</option>
+            <option value="">All BIB statuses</option>
             <option value="no">BIB not received yet</option>
             <option value="yes">BIB received</option>
             <option value="scanned-not-received">Scanned, BIB not received</option>
@@ -2437,21 +2445,60 @@ function renderScannedAlert() {
   });
 }
 
-function renderConfirmedCategoryFilter() {
-  const sel = $("#confirmedCategoryFilter");
+// Populate a filter <select> with a fixed placeholder + the given distinct
+// values, preserving the current selection across re-renders.
+function fillConfirmedSelect(id, placeholder, values) {
+  const sel = $("#" + id);
   if (!sel) return;
   const current = sel.value;
-  sel.innerHTML = '<option value="">All categories</option>' +
-    cats.map(c => `<option value="${c.id}">${escapeHtml(c.name || c.id)}</option>`).join("");
+  sel.innerHTML = `<option value="">${escapeHtml(placeholder)}</option>` +
+    values.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("");
   sel.value = current;
 }
 
+// Order T-shirt sizes properly (S, M, L, XL…) instead of alphabetically.
+const TSHIRT_ORDER = ["XXS","XS","S","M","L","XL","XXL","2XL","XXXL","3XL","4XL"];
+function sortSizes(arr) {
+  return [...arr].sort((a, b) => {
+    const ia = TSHIRT_ORDER.indexOf(String(a).toUpperCase());
+    const ib = TSHIRT_ORDER.indexOf(String(b).toUpperCase());
+    if (ia === -1 && ib === -1) return String(a).localeCompare(String(b));
+    if (ia === -1) return 1;
+    if (ib === -1) return -1;
+    return ia - ib;
+  });
+}
+
+// Populate every dynamic Confirmed-tab filter from the live data.
+function renderConfirmedFilters() {
+  const catSel = $("#confirmedCategoryFilter");
+  if (catSel) {
+    const cur = catSel.value;
+    catSel.innerHTML = '<option value="">All categories</option>' +
+      cats.map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name || c.id)}</option>`).join("");
+    catSel.value = cur;
+  }
+  const src = confirmedSourceRegs();
+  const distinct = key => [...new Set(src.map(r => String(r[key] || "").trim()).filter(Boolean))];
+  fillConfirmedSelect("confirmedSubCatFilter", "All sub-categories", distinct("subQuestionAnswer").sort((a,b)=>a.localeCompare(b)));
+  fillConfirmedSelect("confirmedGenderFilter", "All genders",        distinct("gender").sort((a,b)=>a.localeCompare(b)));
+  fillConfirmedSelect("confirmedTshirtFilter", "All T-shirt sizes",  sortSizes(distinct("tshirtSize")));
+}
+
 function confirmedFiltered() {
-  const q = ($("#confirmedSearch")?.value || "").trim().toLowerCase();
-  const cat = $("#confirmedCategoryFilter")?.value || "";
-  const ci  = $("#confirmedCheckedIn")?.value || "";
+  const q       = ($("#confirmedSearch")?.value || "").trim().toLowerCase();
+  const cat     = $("#confirmedCategoryFilter")?.value || "";
+  const subcat  = $("#confirmedSubCatFilter")?.value || "";
+  const gender  = $("#confirmedGenderFilter")?.value || "";
+  const tshirt  = $("#confirmedTshirtFilter")?.value || "";
+  const payType = $("#confirmedPayType")?.value || "";
+  const ci      = $("#confirmedCheckedIn")?.value || "";
   return confirmedSourceRegs().filter(r => {
     if (cat && r.categoryId !== cat) return false;
+    if (subcat && String(r.subQuestionAnswer || "").trim() !== subcat) return false;
+    if (gender && String(r.gender || "").trim() !== gender) return false;
+    if (tshirt && String(r.tshirtSize || "").trim() !== tshirt) return false;
+    if (payType && r.paymentStatus !== payType) return false;
     if (ci === "yes" && !r.checkedInAt) return false;
     if (ci === "no"  &&  r.checkedInAt) return false;
     if (ci === "scanned-not-received" && !scannedNotReceived(r)) return false;
@@ -2484,7 +2531,7 @@ function confirmedSorted(rows) {
 function renderConfirmedTab() {
   renderConfirmedStats();
   renderScannedAlert();
-  renderConfirmedCategoryFilter();
+  renderConfirmedFilters();
   const tbody = $("#confirmedTable tbody");
   if (!tbody) return;
   const rows = confirmedSorted(confirmedFiltered());
@@ -4114,7 +4161,8 @@ async function revertToPending(r) {
 }
 
 // Wire confirmed-tab filters + sort
-["confirmedSearch","confirmedCategoryFilter","confirmedCheckedIn"].forEach(id => {
+["confirmedSearch","confirmedCategoryFilter","confirmedSubCatFilter","confirmedGenderFilter",
+ "confirmedTshirtFilter","confirmedPayType","confirmedCheckedIn"].forEach(id => {
   const el = document.getElementById(id);
   if (!el) return;
   const evt = el.tagName === "INPUT" ? "input" : "change";
