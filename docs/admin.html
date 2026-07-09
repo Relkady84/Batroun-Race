@@ -1690,6 +1690,7 @@ function startListeners() {
     snap => {
       cats = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       renderCategoryList(); renderCategoryFilter();
+      renderConfirmedFilters(); // repopulate the Confirmed tab's category dropdown too
       renderDiscountCatInputs(); renderDiscountList();
     },
     err => toast("Categories listener: " + err.message, true)
