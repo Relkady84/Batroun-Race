@@ -196,6 +196,19 @@
   #resultTable tr.podium-2 td:first-child{box-shadow:inset 4px 0 0 #c9cdd4}
   #resultTable tr.podium-3 td:first-child{box-shadow:inset 4px 0 0 #d08b46}
 
+  /* Result-tab pill sub-tabs (category / gender / age-category) */
+  .subtabs-wrap{background:rgba(0,0,0,.16);border:1px solid var(--line);border-radius:12px;
+                padding:12px 12px 4px;margin-bottom:14px}
+  .subtab-row{margin-bottom:10px}
+  .st-label{font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);
+            font-weight:700;margin-bottom:5px}
+  .subtabs{display:flex;flex-wrap:wrap;gap:6px}
+  .subtab{background:rgba(255,255,255,.04);color:var(--muted);border:1px solid var(--line);
+          border-radius:999px;padding:6px 15px;font-size:.86rem;font-weight:600;cursor:pointer;
+          white-space:nowrap;transition:background .12s,color .12s,border-color .12s}
+  .subtab:hover{color:var(--ink);border-color:var(--accent)}
+  .subtab.active{background:rgba(39,203,187,.16);color:var(--accent);border-color:var(--accent)}
+
   /* Sortable column headers */
   th.sortable{cursor:pointer;user-select:none;position:relative;padding-right:18px}
   th.sortable:hover{background:rgba(255,255,255,.06);color:var(--ink)}
@@ -428,20 +441,43 @@
     <!-- ============ Result (rankings) ============ -->
     <section id="tab-result" class="tab">
       <div class="card">
-        <p class="muted" style="margin:0 0 12px">
-          Standings built from the <strong>rank + result</strong> imported in the Confirmed tab
-          (Import results). Pick a category (or <strong>All categories</strong>), then narrow by
-          <strong>gender</strong> (overall men / women) and/or <strong>sub-category</strong> (age
-          bracket) — everyone is sorted from 1st and the top 3 are highlighted
-          <span style="color:#ffcf40">gold</span>, <span style="color:#c9cdd4">silver</span>,
-          <span style="color:#d08b46">bronze</span>. Click a column header to re-sort (e.g. by rank).
-        </p>
-        <div class="filters-grid">
-          <select id="resultCategoryFilter"></select>
-          <select id="resultGenderFilter"><option value="">All (men + women)</option></select>
-          <select id="resultSubCatFilter"><option value="">All sub-categories</option></select>
-          <button id="resultExportBtn" class="btn sec">Export CSV</button>
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:14px">
+          <div style="flex:1;min-width:220px">
+            <h2 style="margin:0 0 3px">Results &amp; standings</h2>
+            <p class="muted" style="margin:0;font-size:.86rem">
+              Press <strong>Sync</strong> to build the standings from the <strong>rank + time</strong> you
+              imported in the Confirmed tab. Pick a <strong>category</strong>, then <strong>gender</strong>
+              and <strong>age category</strong> — the age-category ranking is calculated automatically and the
+              top 3 in each view are highlighted <span style="color:#ffcf40">gold</span> /
+              <span style="color:#c9cdd4">silver</span> / <span style="color:#d08b46">bronze</span>.
+            </p>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+            <button id="resultSyncBtn" class="btn">↻ Sync results</button>
+            <span class="muted" id="resultSyncStatus" style="font-size:.8rem"></span>
+          </div>
         </div>
+
+        <div class="subtabs-wrap" id="resultSubtabs" style="display:none">
+          <div class="subtab-row">
+            <div class="st-label">Category</div>
+            <div class="subtabs" id="resultCatTabs"></div>
+          </div>
+          <div class="subtab-row" id="resultGenderRow">
+            <div class="st-label">Gender</div>
+            <div class="subtabs" id="resultGenderTabs"></div>
+          </div>
+          <div class="subtab-row" id="resultAgeRow">
+            <div class="st-label">Age category</div>
+            <div class="subtabs" id="resultAgeTabs"></div>
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap">
+          <div class="muted" id="resultScopeLabel" style="font-size:.86rem;font-weight:600"></div>
+          <button id="resultExportBtn" class="btn sec" style="display:none">Export CSV</button>
+        </div>
+
         <div class="table-wrap">
           <table id="resultTable">
             <thead><tr>
@@ -453,7 +489,7 @@
               <th class="rsort" data-rsort="rank">Rank</th>
               <th class="rsort" data-rsort="result">Result</th>
             </tr></thead>
-            <tbody><tr><td colspan="7" class="empty">Pick a category to see its standings.</td></tr></tbody>
+            <tbody><tr><td colspan="7" class="empty">Press “↻ Sync results” to build the standings.</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -1763,7 +1799,7 @@ function startListeners() {
       cats = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       renderCategoryList(); renderCategoryFilter();
       renderConfirmedFilters(); // repopulate the Confirmed tab's category dropdown too
-      renderResultTab();        // Result tab category dropdown depends on cats
+      renderResultTab();        // Result tab category pills depend on cats
       renderDiscountCatInputs(); renderDiscountList();
     },
     err => toast("Categories listener: " + err.message, true)
@@ -2887,104 +2923,179 @@ function sortResultObjs(rows) {
   return arr;
 }
 
-function renderResultFilters() {
-  const catSel = $("#resultCategoryFilter");
-  const subSel = $("#resultSubCatFilter");
-  if (!catSel || !subSel) return;
-  const catList = resultCategoriesWithPeople();
-  const curCat = catSel.value;
-  catSel.innerHTML = catList.length
-    ? [`<option value="__all__">All categories</option>`]
-        .concat(catList.map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name || c.id)}</option>`)).join("")
-    : `<option value="">No results yet</option>`;
-  // Keep selection if still valid, else default to the first real category.
-  const valid = ["__all__", ...catList.map(c => c.id)];
-  catSel.value = valid.includes(curCat) ? curCat : (catList[0]?.id || "");
+// ---- Result tab: tabbed standings (category → gender → age category) ----
+// The Result tab is gated behind a Sync button. Sync reads the rank + time
+// imported in the Confirmed tab (already live in `regs`, so no extra Firestore
+// reads) and builds the standings. Age-category rankings are CALCULATED on the
+// fly: within each category → gender → age-bracket slice the runners are
+// re-ordered from 1st, so the "#" position is that slice's own ranking while
+// the "Rank" column keeps the imported overall-category rank.
+let resultSynced = false;
+let resultSel = { catId: "", gender: "", age: "" }; // gender "" = overall; age "" = all ages
 
-  const isAll = catSel.value === "__all__";
-  const cat = cats.find(c => c.id === catSel.value);
-  const isRelay = !isAll && !!cat?.isRelay;
-  const scope = isAll ? confirmedSourceRegs() : confirmedSourceRegs().filter(r => r.categoryId === catSel.value);
-
-  // Gender grouping (men / women) — hidden only for a single relay category.
-  const genSel = $("#resultGenderFilter");
-  if (genSel) {
-    if (isRelay) {
-      genSel.value = "";
-      genSel.style.display = "none";
-    } else {
-      genSel.style.display = "";
-      const curGen = genSel.value;
-      const genders = [...new Set(scope.map(r => String(r.gender || "").trim()).filter(Boolean))]
-        .sort((a, b) => a.localeCompare(b));
-      genSel.innerHTML = `<option value="">All (men + women)</option>` +
-        genders.map(g => `<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join("");
-      genSel.value = genders.includes(curGen) ? curGen : "";
-    }
-  }
-
-  // Sub-category options from the participants in scope.
-  const curSub = subSel.value;
-  const subs = [...new Set(scope.map(r => String(r.subQuestionAnswer || "").trim()).filter(Boolean))]
-    .sort((a, b) => a.localeCompare(b));
-  subSel.innerHTML = `<option value="">All sub-categories</option>` +
-    subs.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("");
-  subSel.value = subs.includes(curSub) ? curSub : "";
+// Normalise stored gender values ("Male"/"Female", "M"/"F", …) into the two
+// display buckets so the gender tabs read cleanly regardless of how it's stored.
+function genderBucket(g) {
+  const s = String(g || "").trim().toLowerCase();
+  if (!s) return "";
+  if (["m", "male", "man", "men", "homme", "boy"].includes(s)) return "Men";
+  if (["f", "w", "female", "woman", "women", "femme", "girl"].includes(s)) return "Women";
+  return String(g).trim(); // unknown value: keep it as its own bucket
 }
 
-// Rows for the current selection, sorted (default = rank). "All categories"
-// lists everyone across categories (adds a Category column, sortable).
-function resultRows() {
-  const catId = $("#resultCategoryFilter")?.value || "";
-  const isAll = catId === "__all__";
-  const subcat = $("#resultSubCatFilter")?.value || "";
-  const cat = cats.find(c => c.id === catId);
-  const singleRelay = !isAll && !!cat?.isRelay;
-  const gender = singleRelay ? "" : ($("#resultGenderFilter")?.value || "");
-  let src = isAll ? confirmedSourceRegs() : confirmedSourceRegs().filter(r => r.categoryId === catId);
-  if (gender) src = src.filter(r => String(r.gender || "").trim() === gender);
-  if (subcat) src = src.filter(r => String(r.subQuestionAnswer || "").trim() === subcat);
-  const rows = src.map(r => {
+// One normalised row per confirmed registration (relay teams show both names).
+function resultParticipants() {
+  return confirmedSourceRegs().map(r => {
     const c = cats.find(x => x.id === r.categoryId);
     const isRelay = !!c?.isRelay;
     const p1 = `${r.firstName || ""} ${r.lastName || ""}`.trim();
     const teammate = (isRelay && r.teammate)
       ? `${(r.teammate.firstName || "").trim()} ${(r.teammate.lastName || "").trim()}`.trim() : "";
     return {
+      id: r.id,
       name: teammate ? `${p1} + ${teammate}` : (p1 || "—"),
       bib: r.bibNumber ?? "—",
       gender: r.gender || "",
+      gbucket: isRelay ? "" : genderBucket(r.gender),
+      catId: r.categoryId,
       catName: r.categoryName || c?.name || r.categoryId || "—",
-      sub: r.subQuestionAnswer || "—",
+      isRelay,
+      sub: String(r.subQuestionAnswer || "").trim(),
       rank: (r.rank != null && r.rank !== "") ? String(r.rank) : "",
-      result: r.result || ""
+      result: r.result || "",
+      hasResult: !!((r.result && String(r.result).trim()) || (r.rank != null && r.rank !== ""))
     };
   });
-  return sortResultObjs(rows);
+}
+
+// The Sync action: (re)build standings from the imported data already in memory.
+function syncResults() {
+  const parts = resultParticipants();
+  const withResult = parts.filter(p => p.hasResult).length;
+  const catList = resultCategoriesWithPeople();
+  resultSynced = true;
+  const valid = ["__all__", ...catList.map(c => c.id)];
+  if (!valid.includes(resultSel.catId)) resultSel.catId = catList[0]?.id || "__all__";
+  resultSel.gender = ""; resultSel.age = "";
+  resultSort = { key: "rank", dir: "asc" };
+  renderResultTab();
+  toast(`Synced ${withResult} result${withResult === 1 ? "" : "s"} across ${catList.length} categor${catList.length === 1 ? "y" : "ies"}`);
+}
+
+// Build the three pill-tab rows from the current selection + data in scope.
+function renderResultTabs() {
+  const catList = resultCategoriesWithPeople();
+  const catBtns = [{ id: "__all__", name: "All categories" },
+                   ...catList.map(c => ({ id: c.id, name: c.name || c.id }))];
+  const valid = catBtns.map(c => c.id);
+  if (!valid.includes(resultSel.catId)) resultSel.catId = catBtns[0]?.id || "__all__";
+  const catTabs = $("#resultCatTabs");
+  if (catTabs) catTabs.innerHTML = catBtns.map(c =>
+    `<button class="subtab ${resultSel.catId === c.id ? "active" : ""}" data-rcat="${escapeHtml(c.id)}">${escapeHtml(c.name)}</button>`).join("");
+
+  const isAll = resultSel.catId === "__all__";
+  const cat = cats.find(c => c.id === resultSel.catId);
+  const isRelay = !isAll && !!cat?.isRelay;
+  const scope = isAll ? resultParticipants() : resultParticipants().filter(p => p.catId === resultSel.catId);
+
+  // Gender row — hidden for a single relay category (teams have no gender split).
+  const genderRow = $("#resultGenderRow");
+  if (isRelay) {
+    if (genderRow) genderRow.style.display = "none";
+    resultSel.gender = "";
+  } else if (genderRow) {
+    genderRow.style.display = "";
+    const buckets = [...new Set(scope.map(p => p.gbucket).filter(Boolean))];
+    const ord = g => g === "Men" ? 0 : g === "Women" ? 1 : 2;
+    buckets.sort((a, b) => ord(a) - ord(b) || a.localeCompare(b));
+    if (!buckets.includes(resultSel.gender)) resultSel.gender = "";
+    const gTabs = [{ v: "", label: "Overall" }, ...buckets.map(g => ({ v: g, label: g }))];
+    const el = $("#resultGenderTabs");
+    if (el) el.innerHTML = gTabs.map(g =>
+      `<button class="subtab ${resultSel.gender === g.v ? "active" : ""}" data-rgender="${escapeHtml(g.v)}">${escapeHtml(g.label)}</button>`).join("");
+  }
+
+  // Age-category row — from the sub-categories present in the current gender scope.
+  const ageRow = $("#resultAgeRow");
+  const genderScope = resultSel.gender ? scope.filter(p => p.gbucket === resultSel.gender) : scope;
+  const ages = [...new Set(genderScope.map(p => p.sub).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  if (!ages.length) {
+    if (ageRow) ageRow.style.display = "none";
+    resultSel.age = "";
+  } else if (ageRow) {
+    ageRow.style.display = "";
+    if (!ages.includes(resultSel.age)) resultSel.age = "";
+    const aTabs = [{ v: "", label: "All ages" }, ...ages.map(a => ({ v: a, label: a }))];
+    const el = $("#resultAgeTabs");
+    if (el) el.innerHTML = aTabs.map(a =>
+      `<button class="subtab ${resultSel.age === a.v ? "active" : ""}" data-rage="${escapeHtml(a.v)}">${escapeHtml(a.label)}</button>`).join("");
+  }
+}
+
+// Rows for the currently selected slice, sorted (default = rank → the computed
+// standings order). "All categories" adds a sortable Category column.
+function resultSliceRows() {
+  const isAll = resultSel.catId === "__all__";
+  let src = isAll ? resultParticipants() : resultParticipants().filter(p => p.catId === resultSel.catId);
+  if (resultSel.gender) src = src.filter(p => p.gbucket === resultSel.gender);
+  if (resultSel.age) src = src.filter(p => p.sub === resultSel.age);
+  return sortResultObjs(src);
 }
 
 function renderResultTab() {
-  renderResultFilters();
   const table = $("#resultTable");
   const tbody = $("#resultTable tbody");
   if (!tbody) return;
-  const catId = $("#resultCategoryFilter")?.value || "";
-  const isAll = catId === "__all__";
+  const wrap = $("#resultSubtabs");
+  const exportBtn = $("#resultExportBtn");
+  const scopeLabel = $("#resultScopeLabel");
+  const status = $("#resultSyncStatus");
+
+  const totalConfirmed = confirmedSourceRegs().length;
+  const withResult = resultParticipants().filter(p => p.hasResult).length;
+  if (status) status.textContent = resultSynced
+    ? `${withResult} of ${totalConfirmed} confirmed have a result`
+    : (totalConfirmed ? `${totalConfirmed} confirmed · press Sync` : "No confirmed participants yet");
+
+  // Before the first Sync: hide the tabs and show a prompt.
+  if (!resultSynced) {
+    if (wrap) wrap.style.display = "none";
+    if (exportBtn) exportBtn.style.display = "none";
+    if (scopeLabel) scopeLabel.textContent = "";
+    if (table) table.classList.remove("show-cat");
+    tbody.innerHTML = `<tr><td colspan="7" class="empty" style="padding:32px 10px">${
+      totalConfirmed
+        ? `Press <strong>↻ Sync results</strong> above to build the standings from the imported ranks &amp; times.`
+        : `No confirmed participants yet. Confirm payments and import results in the Confirmed tab first.`
+    }</td></tr>`;
+    return;
+  }
+
+  if (wrap) wrap.style.display = "";
+  renderResultTabs();
+
+  const isAll = resultSel.catId === "__all__";
   if (table) table.classList.toggle("show-cat", isAll);
   document.querySelectorAll('#resultTable th.rsort').forEach(th => {
     th.classList.remove("sorted-asc", "sorted-desc");
     if (th.dataset.rsort === resultSort.key) th.classList.add(resultSort.dir === "asc" ? "sorted-asc" : "sorted-desc");
   });
-  if (!catId) {
-    tbody.innerHTML = `<tr><td colspan="7" class="empty">No confirmed participants yet.</td></tr>`;
-    return;
-  }
-  const rows = resultRows();
+
+  const rows = resultSliceRows();
+  const catName = isAll ? "All categories" : (cats.find(c => c.id === resultSel.catId)?.name || resultSel.catId);
+  const bits = [catName];
+  if (resultSel.gender) bits.push(resultSel.gender);
+  if (resultSel.age) bits.push(resultSel.age);
+  if (scopeLabel) scopeLabel.textContent = `${bits.join("  ·  ")} — ${rows.length} ${rows.length === 1 ? "runner" : "runners"}`;
+  if (exportBtn) exportBtn.style.display = rows.length ? "" : "none";
+
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="7" class="empty">No participants in this selection.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="empty">No runners in this selection.</td></tr>`;
     return;
   }
-  // Podium highlight only for a single category in its natural rank order.
+  // Podium highlight only for a single-category slice in its natural (computed)
+  // rank order — not the sortable "All categories" view or a re-sorted column.
   const podium = !isAll && resultSort.key === "rank" && resultSort.dir === "asc";
   tbody.innerHTML = rows.map((row, i) => `
     <tr class="${podium && i < 3 ? `podium-${i + 1}` : ""}">
@@ -2992,17 +3103,35 @@ function renderResultTab() {
       <td>${escapeHtml(row.name)}</td>
       <td>${escapeHtml(String(row.bib))}</td>
       <td class="col-cat">${escapeHtml(row.catName)}</td>
-      <td>${escapeHtml(row.sub)}</td>
+      <td>${escapeHtml(row.sub || "—")}</td>
       <td>${row.rank ? escapeHtml(row.rank) : `<span class="muted">—</span>`}</td>
       <td>${row.result ? `<strong>${escapeHtml(row.result)}</strong>` : `<span class="muted">—</span>`}</td>
     </tr>`).join("");
 }
 
-["resultCategoryFilter","resultGenderFilter","resultSubCatFilter"].forEach(id => {
-  document.getElementById(id)?.addEventListener("change", renderResultTab);
+document.getElementById("resultSyncBtn")?.addEventListener("click", syncResults);
+
+// Pill-tab clicks (delegated). Category resets gender+age; gender resets age.
+document.getElementById("resultCatTabs")?.addEventListener("click", e => {
+  const b = e.target.closest("[data-rcat]"); if (!b) return;
+  resultSel.catId = b.dataset.rcat; resultSel.gender = ""; resultSel.age = "";
+  resultSort = { key: "rank", dir: "asc" };
+  renderResultTab();
 });
+document.getElementById("resultGenderTabs")?.addEventListener("click", e => {
+  const b = e.target.closest("[data-rgender]"); if (!b) return;
+  resultSel.gender = b.dataset.rgender; resultSel.age = "";
+  renderResultTab();
+});
+document.getElementById("resultAgeTabs")?.addEventListener("click", e => {
+  const b = e.target.closest("[data-rage]"); if (!b) return;
+  resultSel.age = b.dataset.rage;
+  renderResultTab();
+});
+
 document.querySelectorAll('#resultTable thead th.rsort').forEach(th => {
   th.addEventListener("click", () => {
+    if (!resultSynced) return;
     const key = th.dataset.rsort;
     if (resultSort.key === key) resultSort.dir = resultSort.dir === "asc" ? "desc" : "asc";
     else { resultSort.key = key; resultSort.dir = "asc"; }
@@ -3011,16 +3140,18 @@ document.querySelectorAll('#resultTable thead th.rsort').forEach(th => {
 });
 
 document.getElementById("resultExportBtn")?.addEventListener("click", () => {
-  const rows = resultRows();
+  const rows = resultSliceRows();
   if (!rows.length) { toast("Nothing to export"); return; }
-  const catName = $("#resultCategoryFilter")?.selectedOptions?.[0]?.textContent || "results";
+  const isAll = resultSel.catId === "__all__";
+  const catName = isAll ? "all-categories" : (cats.find(c => c.id === resultSel.catId)?.name || resultSel.catId);
+  const scopeBits = [catName, resultSel.gender, resultSel.age].filter(Boolean).join("-");
   const headers = ["position","name","bib","gender","category","subCategory","rank","result"];
   const csv = [headers.join(",")].concat(rows.map((row, i) =>
     [i + 1, row.name, row.bib, row.gender, row.catName, row.sub, row.rank, row.result].map(csvCell).join(","))).join("\n");
   const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = `batroun-race-results-${catName.replace(/[^a-z0-9]+/gi,"-").toLowerCase()}-${new Date().toISOString().slice(0,10)}.csv`;
+  a.download = `batroun-race-results-${scopeBits.replace(/[^a-z0-9]+/gi,"-").toLowerCase()}-${new Date().toISOString().slice(0,10)}.csv`;
   a.click();
   URL.revokeObjectURL(a.href);
 });

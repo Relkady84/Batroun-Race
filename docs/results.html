@@ -15,15 +15,26 @@
   html,body{margin:0;min-height:100%;background:linear-gradient(180deg,var(--bg1),var(--bg2));
             color:var(--ink);font:15px/1.55 'Inter',system-ui,-apple-system,Segoe UI,Roboto;
             -webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%}
-  .wrap{max-width:820px;margin:0 auto;padding:max(16px,env(safe-area-inset-top)) 14px 40px}
+  .wrap{max-width:860px;margin:0 auto;padding:max(16px,env(safe-area-inset-top)) 14px 40px}
   header{text-align:center;margin:8px 0 18px}
   .brand{font-weight:900;font-size:.74rem;letter-spacing:.22em;text-transform:uppercase;color:var(--accent);margin:0}
   h1{margin:4px 0 0;font-size:clamp(22px,6vw,32px);font-weight:900}
   .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px}
-  .filters{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:12px}
-  select{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--line);
-         background:rgba(4,14,28,.6);color:var(--ink);font:inherit;outline:none}
-  .legend{font-size:.82rem;color:var(--muted);margin:0 0 10px}
+
+  /* Pill sub-tabs (category / gender / age category) */
+  .subtabs-wrap{background:rgba(0,0,0,.16);border:1px solid var(--line);border-radius:12px;
+                padding:12px 12px 4px;margin-bottom:14px}
+  .subtab-row{margin-bottom:10px}
+  .st-label{font-size:.68rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);
+            font-weight:700;margin-bottom:5px}
+  .subtabs{display:flex;flex-wrap:wrap;gap:6px}
+  .subtab{background:rgba(255,255,255,.04);color:var(--muted);border:1px solid var(--line);
+          border-radius:999px;padding:6px 15px;font-size:.86rem;font-weight:700;cursor:pointer;
+          white-space:nowrap;transition:background .12s,color .12s,border-color .12s;font-family:inherit}
+  .subtab:hover{color:var(--ink);border-color:var(--accent)}
+  .subtab.active{background:rgba(61,214,198,.16);color:var(--accent);border-color:var(--accent)}
+
+  .legend{font-size:.82rem;color:var(--muted);margin:0 0 10px;font-weight:600}
   .table-wrap{overflow-x:auto}
   table{width:100%;border-collapse:collapse;font-size:.92rem}
   th,td{padding:9px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
@@ -51,10 +62,19 @@
   </header>
 
   <div class="card">
-    <div class="filters">
-      <select id="catSel"></select>
-      <select id="genSel"><option value="">All (men + women)</option></select>
-      <select id="subSel"><option value="">All sub-categories</option></select>
+    <div class="subtabs-wrap" id="subtabs" style="display:none">
+      <div class="subtab-row">
+        <div class="st-label">Category</div>
+        <div class="subtabs" id="catTabs"></div>
+      </div>
+      <div class="subtab-row" id="genderRow">
+        <div class="st-label">Gender</div>
+        <div class="subtabs" id="genderTabs"></div>
+      </div>
+      <div class="subtab-row" id="ageRow">
+        <div class="st-label">Age category</div>
+        <div class="subtabs" id="ageTabs"></div>
+      </div>
     </div>
     <p class="legend">🥇 1st · 🥈 2nd · 🥉 3rd</p>
     <div class="table-wrap">
@@ -93,7 +113,19 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
 let ENTRIES = [], CATS = [];
+let SEL = { catId: "", gender: "", age: "" };  // gender "" = overall; age "" = all ages
 let SORT = { key:"rank", dir:"asc" };
+
+// Same gender buckets as the admin standings.
+function genderBucket(g){
+  const s = String(g||"").trim().toLowerCase();
+  if (!s) return "";
+  if (["m","male","man","men","homme","boy"].includes(s)) return "Men";
+  if (["f","w","female","woman","women","femme","girl"].includes(s)) return "Women";
+  return String(g).trim();
+}
+function catIsRelay(id){ return !!(CATS.find(c => c.id === id)?.isRelay); }
+function gb(e){ return catIsRelay(e.catId) ? "" : genderBucket(e.gender); }
 
 function rankCmp(a,b){
   const ra = Number(a.rank), rb = Number(b.rank);
@@ -111,50 +143,63 @@ function sortRows(rows){
   return arr;
 }
 
-function fillSelect(sel, placeholder, values, keep){
-  const cur = keep ? sel.value : "";
-  sel.innerHTML = `<option value="">${esc(placeholder)}</option>` +
-    values.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join("");
-  if (values.includes(cur)) sel.value = cur;
-}
-
-function refreshFilters(){
-  const catSel = $("#catSel"), genSel = $("#genSel"), subSel = $("#subSel");
+function renderTabs(){
   const catIds = [...new Set(ENTRIES.map(e => e.catId))];
   const catOpts = CATS.filter(c => catIds.includes(c.id));
-  const curCat = catSel.value;
-  catSel.innerHTML = catOpts.length
-    ? [`<option value="__all__">All categories</option>`]
-        .concat(catOpts.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`)).join("")
-    : `<option value="">No results yet</option>`;
-  const valid = ["__all__", ...catOpts.map(c => c.id)];
-  catSel.value = valid.includes(curCat) ? curCat : (catOpts[0]?.id || "");
+  const catBtns = [{ id:"__all__", name:"All categories" },
+                   ...catOpts.map(c => ({ id:c.id, name:c.name }))];
+  const valid = catBtns.map(c => c.id);
+  if (!valid.includes(SEL.catId)) SEL.catId = catBtns[0]?.id || "__all__";
+  $("#catTabs").innerHTML = catBtns.map(c =>
+    `<button class="subtab ${SEL.catId===c.id?"active":""}" data-cat="${esc(c.id)}">${esc(c.name)}</button>`).join("");
 
-  const isAll = catSel.value === "__all__";
-  const scope = isAll ? ENTRIES : ENTRIES.filter(e => e.catId === catSel.value);
-  const isRelay = !isAll && !!(catOpts.find(c => c.id === catSel.value)?.isRelay);
-  genSel.style.display = isRelay ? "none" : "";
-  if (isRelay) genSel.value = "";
-  else fillSelect(genSel, "All (men + women)", [...new Set(scope.map(e => String(e.gender||"").trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b)), true);
-  fillSelect(subSel, "All sub-categories", [...new Set(scope.map(e => String(e.sub||"").trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b)), true);
+  const isAll = SEL.catId === "__all__";
+  const isRelay = !isAll && catIsRelay(SEL.catId);
+  const scope = isAll ? ENTRIES : ENTRIES.filter(e => e.catId === SEL.catId);
+
+  const genderRow = $("#genderRow");
+  if (isRelay){
+    genderRow.style.display = "none";
+    SEL.gender = "";
+  } else {
+    genderRow.style.display = "";
+    const buckets = [...new Set(scope.map(gb).filter(Boolean))];
+    const ord = g => g==="Men"?0 : g==="Women"?1 : 2;
+    buckets.sort((a,b) => ord(a)-ord(b) || a.localeCompare(b));
+    if (!buckets.includes(SEL.gender)) SEL.gender = "";
+    const tabs = [{v:"",label:"Overall"}, ...buckets.map(g=>({v:g,label:g}))];
+    $("#genderTabs").innerHTML = tabs.map(t =>
+      `<button class="subtab ${SEL.gender===t.v?"active":""}" data-gender="${esc(t.v)}">${esc(t.label)}</button>`).join("");
+  }
+
+  const ageRow = $("#ageRow");
+  const gScope = SEL.gender ? scope.filter(e => gb(e) === SEL.gender) : scope;
+  const ages = [...new Set(gScope.map(e => String(e.sub||"").trim()).filter(Boolean))]
+    .sort((a,b) => a.localeCompare(b, undefined, { numeric:true }));
+  if (!ages.length){
+    ageRow.style.display = "none";
+    SEL.age = "";
+  } else {
+    ageRow.style.display = "";
+    if (!ages.includes(SEL.age)) SEL.age = "";
+    const tabs = [{v:"",label:"All ages"}, ...ages.map(a=>({v:a,label:a}))];
+    $("#ageTabs").innerHTML = tabs.map(t =>
+      `<button class="subtab ${SEL.age===t.v?"active":""}" data-age="${esc(t.v)}">${esc(t.label)}</button>`).join("");
+  }
 }
 
 function render(){
-  refreshFilters();
-  const catId = $("#catSel").value;
-  const isAll = catId === "__all__";
-  const gender = $("#genSel").style.display === "none" ? "" : $("#genSel").value;
-  const sub = $("#subSel").value;
+  renderTabs();
+  const isAll = SEL.catId === "__all__";
   const tb = $("#rows");
   document.getElementById("tbl").classList.toggle("show-cat", isAll);
   document.querySelectorAll("th.s").forEach(th => {
     th.classList.remove("asc","desc");
     if (th.dataset.s === SORT.key) th.classList.add(SORT.dir);
   });
-  if (!catId){ tb.innerHTML = `<tr><td colspan="7" class="empty">Results not published yet.</td></tr>`; return; }
-  let rows = isAll ? ENTRIES.slice() : ENTRIES.filter(e => e.catId === catId);
-  if (gender) rows = rows.filter(e => String(e.gender||"").trim() === gender);
-  if (sub) rows = rows.filter(e => String(e.sub||"").trim() === sub);
+  let rows = isAll ? ENTRIES.slice() : ENTRIES.filter(e => e.catId === SEL.catId);
+  if (SEL.gender) rows = rows.filter(e => gb(e) === SEL.gender);
+  if (SEL.age) rows = rows.filter(e => String(e.sub||"").trim() === SEL.age);
   rows = sortRows(rows);
   if (!rows.length){ tb.innerHTML = `<tr><td colspan="7" class="empty">No results in this selection.</td></tr>`; return; }
   const podium = !isAll && SORT.key === "rank" && SORT.dir === "asc";
@@ -170,7 +215,23 @@ function render(){
     </tr>`).join("");
 }
 
-["catSel","genSel","subSel"].forEach(id => document.getElementById(id).addEventListener("change", render));
+// Pill-tab clicks (delegated). Category resets gender+age; gender resets age.
+$("#catTabs").addEventListener("click", e => {
+  const b = e.target.closest("[data-cat]"); if (!b) return;
+  SEL.catId = b.dataset.cat; SEL.gender = ""; SEL.age = "";
+  SORT = { key:"rank", dir:"asc" };
+  render();
+});
+$("#genderTabs").addEventListener("click", e => {
+  const b = e.target.closest("[data-gender]"); if (!b) return;
+  SEL.gender = b.dataset.gender; SEL.age = "";
+  render();
+});
+$("#ageTabs").addEventListener("click", e => {
+  const b = e.target.closest("[data-age]"); if (!b) return;
+  SEL.age = b.dataset.age;
+  render();
+});
 document.querySelectorAll("th.s").forEach(th => th.addEventListener("click", () => {
   const k = th.dataset.s;
   if (SORT.key === k) SORT.dir = SORT.dir === "asc" ? "desc" : "asc";
@@ -183,18 +244,19 @@ document.querySelectorAll("th.s").forEach(th => th.addEventListener("click", () 
     const snap = await getDoc(doc(db, "competitions", COMPETITION_ID, "config", "publicResults"));
     const data = snap.exists() ? snap.data() : {};
     if (!data.published || !Array.isArray(data.entries) || !data.entries.length) {
-      $("#rows").innerHTML = `<tr><td colspan="6" class="empty">Results aren't published yet. Please check back later.</td></tr>`;
+      $("#rows").innerHTML = `<tr><td colspan="7" class="empty">Results aren't published yet. Please check back later.</td></tr>`;
       return;
     }
     ENTRIES = data.entries;
     CATS = Array.isArray(data.categories) ? data.categories : [];
+    $("#subtabs").style.display = "";
     render();
     if (data.updatedAt?.toDate) {
       $("#updated").textContent = "Last updated " + data.updatedAt.toDate().toLocaleString("en-GB");
     }
   } catch (err) {
     console.warn("results load failed:", err);
-    $("#rows").innerHTML = `<tr><td colspan="6" class="empty">Couldn't load results. Please try again later.</td></tr>`;
+    $("#rows").innerHTML = `<tr><td colspan="7" class="empty">Couldn't load results. Please try again later.</td></tr>`;
   }
 })();
 </script>
