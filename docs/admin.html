@@ -185,6 +185,9 @@
   .filters-grid input,.filters-grid select{padding:8px 10px;font-size:.92rem}
   .filters-grid button{padding:8px 12px;font-size:.92rem;white-space:nowrap}
 
+  /* Result-tab: hide the Category column unless in the "All categories" view */
+  #resultTable:not(.show-cat) .col-cat{display:none}
+  #resultTable th.rsort{cursor:pointer}
   /* Result-tab podium highlighting (top 3) */
   #resultTable tr.podium-1 td{background:rgba(255,207,64,.16)}
   #resultTable tr.podium-2 td{background:rgba(201,205,212,.16)}
@@ -426,10 +429,12 @@
     <section id="tab-result" class="tab">
       <div class="card">
         <p class="muted" style="margin:0 0 12px">
-          Standings per category, built from the <strong>rank + result</strong> imported in the
-          Confirmed tab (Import results). Pick a category — and optionally a sub-category — to see
-          everyone sorted from 1st. The top 3 are highlighted <span style="color:#ffcf40">gold</span>,
-          <span style="color:#c9cdd4">silver</span>, <span style="color:#d08b46">bronze</span>.
+          Standings built from the <strong>rank + result</strong> imported in the Confirmed tab
+          (Import results). Pick a category (or <strong>All categories</strong>), then narrow by
+          <strong>gender</strong> (overall men / women) and/or <strong>sub-category</strong> (age
+          bracket) — everyone is sorted from 1st and the top 3 are highlighted
+          <span style="color:#ffcf40">gold</span>, <span style="color:#c9cdd4">silver</span>,
+          <span style="color:#d08b46">bronze</span>. Click a column header to re-sort (e.g. by rank).
         </p>
         <div class="filters-grid">
           <select id="resultCategoryFilter"></select>
@@ -441,13 +446,14 @@
           <table id="resultTable">
             <thead><tr>
               <th>#</th>
-              <th>Name</th>
-              <th>Bib</th>
-              <th>Sub-category</th>
-              <th>Rank</th>
-              <th>Result</th>
+              <th class="rsort" data-rsort="name">Name</th>
+              <th class="rsort" data-rsort="bib">Bib</th>
+              <th class="col-cat rsort" data-rsort="catName">Category</th>
+              <th class="rsort" data-rsort="sub">Sub-category</th>
+              <th class="rsort" data-rsort="rank">Rank</th>
+              <th class="rsort" data-rsort="result">Result</th>
             </tr></thead>
-            <tbody><tr><td colspan="6" class="empty">Pick a category to see its standings.</td></tr></tbody>
+            <tbody><tr><td colspan="7" class="empty">Pick a category to see its standings.</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -2862,6 +2868,25 @@ function resultCategoriesWithPeople() {
   return cats.filter(c => ids.has(c.id));
 }
 
+// Sorting for the Result tab. Default = rank (the standings order). Clicking a
+// column header re-sorts (used mainly by the "All categories" view).
+let resultSort = { key: "rank", dir: "asc" };
+function compareRowRank(a, b) {
+  const ra = Number(a.rank), rb = Number(b.rank);
+  const ka = Number.isFinite(ra) ? ra : Infinity, kb = Number.isFinite(rb) ? rb : Infinity;
+  if (ka !== kb) return ka - kb;
+  const sa = String(a.result || ""), sb = String(b.result || "");
+  if (sa && sb) return sa.localeCompare(sb, undefined, { numeric: true });
+  if (sa) return -1; if (sb) return 1; return 0;
+}
+function sortResultObjs(rows) {
+  const k = resultSort.key, sign = resultSort.dir === "asc" ? 1 : -1;
+  const arr = rows.slice();
+  if (k === "rank") arr.sort((a, b) => sign * compareRowRank(a, b));
+  else arr.sort((a, b) => sign * String(a[k] ?? "").localeCompare(String(b[k] ?? ""), undefined, { numeric: true, sensitivity: "base" }));
+  return arr;
+}
+
 function renderResultFilters() {
   const catSel = $("#resultCategoryFilter");
   const subSel = $("#resultSubCatFilter");
@@ -2869,17 +2894,19 @@ function renderResultFilters() {
   const catList = resultCategoriesWithPeople();
   const curCat = catSel.value;
   catSel.innerHTML = catList.length
-    ? catList.map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name || c.id)}</option>`).join("")
+    ? [`<option value="__all__">All categories</option>`]
+        .concat(catList.map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name || c.id)}</option>`)).join("")
     : `<option value="">No results yet</option>`;
-  // Keep selection if still valid, else default to the first category.
-  catSel.value = catList.some(c => c.id === curCat) ? curCat : (catList[0]?.id || "");
+  // Keep selection if still valid, else default to the first real category.
+  const valid = ["__all__", ...catList.map(c => c.id)];
+  catSel.value = valid.includes(curCat) ? curCat : (catList[0]?.id || "");
 
-  const inCat = confirmedSourceRegs().filter(r => r.categoryId === catSel.value);
+  const isAll = catSel.value === "__all__";
   const cat = cats.find(c => c.id === catSel.value);
-  const isRelay = !!cat?.isRelay;
+  const isRelay = !isAll && !!cat?.isRelay;
+  const scope = isAll ? confirmedSourceRegs() : confirmedSourceRegs().filter(r => r.categoryId === catSel.value);
 
-  // Gender grouping (men / women) — for individual categories only; hidden
-  // for relay teams (a team can be mixed).
+  // Gender grouping (men / women) — hidden only for a single relay category.
   const genSel = $("#resultGenderFilter");
   if (genSel) {
     if (isRelay) {
@@ -2888,7 +2915,7 @@ function renderResultFilters() {
     } else {
       genSel.style.display = "";
       const curGen = genSel.value;
-      const genders = [...new Set(inCat.map(r => String(r.gender || "").trim()).filter(Boolean))]
+      const genders = [...new Set(scope.map(r => String(r.gender || "").trim()).filter(Boolean))]
         .sort((a, b) => a.localeCompare(b));
       genSel.innerHTML = `<option value="">All (men + women)</option>` +
         genders.map(g => `<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join("");
@@ -2896,28 +2923,30 @@ function renderResultFilters() {
     }
   }
 
-  // Sub-category options come from the chosen category's participants.
+  // Sub-category options from the participants in scope.
   const curSub = subSel.value;
-  const subs = [...new Set(inCat.map(r => String(r.subQuestionAnswer || "").trim()).filter(Boolean))]
+  const subs = [...new Set(scope.map(r => String(r.subQuestionAnswer || "").trim()).filter(Boolean))]
     .sort((a, b) => a.localeCompare(b));
   subSel.innerHTML = `<option value="">All sub-categories</option>` +
     subs.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("");
   subSel.value = subs.includes(curSub) ? curSub : "";
 }
 
-// Rows for the selected category (+ sub-category), sorted from 1st. For a
-// relay category, each team is one row with both names (they share the bib).
+// Rows for the current selection, sorted (default = rank). "All categories"
+// lists everyone across categories (adds a Category column, sortable).
 function resultRows() {
   const catId = $("#resultCategoryFilter")?.value || "";
+  const isAll = catId === "__all__";
   const subcat = $("#resultSubCatFilter")?.value || "";
   const cat = cats.find(c => c.id === catId);
-  const isRelay = !!cat?.isRelay;
-  const gender = isRelay ? "" : ($("#resultGenderFilter")?.value || "");
-  let src = confirmedSourceRegs().filter(r => r.categoryId === catId);
+  const singleRelay = !isAll && !!cat?.isRelay;
+  const gender = singleRelay ? "" : ($("#resultGenderFilter")?.value || "");
+  let src = isAll ? confirmedSourceRegs() : confirmedSourceRegs().filter(r => r.categoryId === catId);
   if (gender) src = src.filter(r => String(r.gender || "").trim() === gender);
   if (subcat) src = src.filter(r => String(r.subQuestionAnswer || "").trim() === subcat);
-  src = [...src].sort(compareResults);
-  return src.map(r => {
+  const rows = src.map(r => {
+    const c = cats.find(x => x.id === r.categoryId);
+    const isRelay = !!c?.isRelay;
     const p1 = `${r.firstName || ""} ${r.lastName || ""}`.trim();
     const teammate = (isRelay && r.teammate)
       ? `${(r.teammate.firstName || "").trim()} ${(r.teammate.lastName || "").trim()}`.trim() : "";
@@ -2925,31 +2954,44 @@ function resultRows() {
       name: teammate ? `${p1} + ${teammate}` : (p1 || "—"),
       bib: r.bibNumber ?? "—",
       gender: r.gender || "",
+      catName: r.categoryName || c?.name || r.categoryId || "—",
       sub: r.subQuestionAnswer || "—",
       rank: (r.rank != null && r.rank !== "") ? String(r.rank) : "",
       result: r.result || ""
     };
   });
+  return sortResultObjs(rows);
 }
 
 function renderResultTab() {
   renderResultFilters();
+  const table = $("#resultTable");
   const tbody = $("#resultTable tbody");
   if (!tbody) return;
-  if (!$("#resultCategoryFilter")?.value) {
-    tbody.innerHTML = `<tr><td colspan="6" class="empty">No confirmed participants yet.</td></tr>`;
+  const catId = $("#resultCategoryFilter")?.value || "";
+  const isAll = catId === "__all__";
+  if (table) table.classList.toggle("show-cat", isAll);
+  document.querySelectorAll('#resultTable th.rsort').forEach(th => {
+    th.classList.remove("sorted-asc", "sorted-desc");
+    if (th.dataset.rsort === resultSort.key) th.classList.add(resultSort.dir === "asc" ? "sorted-asc" : "sorted-desc");
+  });
+  if (!catId) {
+    tbody.innerHTML = `<tr><td colspan="7" class="empty">No confirmed participants yet.</td></tr>`;
     return;
   }
   const rows = resultRows();
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="6" class="empty">No participants in this selection.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="empty">No participants in this selection.</td></tr>`;
     return;
   }
+  // Podium highlight only for a single category in its natural rank order.
+  const podium = !isAll && resultSort.key === "rank" && resultSort.dir === "asc";
   tbody.innerHTML = rows.map((row, i) => `
-    <tr class="${i < 3 ? `podium-${i + 1}` : ""}">
-      <td><strong>${i + 1}</strong>${i < 3 ? ` ${["🥇","🥈","🥉"][i]}` : ""}</td>
+    <tr class="${podium && i < 3 ? `podium-${i + 1}` : ""}">
+      <td><strong>${i + 1}</strong>${podium && i < 3 ? ` ${["🥇","🥈","🥉"][i]}` : ""}</td>
       <td>${escapeHtml(row.name)}</td>
       <td>${escapeHtml(String(row.bib))}</td>
+      <td class="col-cat">${escapeHtml(row.catName)}</td>
       <td>${escapeHtml(row.sub)}</td>
       <td>${row.rank ? escapeHtml(row.rank) : `<span class="muted">—</span>`}</td>
       <td>${row.result ? `<strong>${escapeHtml(row.result)}</strong>` : `<span class="muted">—</span>`}</td>
@@ -2959,14 +3001,22 @@ function renderResultTab() {
 ["resultCategoryFilter","resultGenderFilter","resultSubCatFilter"].forEach(id => {
   document.getElementById(id)?.addEventListener("change", renderResultTab);
 });
+document.querySelectorAll('#resultTable thead th.rsort').forEach(th => {
+  th.addEventListener("click", () => {
+    const key = th.dataset.rsort;
+    if (resultSort.key === key) resultSort.dir = resultSort.dir === "asc" ? "desc" : "asc";
+    else { resultSort.key = key; resultSort.dir = "asc"; }
+    renderResultTab();
+  });
+});
 
 document.getElementById("resultExportBtn")?.addEventListener("click", () => {
   const rows = resultRows();
   if (!rows.length) { toast("Nothing to export"); return; }
   const catName = $("#resultCategoryFilter")?.selectedOptions?.[0]?.textContent || "results";
-  const headers = ["position","name","bib","gender","subCategory","rank","result"];
+  const headers = ["position","name","bib","gender","category","subCategory","rank","result"];
   const csv = [headers.join(",")].concat(rows.map((row, i) =>
-    [i + 1, row.name, row.bib, row.gender, row.sub, row.rank, row.result].map(csvCell).join(","))).join("\n");
+    [i + 1, row.name, row.bib, row.gender, row.catName, row.sub, row.rank, row.result].map(csvCell).join(","))).join("\n");
   const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);

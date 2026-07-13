@@ -29,6 +29,8 @@
   th,td{padding:9px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
   th{color:var(--muted);font-weight:700;font-size:.8rem;text-transform:uppercase;letter-spacing:.05em}
   td.name{white-space:normal;font-weight:700}
+  th.s{cursor:pointer}
+  table:not(.show-cat) .col-cat{display:none}
   tbody tr.p1 td{background:rgba(255,207,64,.16)}
   tbody tr.p2 td{background:rgba(201,205,212,.16)}
   tbody tr.p3 td{background:rgba(208,139,70,.16)}
@@ -56,9 +58,17 @@
     </div>
     <p class="legend">🥇 1st · 🥈 2nd · 🥉 3rd</p>
     <div class="table-wrap">
-      <table>
-        <thead><tr><th>#</th><th>Name</th><th>Bib</th><th>Sub-category</th><th>Rank</th><th>Result</th></tr></thead>
-        <tbody id="rows"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
+      <table id="tbl">
+        <thead><tr>
+          <th>#</th>
+          <th class="s" data-s="name">Name</th>
+          <th class="s" data-s="bib">Bib</th>
+          <th class="col-cat s" data-s="catName">Category</th>
+          <th class="s" data-s="sub">Sub-category</th>
+          <th class="s" data-s="rank">Rank</th>
+          <th class="s" data-s="result">Result</th>
+        </tr></thead>
+        <tbody id="rows"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -83,14 +93,22 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
 let ENTRIES = [], CATS = [];
+let SORT = { key:"rank", dir:"asc" };
 
-function rankKey(e){ const n = Number(e.rank); return Number.isFinite(n) ? n : Infinity; }
-function cmp(a,b){
-  const ra = rankKey(a), rb = rankKey(b);
-  if (ra !== rb) return ra - rb;
+function rankCmp(a,b){
+  const ra = Number(a.rank), rb = Number(b.rank);
+  const ka = Number.isFinite(ra)?ra:Infinity, kb = Number.isFinite(rb)?rb:Infinity;
+  if (ka !== kb) return ka - kb;
   const sa = String(a.result||""), sb = String(b.result||"");
   if (sa && sb) return sa.localeCompare(sb, undefined, { numeric:true });
   if (sa) return -1; if (sb) return 1; return 0;
+}
+function sortRows(rows){
+  const k = SORT.key, sign = SORT.dir === "asc" ? 1 : -1;
+  const arr = rows.slice();
+  if (k === "rank") arr.sort((a,b) => sign * rankCmp(a,b));
+  else arr.sort((a,b) => sign * String(a[k] ?? "").localeCompare(String(b[k] ?? ""), undefined, { numeric:true, sensitivity:"base" }));
+  return arr;
 }
 
 function fillSelect(sel, placeholder, values, keep){
@@ -102,40 +120,50 @@ function fillSelect(sel, placeholder, values, keep){
 
 function refreshFilters(){
   const catSel = $("#catSel"), genSel = $("#genSel"), subSel = $("#subSel");
-  // categories that actually have result entries
   const catIds = [...new Set(ENTRIES.map(e => e.catId))];
   const catOpts = CATS.filter(c => catIds.includes(c.id));
   const curCat = catSel.value;
   catSel.innerHTML = catOpts.length
-    ? catOpts.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join("")
+    ? [`<option value="__all__">All categories</option>`]
+        .concat(catOpts.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`)).join("")
     : `<option value="">No results yet</option>`;
-  catSel.value = catOpts.some(c => c.id === curCat) ? curCat : (catOpts[0]?.id || "");
+  const valid = ["__all__", ...catOpts.map(c => c.id)];
+  catSel.value = valid.includes(curCat) ? curCat : (catOpts[0]?.id || "");
 
-  const inCat = ENTRIES.filter(e => e.catId === catSel.value);
-  const isRelay = !!(catOpts.find(c => c.id === catSel.value)?.isRelay);
+  const isAll = catSel.value === "__all__";
+  const scope = isAll ? ENTRIES : ENTRIES.filter(e => e.catId === catSel.value);
+  const isRelay = !isAll && !!(catOpts.find(c => c.id === catSel.value)?.isRelay);
   genSel.style.display = isRelay ? "none" : "";
   if (isRelay) genSel.value = "";
-  else fillSelect(genSel, "All (men + women)", [...new Set(inCat.map(e => String(e.gender||"").trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b)), true);
-  fillSelect(subSel, "All sub-categories", [...new Set(inCat.map(e => String(e.sub||"").trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b)), true);
+  else fillSelect(genSel, "All (men + women)", [...new Set(scope.map(e => String(e.gender||"").trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b)), true);
+  fillSelect(subSel, "All sub-categories", [...new Set(scope.map(e => String(e.sub||"").trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b)), true);
 }
 
 function render(){
   refreshFilters();
   const catId = $("#catSel").value;
+  const isAll = catId === "__all__";
   const gender = $("#genSel").style.display === "none" ? "" : $("#genSel").value;
   const sub = $("#subSel").value;
   const tb = $("#rows");
-  if (!catId){ tb.innerHTML = `<tr><td colspan="6" class="empty">Results not published yet.</td></tr>`; return; }
-  let rows = ENTRIES.filter(e => e.catId === catId);
+  document.getElementById("tbl").classList.toggle("show-cat", isAll);
+  document.querySelectorAll("th.s").forEach(th => {
+    th.classList.remove("asc","desc");
+    if (th.dataset.s === SORT.key) th.classList.add(SORT.dir);
+  });
+  if (!catId){ tb.innerHTML = `<tr><td colspan="7" class="empty">Results not published yet.</td></tr>`; return; }
+  let rows = isAll ? ENTRIES.slice() : ENTRIES.filter(e => e.catId === catId);
   if (gender) rows = rows.filter(e => String(e.gender||"").trim() === gender);
   if (sub) rows = rows.filter(e => String(e.sub||"").trim() === sub);
-  rows = rows.slice().sort(cmp);
-  if (!rows.length){ tb.innerHTML = `<tr><td colspan="6" class="empty">No results in this selection.</td></tr>`; return; }
+  rows = sortRows(rows);
+  if (!rows.length){ tb.innerHTML = `<tr><td colspan="7" class="empty">No results in this selection.</td></tr>`; return; }
+  const podium = !isAll && SORT.key === "rank" && SORT.dir === "asc";
   tb.innerHTML = rows.map((e,i) => `
-    <tr class="${i<3?`p${i+1}`:""}">
-      <td class="pos">${i+1}${i<3?` ${["🥇","🥈","🥉"][i]}`:""}</td>
+    <tr class="${podium && i<3?`p${i+1}`:""}">
+      <td class="pos">${i+1}${podium && i<3?` ${["🥇","🥈","🥉"][i]}`:""}</td>
       <td class="name">${esc(e.name || "—")}</td>
       <td>${esc(String(e.bib ?? "—"))}</td>
+      <td class="col-cat">${esc(e.catName || "—")}</td>
       <td>${esc(e.sub || "—")}</td>
       <td>${e.rank !== "" && e.rank != null ? esc(String(e.rank)) : "—"}</td>
       <td><strong>${e.result ? esc(e.result) : "—"}</strong></td>
@@ -143,6 +171,12 @@ function render(){
 }
 
 ["catSel","genSel","subSel"].forEach(id => document.getElementById(id).addEventListener("change", render));
+document.querySelectorAll("th.s").forEach(th => th.addEventListener("click", () => {
+  const k = th.dataset.s;
+  if (SORT.key === k) SORT.dir = SORT.dir === "asc" ? "desc" : "asc";
+  else { SORT.key = k; SORT.dir = "asc"; }
+  render();
+}));
 
 (async () => {
   try {
