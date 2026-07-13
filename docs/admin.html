@@ -388,6 +388,8 @@
           </select>
           <button id="confirmedExportBtn" class="btn sec">Export CSV</button>
           <button id="confirmedRelayExportBtn" class="btn sec" title="Export confirmed relay teams (paid + free) — one row per runner (both teammates share the bib)">Export relay teams</button>
+          <input type="file" id="resultsImportFile" accept=".csv,text/csv" hidden>
+          <button id="resultsImportBtn" class="btn sec" title="Import race results from a CSV file with two columns: bib number, result. In Excel use File → Save As → CSV.">Import results</button>
         </div>
 
         <div class="table-wrap">
@@ -401,9 +403,10 @@
               <th class="sortable" data-csort="paidAt">Confirmed at</th>
               <th class="sortable" data-csort="scannedAt">Scanned</th>
               <th class="sortable" data-csort="checkedInAt">BIB received</th>
+              <th class="sortable" data-csort="result">Result</th>
               <th></th>
             </tr></thead>
-            <tbody><tr><td colspan="9" class="empty">No confirmed registrations yet.</td></tr></tbody>
+            <tbody><tr><td colspan="10" class="empty">No confirmed registrations yet.</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -2543,7 +2546,7 @@ function renderConfirmedTab() {
     if (th.dataset.csort === confirmedSort.key) th.classList.add(confirmedSort.dir === "asc" ? "sorted-asc" : "sorted-desc");
   });
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="9" class="empty">No confirmed registrations match.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" class="empty">No confirmed registrations match.</td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map(r => `
@@ -2563,6 +2566,9 @@ function renderConfirmedTab() {
       <td>${r.checkedInAt
         ? `<span style="color:var(--accent);font-weight:700">✓ ${fmtDate(r.checkedInAt)}</span>`
         : `<span style="color:var(--warn)">Not yet</span>`}</td>
+      <td>${r.result
+        ? `<strong>${escapeHtml(r.result)}</strong>`
+        : `<span class="muted">—</span>`} <button class="btn tiny sec" data-cact="result" data-id="${r.id}" title="Edit result">✎</button></td>
       <td class="actions">
         <button class="btn tiny sec" data-cact="view" data-id="${r.id}">View</button>
         ${r.checkedInAt
@@ -2588,6 +2594,7 @@ function renderConfirmedTab() {
       if (b.dataset.cact === "revert")    return revertToPending(r);
       if (b.dataset.cact === "checkin")   return markBibReceived(r);
       if (b.dataset.cact === "uncheckin") return undoBibReceived(r);
+      if (b.dataset.cact === "result")    return editResult(r);
       if (b.dataset.cact === "wa")   {
         const waUrl = buildWhatsAppUrl(r);
         if (!waUrl) { toast("No phone number on record", true); return; }
@@ -2602,6 +2609,96 @@ function renderConfirmedTab() {
     });
   });
 }
+
+// Manual per-runner result edit (the ✎ button) — for corrections after import.
+async function editResult(r) {
+  const name = `${r.firstName || ""} ${r.lastName || ""}`.trim() || "(no name)";
+  const val = prompt(`Result for ${name} (bib ${r.bibNumber ?? "—"}) — e.g. finish time, rank, or DNF. Leave blank to clear.`, r.result || "");
+  if (val === null) return; // cancelled
+  try {
+    await updateDoc(doc(db, "competitions", COMPETITION_ID, "registrations", r.id), { result: val.trim() || null });
+    toast(val.trim() ? "Result saved" : "Result cleared");
+  } catch (e) { toast(e.message || "Couldn't save result", true); }
+}
+
+// ===== Import results from CSV (two columns: bib, result) =====
+// Quote-aware single-line CSV parser.
+function parseCsvLine(line) {
+  const cells = []; let cur = "", inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQ) {
+      if (ch === '"') { if (line[i+1] === '"') { cur += '"'; i++; } else inQ = false; }
+      else cur += ch;
+    } else if (ch === '"') { inQ = true; }
+    else if (ch === ",") { cells.push(cur); cur = ""; }
+    else cur += ch;
+  }
+  cells.push(cur);
+  return cells;
+}
+
+function parseResultsCsv(text) {
+  const out = [];
+  text.split(/\r?\n/).forEach(line => {
+    if (!line.trim()) return;
+    const cells = parseCsvLine(line);
+    if (cells.length < 2) return;
+    const bibRaw = String(cells[0]).trim();
+    // Skip header / non-numeric bib rows (e.g. "bib,result").
+    if (!/^\d+$/.test(bibRaw)) return;
+    out.push({ bib: parseInt(bibRaw, 10), result: String(cells[1]).trim() });
+  });
+  return out;
+}
+
+async function applyResults(entries) {
+  const confirmed = confirmedSourceRegs();
+  const matches = [];       // { id, result }
+  const notFound = [], ambiguous = [];
+  entries.forEach(({ bib, result }) => {
+    const hits = confirmed.filter(r => Number(r.bibNumber) === bib);
+    if (hits.length === 0) { notFound.push(bib); return; }
+    if (hits.length > 1)   { ambiguous.push(bib); return; }
+    matches.push({ id: hits[0].id, result: result || null });
+  });
+  // Commit in batches (Firestore caps a batch at 500 writes).
+  for (let i = 0; i < matches.length; i += 450) {
+    const batch = writeBatch(db);
+    matches.slice(i, i + 450).forEach(m =>
+      batch.update(doc(db, "competitions", COMPETITION_ID, "registrations", m.id), { result: m.result }));
+    await batch.commit();
+  }
+  toast(`Results imported: ${matches.length} matched`
+    + (notFound.length ? `, ${notFound.length} bib(s) not found` : "")
+    + (ambiguous.length ? `, ${ambiguous.length} ambiguous` : ""));
+  if (notFound.length || ambiguous.length) {
+    alert(`Import summary\n\nMatched & saved: ${matches.length}\n`
+      + `Bibs not found among confirmed runners: ${notFound.join(", ") || "none"}\n`
+      + `Ambiguous bibs (same number in more than one category): ${ambiguous.join(", ") || "none"}`);
+  }
+}
+
+document.getElementById("resultsImportBtn")?.addEventListener("click", () =>
+  document.getElementById("resultsImportFile")?.click());
+document.getElementById("resultsImportFile")?.addEventListener("change", async (e) => {
+  const file = e.target.files?.[0];
+  e.target.value = ""; // allow re-importing the same file
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const entries = parseResultsCsv(text);
+    if (!entries.length) {
+      toast("No bib,result rows found. Use a CSV with two columns: bib number, result (save your Excel as CSV).", true);
+      return;
+    }
+    if (!confirm(`Import ${entries.length} result row(s)? Each matches a confirmed runner by bib number and sets their result.`)) return;
+    await applyResults(entries);
+  } catch (err) {
+    console.error(err);
+    toast("Couldn't read the file. Make sure it's a CSV (Excel → Save As → CSV).", true);
+  }
+});
 
 // Manually mark a confirmed runner's BIB as received, without the scanner.
 // Mirrors the scanner's check-in write. For a relay team (shared bib) it
@@ -4182,11 +4279,11 @@ document.getElementById("confirmedExportBtn")?.addEventListener("click", () => {
   const rows = confirmedSorted(confirmedFiltered());
   if (!rows.length) { toast("Nothing to export"); return; }
   const headers = ["reference","firstName","lastName","email","phone","gender","dob","age","tshirt","club","category","subCategory",
-                   "bib","amount","status","paidAt","scannedAt","scannedBy","checkedInAt","checkedInBy"];
+                   "bib","amount","status","result","paidAt","scannedAt","scannedBy","checkedInAt","checkedInBy"];
   const csv = [headers.join(",")].concat(rows.map(r => [
     r.whishReference, r.firstName, r.lastName, r.email, r.phone, r.gender, r.dob, r.ageOnRaceDay, r.tshirtSize, r.club,
     r.categoryName, r.subQuestionAnswer, r.bibNumber, r.priceUSD,
-    r.paymentStatus, r.paidAt ? fmtDate(r.paidAt) : "",
+    r.paymentStatus, r.result || "", r.paidAt ? fmtDate(r.paidAt) : "",
     r.scannedAt ? fmtDate(r.scannedAt) : "", r.scannedBy || "",
     r.checkedInAt ? fmtDate(r.checkedInAt) : "", r.checkedInBy || ""
   ].map(csvCell).join(","))).join("\n");
