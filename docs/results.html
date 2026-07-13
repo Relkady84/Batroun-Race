@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#08172b">
+<title>Results — Batroun Race 2026</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap">
+<style>
+  :root{--bg1:#08172b;--bg2:#0d2140;--ink:#eaf1fb;--muted:#93a7c4;--line:rgba(255,255,255,.12);
+        --accent:#3dd6c6;--accent2:#56a8ff;--card:rgba(255,255,255,.04)}
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;background:linear-gradient(180deg,var(--bg1),var(--bg2));
+            color:var(--ink);font:15px/1.55 'Inter',system-ui,-apple-system,Segoe UI,Roboto;
+            -webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%}
+  .wrap{max-width:820px;margin:0 auto;padding:max(16px,env(safe-area-inset-top)) 14px 40px}
+  header{text-align:center;margin:8px 0 18px}
+  .brand{font-weight:900;font-size:.74rem;letter-spacing:.22em;text-transform:uppercase;color:var(--accent);margin:0}
+  h1{margin:4px 0 0;font-size:clamp(22px,6vw,32px);font-weight:900}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px}
+  .filters{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:12px}
+  select{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--line);
+         background:rgba(4,14,28,.6);color:var(--ink);font:inherit;outline:none}
+  .legend{font-size:.82rem;color:var(--muted);margin:0 0 10px}
+  .table-wrap{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:.92rem}
+  th,td{padding:9px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+  th{color:var(--muted);font-weight:700;font-size:.8rem;text-transform:uppercase;letter-spacing:.05em}
+  td.name{white-space:normal;font-weight:700}
+  tbody tr.p1 td{background:rgba(255,207,64,.16)}
+  tbody tr.p2 td{background:rgba(201,205,212,.16)}
+  tbody tr.p3 td{background:rgba(208,139,70,.16)}
+  tbody tr.p1 td:first-child{box-shadow:inset 4px 0 0 #ffcf40}
+  tbody tr.p2 td:first-child{box-shadow:inset 4px 0 0 #c9cdd4}
+  tbody tr.p3 td:first-child{box-shadow:inset 4px 0 0 #d08b46}
+  .pos{font-weight:900}
+  .muted{color:var(--muted)}
+  .empty{text-align:center;color:var(--muted);padding:26px 10px}
+  .updated{text-align:center;color:var(--muted);font-size:.8rem;margin-top:14px}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header>
+    <p class="brand">Batroun Race 2026</p>
+    <h1>Results</h1>
+  </header>
+
+  <div class="card">
+    <div class="filters">
+      <select id="catSel"></select>
+      <select id="genSel"><option value="">All (men + women)</option></select>
+      <select id="subSel"><option value="">All sub-categories</option></select>
+    </div>
+    <p class="legend">🥇 1st · 🥈 2nd · 🥉 3rd</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>#</th><th>Name</th><th>Bib</th><th>Sub-category</th><th>Rank</th><th>Result</th></tr></thead>
+        <tbody id="rows"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="updated" id="updated"></div>
+</main>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
+import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+const firebaseConfig = {
+  apiKey: "AIzaSyChNfEHu5FhaNIe1Y7_Q_SaVSXmfHcfUQA",
+  authDomain: "batroun-race.firebaseapp.com",
+  projectId: "batroun-race",
+  storageBucket: "batroun-race.firebasestorage.app",
+  messagingSenderId: "175612171118",
+  appId: "1:175612171118:web:96fc6e09ec599758f9277f"
+};
+const db = getFirestore(initializeApp(firebaseConfig));
+const COMPETITION_ID = "batroun-race-2026";
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+let ENTRIES = [], CATS = [];
+
+function rankKey(e){ const n = Number(e.rank); return Number.isFinite(n) ? n : Infinity; }
+function cmp(a,b){
+  const ra = rankKey(a), rb = rankKey(b);
+  if (ra !== rb) return ra - rb;
+  const sa = String(a.result||""), sb = String(b.result||"");
+  if (sa && sb) return sa.localeCompare(sb, undefined, { numeric:true });
+  if (sa) return -1; if (sb) return 1; return 0;
+}
+
+function fillSelect(sel, placeholder, values, keep){
+  const cur = keep ? sel.value : "";
+  sel.innerHTML = `<option value="">${esc(placeholder)}</option>` +
+    values.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join("");
+  if (values.includes(cur)) sel.value = cur;
+}
+
+function refreshFilters(){
+  const catSel = $("#catSel"), genSel = $("#genSel"), subSel = $("#subSel");
+  // categories that actually have result entries
+  const catIds = [...new Set(ENTRIES.map(e => e.catId))];
+  const catOpts = CATS.filter(c => catIds.includes(c.id));
+  const curCat = catSel.value;
+  catSel.innerHTML = catOpts.length
+    ? catOpts.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join("")
+    : `<option value="">No results yet</option>`;
+  catSel.value = catOpts.some(c => c.id === curCat) ? curCat : (catOpts[0]?.id || "");
+
+  const inCat = ENTRIES.filter(e => e.catId === catSel.value);
+  const isRelay = !!(catOpts.find(c => c.id === catSel.value)?.isRelay);
+  genSel.style.display = isRelay ? "none" : "";
+  if (isRelay) genSel.value = "";
+  else fillSelect(genSel, "All (men + women)", [...new Set(inCat.map(e => String(e.gender||"").trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b)), true);
+  fillSelect(subSel, "All sub-categories", [...new Set(inCat.map(e => String(e.sub||"").trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b)), true);
+}
+
+function render(){
+  refreshFilters();
+  const catId = $("#catSel").value;
+  const gender = $("#genSel").style.display === "none" ? "" : $("#genSel").value;
+  const sub = $("#subSel").value;
+  const tb = $("#rows");
+  if (!catId){ tb.innerHTML = `<tr><td colspan="6" class="empty">Results not published yet.</td></tr>`; return; }
+  let rows = ENTRIES.filter(e => e.catId === catId);
+  if (gender) rows = rows.filter(e => String(e.gender||"").trim() === gender);
+  if (sub) rows = rows.filter(e => String(e.sub||"").trim() === sub);
+  rows = rows.slice().sort(cmp);
+  if (!rows.length){ tb.innerHTML = `<tr><td colspan="6" class="empty">No results in this selection.</td></tr>`; return; }
+  tb.innerHTML = rows.map((e,i) => `
+    <tr class="${i<3?`p${i+1}`:""}">
+      <td class="pos">${i+1}${i<3?` ${["🥇","🥈","🥉"][i]}`:""}</td>
+      <td class="name">${esc(e.name || "—")}</td>
+      <td>${esc(String(e.bib ?? "—"))}</td>
+      <td>${esc(e.sub || "—")}</td>
+      <td>${e.rank !== "" && e.rank != null ? esc(String(e.rank)) : "—"}</td>
+      <td><strong>${e.result ? esc(e.result) : "—"}</strong></td>
+    </tr>`).join("");
+}
+
+["catSel","genSel","subSel"].forEach(id => document.getElementById(id).addEventListener("change", render));
+
+(async () => {
+  try {
+    const snap = await getDoc(doc(db, "competitions", COMPETITION_ID, "config", "publicResults"));
+    const data = snap.exists() ? snap.data() : {};
+    if (!data.published || !Array.isArray(data.entries) || !data.entries.length) {
+      $("#rows").innerHTML = `<tr><td colspan="6" class="empty">Results aren't published yet. Please check back later.</td></tr>`;
+      return;
+    }
+    ENTRIES = data.entries;
+    CATS = Array.isArray(data.categories) ? data.categories : [];
+    render();
+    if (data.updatedAt?.toDate) {
+      $("#updated").textContent = "Last updated " + data.updatedAt.toDate().toLocaleString("en-GB");
+    }
+  } catch (err) {
+    console.warn("results load failed:", err);
+    $("#rows").innerHTML = `<tr><td colspan="6" class="empty">Couldn't load results. Please try again later.</td></tr>`;
+  }
+})();
+</script>
+</body>
+</html>

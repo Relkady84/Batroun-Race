@@ -1155,6 +1155,27 @@ See you at the start line!"></textarea>
         </p>
       </div>
 
+      <div class="card admin-only">
+        <h2>Public results page</h2>
+        <p class="muted" style="margin:0 0 12px">
+          Publish the <strong>Result</strong> standings to a public page anyone can open — no login.
+          It shows only name, bib, gender, sub-category, rank and finish time (never emails, phones,
+          or dates of birth). Turn it off to hide the page again.
+        </p>
+        <label class="inline" style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="resultsPublicToggle">
+          <span>Show results on the public page</span>
+        </label>
+        <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <button id="publishResultsBtn" class="btn">Publish / update now</button>
+          <a id="publicResultsLink" href="results.html" target="_blank" rel="noopener" class="btn sec" style="text-decoration:none">Open public results ↗</a>
+          <span class="muted" id="publishResultsStatus" style="font-size:.85rem"></span>
+        </div>
+        <p class="muted" style="font-size:.8rem;margin-top:10px">
+          After you import new results, click <strong>Publish / update now</strong> to refresh what the public sees.
+        </p>
+      </div>
+
       <div class="card">
         <h2>Maintenance</h2>
         <p class="muted" style="margin:0 0 10px">
@@ -2952,6 +2973,80 @@ document.getElementById("resultExportBtn")?.addEventListener("click", () => {
   a.download = `batroun-race-results-${catName.replace(/[^a-z0-9]+/gi,"-").toLowerCase()}-${new Date().toISOString().slice(0,10)}.csv`;
   a.click();
   URL.revokeObjectURL(a.href);
+});
+
+// ===== Publish results to the public page (/config/publicResults) =====
+// Builds a privacy-safe snapshot (name, bib, gender, sub-category, rank,
+// result — no contact info or DOB) of everyone who has a result/rank, and
+// writes it to a public-readable config doc that results.html renders.
+function buildResultsSnapshot() {
+  const catList = resultCategoriesWithPeople().map(c => ({ id: c.id, name: c.name || c.id, isRelay: !!c.isRelay }));
+  const entries = [];
+  confirmedSourceRegs().forEach(r => {
+    const hasResult = (r.result && String(r.result).trim()) || (r.rank != null && r.rank !== "");
+    if (!hasResult) return;
+    const cat = cats.find(c => c.id === r.categoryId);
+    const isRelay = !!cat?.isRelay;
+    const p1 = `${r.firstName || ""} ${r.lastName || ""}`.trim();
+    const teammate = (isRelay && r.teammate)
+      ? `${(r.teammate.firstName || "").trim()} ${(r.teammate.lastName || "").trim()}`.trim() : "";
+    entries.push({
+      catId: r.categoryId,
+      catName: r.categoryName || cat?.name || r.categoryId,
+      isRelay,
+      name: teammate ? `${p1} + ${teammate}` : p1,
+      bib: r.bibNumber ?? "",
+      gender: isRelay ? "" : (r.gender || ""),
+      sub: r.subQuestionAnswer || "",
+      rank: (r.rank != null && r.rank !== "") ? r.rank : "",
+      result: r.result || ""
+    });
+  });
+  return { categories: catList, entries };
+}
+
+async function publishResults(makePublic) {
+  // When hidden, write NO result data — so unpublished standings can't be
+  // read straight from the public doc. Only a live publish carries entries.
+  const payload = makePublic
+    ? { published: true, ...buildResultsSnapshot() }
+    : { published: false, categories: [], entries: [] };
+  await setDoc(doc(db, "competitions", COMPETITION_ID, "config", "publicResults"), {
+    ...payload,
+    updatedAt: serverTimestamp(),
+    updatedBy: currentUserEmail || "unknown"
+  });
+}
+
+// Reflect the current published state in the Settings toggle + status line.
+onSnapshot(
+  doc(db, "competitions", COMPETITION_ID, "config", "publicResults"),
+  snap => {
+    const cb = document.getElementById("resultsPublicToggle");
+    const status = document.getElementById("publishResultsStatus");
+    const data = snap.exists() ? snap.data() : {};
+    if (cb) cb.checked = !!data.published;
+    if (status) {
+      status.textContent = data.published
+        ? `Public · ${Array.isArray(data.entries) ? data.entries.length : 0} results${data.updatedAt ? ` · updated ${fmtDate(data.updatedAt)}` : ""}`
+        : (snap.exists() ? "Hidden from the public" : "Not published yet");
+    }
+  },
+  () => {}
+);
+
+document.getElementById("resultsPublicToggle")?.addEventListener("change", async (e) => {
+  try {
+    await publishResults(e.target.checked);
+    toast(e.target.checked ? "Results are now public" : "Results hidden from the public");
+  } catch (err) { toast(err.message || "Couldn't update", true); e.target.checked = !e.target.checked; }
+});
+document.getElementById("publishResultsBtn")?.addEventListener("click", async () => {
+  const cb = document.getElementById("resultsPublicToggle");
+  try {
+    await publishResults(cb?.checked);
+    toast("Public results updated");
+  } catch (err) { toast(err.message || "Publish failed", true); }
 });
 
 // ===== Sponsors tab =====
