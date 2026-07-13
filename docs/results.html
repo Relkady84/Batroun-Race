@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#08172b">
+<title>Results — Batroun Race 2026</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap">
+<style>
+  :root{--bg1:#08172b;--bg2:#0d2140;--ink:#eaf1fb;--muted:#93a7c4;--line:rgba(255,255,255,.12);
+        --accent:#3dd6c6;--accent2:#56a8ff;--card:rgba(255,255,255,.04)}
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;background:linear-gradient(180deg,var(--bg1),var(--bg2));
+            color:var(--ink);font:15px/1.55 'Inter',system-ui,-apple-system,Segoe UI,Roboto;
+            -webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%}
+  .wrap{max-width:860px;margin:0 auto;padding:max(16px,env(safe-area-inset-top)) 14px 40px}
+  header{text-align:center;margin:8px 0 18px}
+  .brand{font-weight:900;font-size:.74rem;letter-spacing:.22em;text-transform:uppercase;color:var(--accent);margin:0}
+  h1{margin:4px 0 0;font-size:clamp(22px,6vw,32px);font-weight:900}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px}
+
+  /* Pill sub-tabs (category / gender / age category) */
+  .subtabs-wrap{background:rgba(0,0,0,.16);border:1px solid var(--line);border-radius:12px;
+                padding:12px 12px 4px;margin-bottom:14px}
+  .subtab-row{margin-bottom:10px}
+  .st-label{font-size:.68rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);
+            font-weight:700;margin-bottom:5px}
+  .subtabs{display:flex;flex-wrap:wrap;gap:6px}
+  .subtab{background:rgba(255,255,255,.04);color:var(--muted);border:1px solid var(--line);
+          border-radius:999px;padding:6px 15px;font-size:.86rem;font-weight:700;cursor:pointer;
+          white-space:nowrap;transition:background .12s,color .12s,border-color .12s;font-family:inherit}
+  .subtab:hover{color:var(--ink);border-color:var(--accent)}
+  .subtab.active{background:rgba(61,214,198,.16);color:var(--accent);border-color:var(--accent)}
+
+  .legend{font-size:.82rem;color:var(--muted);margin:0 0 10px;font-weight:600}
+  .table-wrap{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:.92rem}
+  th,td{padding:9px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+  th{color:var(--muted);font-weight:700;font-size:.8rem;text-transform:uppercase;letter-spacing:.05em}
+  td.name{white-space:normal;font-weight:700}
+  th.s{cursor:pointer}
+  table:not(.show-cat) .col-cat{display:none}
+  tbody tr.p1 td{background:rgba(255,207,64,.16)}
+  tbody tr.p2 td{background:rgba(201,205,212,.16)}
+  tbody tr.p3 td{background:rgba(208,139,70,.16)}
+  tbody tr.p1 td:first-child{box-shadow:inset 4px 0 0 #ffcf40}
+  tbody tr.p2 td:first-child{box-shadow:inset 4px 0 0 #c9cdd4}
+  tbody tr.p3 td:first-child{box-shadow:inset 4px 0 0 #d08b46}
+  .pos{font-weight:900}
+  .muted{color:var(--muted)}
+  .empty{text-align:center;color:var(--muted);padding:26px 10px}
+  .updated{text-align:center;color:var(--muted);font-size:.8rem;margin-top:14px}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header>
+    <p class="brand">Batroun Race 2026</p>
+    <h1>Results</h1>
+  </header>
+
+  <div class="card">
+    <div class="subtabs-wrap" id="subtabs" style="display:none">
+      <div class="subtab-row">
+        <div class="st-label">Category</div>
+        <div class="subtabs" id="catTabs"></div>
+      </div>
+      <div class="subtab-row" id="genderRow">
+        <div class="st-label">Gender</div>
+        <div class="subtabs" id="genderTabs"></div>
+      </div>
+      <div class="subtab-row" id="ageRow">
+        <div class="st-label">Age category</div>
+        <div class="subtabs" id="ageTabs"></div>
+      </div>
+    </div>
+    <p class="legend">🥇 1st · 🥈 2nd · 🥉 3rd</p>
+    <div class="table-wrap">
+      <table id="tbl">
+        <thead><tr>
+          <th>#</th>
+          <th class="s" data-s="name">Name</th>
+          <th class="s" data-s="bib">Bib</th>
+          <th class="col-cat s" data-s="catName">Category</th>
+          <th class="s" data-s="sub">Sub-category</th>
+          <th class="s" data-s="rank">Rank</th>
+          <th class="s" data-s="result">Result</th>
+        </tr></thead>
+        <tbody id="rows"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="updated" id="updated"></div>
+</main>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
+import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+const firebaseConfig = {
+  apiKey: "AIzaSyChNfEHu5FhaNIe1Y7_Q_SaVSXmfHcfUQA",
+  authDomain: "batroun-race.firebaseapp.com",
+  projectId: "batroun-race",
+  storageBucket: "batroun-race.firebasestorage.app",
+  messagingSenderId: "175612171118",
+  appId: "1:175612171118:web:96fc6e09ec599758f9277f"
+};
+const db = getFirestore(initializeApp(firebaseConfig));
+const COMPETITION_ID = "batroun-race-2026";
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+let ENTRIES = [], CATS = [];
+let SEL = { catId: "", gender: "", age: "" };  // gender "" = overall; age "" = all ages
+let SORT = { key:"rank", dir:"asc" };
+
+// Same gender buckets as the admin standings.
+function genderBucket(g){
+  const s = String(g||"").trim().toLowerCase();
+  if (!s) return "";
+  if (["m","male","man","men","homme","boy"].includes(s)) return "Men";
+  if (["f","w","female","woman","women","femme","girl"].includes(s)) return "Women";
+  return String(g).trim();
+}
+function catIsRelay(id){ return !!(CATS.find(c => c.id === id)?.isRelay); }
+function gb(e){ return catIsRelay(e.catId) ? "" : genderBucket(e.gender); }
+
+function rankCmp(a,b){
+  const ra = Number(a.rank), rb = Number(b.rank);
+  const ka = Number.isFinite(ra)?ra:Infinity, kb = Number.isFinite(rb)?rb:Infinity;
+  if (ka !== kb) return ka - kb;
+  const sa = String(a.result||""), sb = String(b.result||"");
+  if (sa && sb) return sa.localeCompare(sb, undefined, { numeric:true });
+  if (sa) return -1; if (sb) return 1; return 0;
+}
+function sortRows(rows){
+  const k = SORT.key, sign = SORT.dir === "asc" ? 1 : -1;
+  const arr = rows.slice();
+  if (k === "rank") arr.sort((a,b) => sign * rankCmp(a,b));
+  else arr.sort((a,b) => sign * String(a[k] ?? "").localeCompare(String(b[k] ?? ""), undefined, { numeric:true, sensitivity:"base" }));
+  return arr;
+}
+
+function renderTabs(){
+  const catIds = [...new Set(ENTRIES.map(e => e.catId))];
+  const catOpts = CATS.filter(c => catIds.includes(c.id));
+  const catBtns = [{ id:"__all__", name:"All categories" },
+                   ...catOpts.map(c => ({ id:c.id, name:c.name }))];
+  const valid = catBtns.map(c => c.id);
+  if (!valid.includes(SEL.catId)) SEL.catId = catBtns[0]?.id || "__all__";
+  $("#catTabs").innerHTML = catBtns.map(c =>
+    `<button class="subtab ${SEL.catId===c.id?"active":""}" data-cat="${esc(c.id)}">${esc(c.name)}</button>`).join("");
+
+  const isAll = SEL.catId === "__all__";
+  const isRelay = !isAll && catIsRelay(SEL.catId);
+  const scope = isAll ? ENTRIES : ENTRIES.filter(e => e.catId === SEL.catId);
+
+  const genderRow = $("#genderRow");
+  if (isRelay){
+    genderRow.style.display = "none";
+    SEL.gender = "";
+  } else {
+    genderRow.style.display = "";
+    const buckets = [...new Set(scope.map(gb).filter(Boolean))];
+    const ord = g => g==="Men"?0 : g==="Women"?1 : 2;
+    buckets.sort((a,b) => ord(a)-ord(b) || a.localeCompare(b));
+    if (!buckets.includes(SEL.gender)) SEL.gender = "";
+    const tabs = [{v:"",label:"Overall"}, ...buckets.map(g=>({v:g,label:g}))];
+    $("#genderTabs").innerHTML = tabs.map(t =>
+      `<button class="subtab ${SEL.gender===t.v?"active":""}" data-gender="${esc(t.v)}">${esc(t.label)}</button>`).join("");
+  }
+
+  const ageRow = $("#ageRow");
+  const gScope = SEL.gender ? scope.filter(e => gb(e) === SEL.gender) : scope;
+  const ages = [...new Set(gScope.map(e => String(e.sub||"").trim()).filter(Boolean))]
+    .sort((a,b) => a.localeCompare(b, undefined, { numeric:true }));
+  if (!ages.length){
+    ageRow.style.display = "none";
+    SEL.age = "";
+  } else {
+    ageRow.style.display = "";
+    if (!ages.includes(SEL.age)) SEL.age = "";
+    const tabs = [{v:"",label:"All ages"}, ...ages.map(a=>({v:a,label:a}))];
+    $("#ageTabs").innerHTML = tabs.map(t =>
+      `<button class="subtab ${SEL.age===t.v?"active":""}" data-age="${esc(t.v)}">${esc(t.label)}</button>`).join("");
+  }
+}
+
+function render(){
+  renderTabs();
+  const isAll = SEL.catId === "__all__";
+  const tb = $("#rows");
+  document.getElementById("tbl").classList.toggle("show-cat", isAll);
+  document.querySelectorAll("th.s").forEach(th => {
+    th.classList.remove("asc","desc");
+    if (th.dataset.s === SORT.key) th.classList.add(SORT.dir);
+  });
+  let rows = isAll ? ENTRIES.slice() : ENTRIES.filter(e => e.catId === SEL.catId);
+  if (SEL.gender) rows = rows.filter(e => gb(e) === SEL.gender);
+  if (SEL.age) rows = rows.filter(e => String(e.sub||"").trim() === SEL.age);
+  rows = sortRows(rows);
+  if (!rows.length){ tb.innerHTML = `<tr><td colspan="7" class="empty">No results in this selection.</td></tr>`; return; }
+  const podium = !isAll && SORT.key === "rank" && SORT.dir === "asc";
+  tb.innerHTML = rows.map((e,i) => `
+    <tr class="${podium && i<3?`p${i+1}`:""}">
+      <td class="pos">${i+1}${podium && i<3?` ${["🥇","🥈","🥉"][i]}`:""}</td>
+      <td class="name">${esc(e.name || "—")}</td>
+      <td>${esc(String(e.bib ?? "—"))}</td>
+      <td class="col-cat">${esc(e.catName || "—")}</td>
+      <td>${esc(e.sub || "—")}</td>
+      <td>${e.rank !== "" && e.rank != null ? esc(String(e.rank)) : "—"}</td>
+      <td><strong>${e.result ? esc(e.result) : "—"}</strong></td>
+    </tr>`).join("");
+}
+
+// Pill-tab clicks (delegated). Category resets gender+age; gender resets age.
+$("#catTabs").addEventListener("click", e => {
+  const b = e.target.closest("[data-cat]"); if (!b) return;
+  SEL.catId = b.dataset.cat; SEL.gender = ""; SEL.age = "";
+  SORT = { key:"rank", dir:"asc" };
+  render();
+});
+$("#genderTabs").addEventListener("click", e => {
+  const b = e.target.closest("[data-gender]"); if (!b) return;
+  SEL.gender = b.dataset.gender; SEL.age = "";
+  render();
+});
+$("#ageTabs").addEventListener("click", e => {
+  const b = e.target.closest("[data-age]"); if (!b) return;
+  SEL.age = b.dataset.age;
+  render();
+});
+document.querySelectorAll("th.s").forEach(th => th.addEventListener("click", () => {
+  const k = th.dataset.s;
+  if (SORT.key === k) SORT.dir = SORT.dir === "asc" ? "desc" : "asc";
+  else { SORT.key = k; SORT.dir = "asc"; }
+  render();
+}));
+
+(async () => {
+  try {
+    const snap = await getDoc(doc(db, "competitions", COMPETITION_ID, "config", "publicResults"));
+    const data = snap.exists() ? snap.data() : {};
+    if (!data.published || !Array.isArray(data.entries) || !data.entries.length) {
+      $("#rows").innerHTML = `<tr><td colspan="7" class="empty">Results aren't published yet. Please check back later.</td></tr>`;
+      return;
+    }
+    ENTRIES = data.entries;
+    CATS = Array.isArray(data.categories) ? data.categories : [];
+    $("#subtabs").style.display = "";
+    render();
+    if (data.updatedAt?.toDate) {
+      $("#updated").textContent = "Last updated " + data.updatedAt.toDate().toLocaleString("en-GB");
+    }
+  } catch (err) {
+    console.warn("results load failed:", err);
+    $("#rows").innerHTML = `<tr><td colspan="7" class="empty">Couldn't load results. Please try again later.</td></tr>`;
+  }
+})();
+</script>
+</body>
+</html>
