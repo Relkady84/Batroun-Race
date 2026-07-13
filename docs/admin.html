@@ -414,7 +414,7 @@
           <button id="confirmedExportBtn" class="btn sec">Export CSV</button>
           <button id="confirmedRelayExportBtn" class="btn sec" title="Export confirmed relay teams (paid + free) — one row per runner (both teammates share the bib)">Export relay teams</button>
           <input type="file" id="resultsImportFile" accept=".csv,text/csv" hidden>
-          <button id="resultsImportBtn" class="btn sec" title="Import race results from a CSV file with columns: bib number, result, ranking. A header row is recommended so column order doesn't matter. In Excel use File → Save As → CSV.">Import results</button>
+          <button id="resultsImportBtn" class="btn sec" title="Import race results from a CSV file with columns: bib number and result/time (a ranking column is optional — the Result tab computes the overall rank from the times). A header row is recommended so column order doesn't matter. In Excel use File → Save As → CSV.">Import results</button>
         </div>
 
         <div class="table-wrap">
@@ -445,10 +445,12 @@
           <div style="flex:1;min-width:220px">
             <h2 style="margin:0 0 3px">Results &amp; standings</h2>
             <p class="muted" style="margin:0;font-size:.86rem">
-              Press <strong>Sync</strong> to build the standings from the <strong>rank + time</strong> you
-              imported in the Confirmed tab. Pick a <strong>category</strong>, then <strong>gender</strong>
-              and <strong>age category</strong> — the age-category ranking is calculated automatically and the
-              top 3 in each view are highlighted <span style="color:#ffcf40">gold</span> /
+              Press <strong>Sync</strong> to build the standings from the <strong>times</strong> you
+              imported in the Confirmed tab — the <strong>overall category rank</strong> is calculated from
+              the finish times (fastest = 1st), so you only need to import times (a rank column is optional and
+              wins if present). Pick a <strong>category</strong>, then <strong>gender</strong> and
+              <strong>age category</strong> — the age-category ranking is calculated automatically and the top 3
+              in each view are highlighted <span style="color:#ffcf40">gold</span> /
               <span style="color:#c9cdd4">silver</span> / <span style="color:#d08b46">bronze</span>.
             </p>
           </div>
@@ -2835,10 +2837,10 @@ document.getElementById("resultsImportFile")?.addEventListener("change", async (
     const text = await file.text();
     const entries = parseResultsCsv(text);
     if (!entries.length) {
-      toast("No rows found. Use a CSV with columns: bib number, result, ranking (save your Excel as CSV).", true);
+      toast("No rows found. Use a CSV with columns: bib number, result/time (ranking optional — save your Excel as CSV).", true);
       return;
     }
-    if (!confirm(`Import ${entries.length} row(s)? Each matches a confirmed runner by bib number and sets their result + ranking.`)) return;
+    if (!confirm(`Import ${entries.length} row(s)? Each matches a confirmed runner by bib number and sets their result/time (ranking is optional — the Result tab ranks by time). `)) return;
     await applyResults(entries);
   } catch (err) {
     console.error(err);
@@ -2943,14 +2945,47 @@ function genderBucket(g) {
   return String(g).trim(); // unknown value: keep it as its own bucket
 }
 
+// Parse a finish time ("HH:MM:SS", "MM:SS", "SS", optional ".fraction") into
+// seconds for ranking. Non-times (blank, "DNF", "DNS", "DQ"…) → null.
+function timeToSeconds(v) {
+  const s = String(v || "").trim();
+  if (!s) return null;
+  const parts = s.split(":").map(x => x.trim());
+  if (parts.some(p => p === "" || isNaN(Number(p)))) return null;
+  return parts.reduce((sec, p) => sec * 60 + Number(p), 0);
+}
+
 // One normalised row per confirmed registration (relay teams show both names).
+// The overall category rank is CALCULATED from the finish times (fastest = 1st,
+// category-wide across genders) when no rank was imported — so you can import
+// ONLY the times. An explicitly imported/edited rank always wins.
 function resultParticipants() {
-  return confirmedSourceRegs().map(r => {
+  const src = confirmedSourceRegs();
+  // Per-category sorted list of finish times → lets us rank by time.
+  const timesByCat = {};
+  src.forEach(r => {
+    const sec = timeToSeconds(r.result);
+    if (sec == null) return;
+    (timesByCat[r.categoryId] = timesByCat[r.categoryId] || []).push(sec);
+  });
+  Object.values(timesByCat).forEach(a => a.sort((x, y) => x - y));
+  // Standard competition ranking: position = 1 + (# strictly faster times).
+  const rankFromTime = (catId, result) => {
+    const sec = timeToSeconds(result);
+    if (sec == null) return "";
+    const arr = timesByCat[catId] || [];
+    let faster = 0;
+    for (const t of arr) { if (t < sec) faster++; else break; }
+    return String(faster + 1);
+  };
+  return src.map(r => {
     const c = cats.find(x => x.id === r.categoryId);
     const isRelay = !!c?.isRelay;
     const p1 = `${r.firstName || ""} ${r.lastName || ""}`.trim();
     const teammate = (isRelay && r.teammate)
       ? `${(r.teammate.firstName || "").trim()} ${(r.teammate.lastName || "").trim()}`.trim() : "";
+    const importedRank = (r.rank != null && r.rank !== "") ? String(r.rank) : "";
+    const rank = importedRank || rankFromTime(r.categoryId, r.result);
     return {
       id: r.id,
       name: teammate ? `${p1} + ${teammate}` : (p1 || "—"),
@@ -2961,9 +2996,9 @@ function resultParticipants() {
       catName: r.categoryName || c?.name || r.categoryId || "—",
       isRelay,
       sub: String(r.subQuestionAnswer || "").trim(),
-      rank: (r.rank != null && r.rank !== "") ? String(r.rank) : "",
+      rank,
       result: r.result || "",
-      hasResult: !!((r.result && String(r.result).trim()) || (r.rank != null && r.rank !== ""))
+      hasResult: !!(rank || (r.result && String(r.result).trim()))
     };
   });
 }
@@ -3162,27 +3197,21 @@ document.getElementById("resultExportBtn")?.addEventListener("click", () => {
 // writes it to a public-readable config doc that results.html renders.
 function buildResultsSnapshot() {
   const catList = resultCategoriesWithPeople().map(c => ({ id: c.id, name: c.name || c.id, isRelay: !!c.isRelay }));
-  const entries = [];
-  confirmedSourceRegs().forEach(r => {
-    const hasResult = (r.result && String(r.result).trim()) || (r.rank != null && r.rank !== "");
-    if (!hasResult) return;
-    const cat = cats.find(c => c.id === r.categoryId);
-    const isRelay = !!cat?.isRelay;
-    const p1 = `${r.firstName || ""} ${r.lastName || ""}`.trim();
-    const teammate = (isRelay && r.teammate)
-      ? `${(r.teammate.firstName || "").trim()} ${(r.teammate.lastName || "").trim()}`.trim() : "";
-    entries.push({
-      catId: r.categoryId,
-      catName: r.categoryName || cat?.name || r.categoryId,
-      isRelay,
-      name: teammate ? `${p1} + ${teammate}` : p1,
-      bib: r.bibNumber ?? "",
-      gender: isRelay ? "" : (r.gender || ""),
-      sub: r.subQuestionAnswer || "",
-      rank: (r.rank != null && r.rank !== "") ? r.rank : "",
-      result: r.result || ""
-    });
-  });
+  // Reuse the standings rows so the public snapshot carries the SAME overall
+  // rank the admin sees — including ranks calculated from times-only imports.
+  const entries = resultParticipants()
+    .filter(p => p.hasResult)
+    .map(p => ({
+      catId: p.catId,
+      catName: p.catName,
+      isRelay: p.isRelay,
+      name: p.name,
+      bib: p.bib === "—" ? "" : p.bib,
+      gender: p.isRelay ? "" : p.gender,
+      sub: p.sub,
+      rank: p.rank,
+      result: p.result
+    }));
   return { categories: catList, entries };
 }
 
