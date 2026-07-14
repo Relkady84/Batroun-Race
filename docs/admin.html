@@ -486,12 +486,13 @@
               <th>#</th>
               <th class="rsort" data-rsort="name">Name</th>
               <th class="rsort" data-rsort="bib">Bib</th>
+              <th class="rsort" data-rsort="gbucket">Gender</th>
               <th class="col-cat rsort" data-rsort="catName">Category</th>
               <th class="rsort" data-rsort="sub">Sub-category</th>
               <th class="rsort" data-rsort="rank">Rank</th>
               <th class="rsort" data-rsort="result">Result</th>
             </tr></thead>
-            <tbody><tr><td colspan="7" class="empty">Press “↻ Sync results” to build the standings.</td></tr></tbody>
+            <tbody><tr><td colspan="8" class="empty">Press “↻ Sync results” to build the standings.</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -3142,7 +3143,7 @@ function renderResultTab() {
     if (exportBtn) exportBtn.style.display = "none";
     if (scopeLabel) scopeLabel.textContent = "";
     if (table) table.classList.remove("show-cat");
-    tbody.innerHTML = `<tr><td colspan="7" class="empty" style="padding:32px 10px">${
+    tbody.innerHTML = `<tr><td colspan="8" class="empty" style="padding:32px 10px">${
       totalConfirmed
         ? `Press <strong>↻ Sync results</strong> above to build the standings from the imported ranks &amp; times.`
         : `No confirmed participants yet. Confirm payments and import results in the Confirmed tab first.`
@@ -3169,7 +3170,7 @@ function renderResultTab() {
   if (exportBtn) exportBtn.style.display = rows.length ? "" : "none";
 
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="7" class="empty">No runners in this selection.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="empty">No runners in this selection.</td></tr>`;
     return;
   }
   // Podium highlight only for a single-category slice in its natural (computed)
@@ -3187,6 +3188,7 @@ function renderResultTab() {
       <td>${ranked ? `<strong>${p}</strong>${medal ? ` ${["🥇","🥈","🥉"][p - 1]}` : ""}` : `<span class="muted">—</span>`}</td>
       <td>${escapeHtml(row.name)}</td>
       <td>${escapeHtml(String(row.bib))}</td>
+      <td>${row.gbucket ? escapeHtml(row.gbucket) : `<span class="muted">—</span>`}</td>
       <td class="col-cat">${escapeHtml(row.catName)}</td>
       <td>${escapeHtml(row.sub || "—")}</td>
       <td>${row.rank ? escapeHtml(row.rank) : `<span class="muted">—</span>`}</td>

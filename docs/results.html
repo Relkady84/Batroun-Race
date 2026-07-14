@@ -17,8 +17,8 @@
             -webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%}
   .wrap{max-width:860px;margin:0 auto;padding:max(16px,env(safe-area-inset-top)) 14px 40px}
   header{text-align:center;margin:8px 0 18px}
-  .brand{font-weight:900;font-size:.74rem;letter-spacing:.22em;text-transform:uppercase;color:var(--accent);margin:0}
-  h1{margin:4px 0 0;font-size:clamp(22px,6vw,32px);font-weight:900}
+  .brand{font-weight:900;font-size:clamp(22px,6vw,34px);letter-spacing:.02em;text-transform:uppercase;color:var(--accent);margin:0;line-height:1.05}
+  h1{margin:6px 0 0;font-size:clamp(13px,3.2vw,17px);font-weight:700;color:var(--muted);letter-spacing:.18em;text-transform:uppercase}
   .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px}
 
   /* Pill sub-tabs (category / gender / age category) */
@@ -83,12 +83,13 @@
           <th>#</th>
           <th class="s" data-s="name">Name</th>
           <th class="s" data-s="bib">Bib</th>
+          <th class="s" data-s="gender">Gender</th>
           <th class="col-cat s" data-s="catName">Category</th>
           <th class="s" data-s="sub">Sub-category</th>
           <th class="s" data-s="rank">Rank</th>
           <th class="s" data-s="result">Result</th>
         </tr></thead>
-        <tbody id="rows"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
+        <tbody id="rows"><tr><td colspan="8" class="empty">Loading…</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -229,7 +230,7 @@ function render(){
   if (SEL.gender) rows = rows.filter(e => gb(e) === SEL.gender);
   if (SEL.age) rows = rows.filter(e => String(e.sub||"").trim() === SEL.age);
   rows = sortRows(rows);
-  if (!rows.length){ tb.innerHTML = `<tr><td colspan="7" class="empty">No results in this selection.</td></tr>`; return; }
+  if (!rows.length){ tb.innerHTML = `<tr><td colspan="8" class="empty">No results in this selection.</td></tr>`; return; }
   // Only ranked entries get a position + medal; unranked (no time) show "—"
   // and are listed last, never taking a podium spot.
   const podium = !isAll && SORT.key === "rank" && SORT.dir === "asc";
@@ -243,6 +244,7 @@ function render(){
       <td class="pos">${ranked ? `${p}${medal ? ` ${["🥇","🥈","🥉"][p-1]}` : ""}` : "—"}</td>
       <td class="name">${esc(e.name || "—")}</td>
       <td>${esc(String(e.bib ?? "—"))}</td>
+      <td>${esc(gb(e) || "—")}</td>
       <td class="col-cat">${esc(e.catName || "—")}</td>
       <td>${esc(e.sub || "—")}</td>
       <td>${ranked ? esc(String(e.rank)) : "—"}</td>
@@ -280,7 +282,7 @@ document.querySelectorAll("th.s").forEach(th => th.addEventListener("click", () 
     const snap = await getDoc(doc(db, "competitions", COMPETITION_ID, "config", "publicResults"));
     const data = snap.exists() ? snap.data() : {};
     if (!data.published || !Array.isArray(data.entries) || !data.entries.length) {
-      $("#rows").innerHTML = `<tr><td colspan="7" class="empty">Results aren't published yet. Please check back later.</td></tr>`;
+      $("#rows").innerHTML = `<tr><td colspan="8" class="empty">Results aren't published yet. Please check back later.</td></tr>`;
       return;
     }
     ENTRIES = data.entries.map(e => ({ ...e, sub: cleanAgeLabel(e.sub) }));
@@ -292,7 +294,7 @@ document.querySelectorAll("th.s").forEach(th => th.addEventListener("click", () 
     }
   } catch (err) {
     console.warn("results load failed:", err);
-    $("#rows").innerHTML = `<tr><td colspan="7" class="empty">Couldn't load results. Please try again later.</td></tr>`;
+    $("#rows").innerHTML = `<tr><td colspan="8" class="empty">Couldn't load results. Please try again later.</td></tr>`;
   }
 })();
 </script>
