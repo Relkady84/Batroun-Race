@@ -116,6 +116,21 @@ let ENTRIES = [], CATS = [];
 let SEL = { catId: "", gender: "", age: "" };  // gender "" = overall; age "" = all ages
 let SORT = { key:"rank", dir:"asc" };
 
+// Reduce a bracket label to just its age range, e.g.
+// "Seniors Men-Women 20-34 (1992-2006)" -> "20-34"  ·  "Masters 70+ (…)" -> "70+"
+const RACE_YEAR = Number((COMPETITION_ID.match(/(\d{4})/) || [])[1]) || 0;
+function cleanAgeLabel(s){
+  const str = String(s || "").trim();
+  if (!str) return "";
+  let m = str.match(/(?<!\d)(\d{1,2})\s*\+/);
+  if (m) return `${m[1]}+`;
+  m = str.match(/(?<!\d)(\d{1,2})\s*(?:[-–—]|to)\s*(\d{1,2})(?!\d)/i);
+  if (m) return `${m[1]}-${m[2]}`;
+  m = str.match(/(\d{4})\s*(?:[-–—]|to|\s)\s*(\d{4})/i);
+  if (m && RACE_YEAR) return `${RACE_YEAR - Math.max(+m[1],+m[2])}-${RACE_YEAR - Math.min(+m[1],+m[2])}`;
+  return str;
+}
+
 // Same gender buckets as the admin standings.
 function genderBucket(g){
   const s = String(g||"").trim().toLowerCase();
@@ -261,7 +276,7 @@ document.querySelectorAll("th.s").forEach(th => th.addEventListener("click", () 
       $("#rows").innerHTML = `<tr><td colspan="7" class="empty">Results aren't published yet. Please check back later.</td></tr>`;
       return;
     }
-    ENTRIES = data.entries;
+    ENTRIES = data.entries.map(e => ({ ...e, sub: cleanAgeLabel(e.sub) }));
     CATS = Array.isArray(data.categories) ? data.categories : [];
     $("#subtabs").style.display = "";
     render();

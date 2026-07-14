@@ -2952,6 +2952,26 @@ function genderBucket(g) {
   return String(g).trim(); // unknown value: keep it as its own bucket
 }
 
+// Reduce a full bracket label to just its AGE range for the Results tab, e.g.
+//   "Seniors Men-Women 20-34 (1992-2006)" -> "20-34"
+//   "Masters 70+ (1900-1956)"             -> "70+"
+// Prefers the 1-2 digit age over the 4-digit birth-year range; only if a label
+// carries ONLY birth years does it convert them to ages using the race year.
+function cleanAgeLabel(s) {
+  const str = String(s || "").trim();
+  if (!str) return "";
+  let m = str.match(/(?<!\d)(\d{1,2})\s*\+/);                             // "70+"
+  if (m) return `${m[1]}+`;
+  m = str.match(/(?<!\d)(\d{1,2})\s*(?:[-–—]|to)\s*(\d{1,2})(?!\d)/i);    // "20-34"
+  if (m) return `${m[1]}-${m[2]}`;
+  m = str.match(/(\d{4})\s*(?:[-–—]|to|\s)\s*(\d{4})/i);                  // birth years only
+  if (m) {
+    const y = Number(competition?.year) || (competition?.raceDay ? new Date(competition.raceDay).getFullYear() : 0);
+    if (y) return `${y - Math.max(+m[1], +m[2])}-${y - Math.min(+m[1], +m[2])}`;
+  }
+  return str; // nothing numeric to extract — leave as-is
+}
+
 // Parse a finish time ("HH:MM:SS", "MM:SS", "SS", optional ".fraction") into
 // seconds for ranking. Non-times (blank, "DNF", "DNS", "DQ"…) → null.
 function timeToSeconds(v) {
@@ -3002,7 +3022,7 @@ function resultParticipants() {
       catId: r.categoryId,
       catName: r.categoryName || c?.name || r.categoryId || "—",
       isRelay,
-      sub: String(r.subQuestionAnswer || "").trim(),
+      sub: cleanAgeLabel(r.subQuestionAnswer),
       rank,
       result: r.result || "",
       hasResult: !!(rank || (r.result && String(r.result).trim()))
