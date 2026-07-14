@@ -195,6 +195,12 @@
   #resultTable tr.podium-1 td:first-child{box-shadow:inset 4px 0 0 #ffcf40}
   #resultTable tr.podium-2 td:first-child{box-shadow:inset 4px 0 0 #c9cdd4}
   #resultTable tr.podium-3 td:first-child{box-shadow:inset 4px 0 0 #d08b46}
+  /* Fit the results standings on a phone without side-scrolling (Results tab
+     only — other admin tables keep their normal spacing). */
+  @media (max-width:640px){
+    #resultTable th, #resultTable td{padding:7px 5px;font-size:.8rem;white-space:normal}
+    #resultTable th{font-size:.62rem;letter-spacing:0}
+  }
 
   /* Result-tab pill sub-tabs (category / gender / age-category) */
   .subtabs-wrap{background:rgba(0,0,0,.16);border:1px solid var(--line);border-radius:12px;
