@@ -53,7 +53,6 @@
     th{font-size:.62rem;letter-spacing:0;white-space:normal}
     td.name{white-space:normal}
   }
-  th.s{cursor:pointer}
   table:not(.show-cat) .col-cat{display:none}
   tbody tr.p1 td{background:rgba(255,207,64,.16)}
   tbody tr.p2 td{background:rgba(201,205,212,.16)}
@@ -93,7 +92,7 @@
         <div class="subtabs" id="ageTabs"></div>
       </div>
     </div>
-    <p class="legend">🥇 1st · 🥈 2nd · 🥉 3rd</p>
+    <p class="legend">Top 3 of each group — 🥇 1st · 🥈 2nd · 🥉 3rd</p>
     <div class="table-wrap">
       <table id="tbl">
         <thead><tr>
@@ -239,32 +238,24 @@ function render(){
   const isAll = SEL.catId === "__all__";
   const tb = $("#rows");
   document.getElementById("tbl").classList.toggle("show-cat", isAll);
-  document.querySelectorAll("th.s").forEach(th => {
-    th.classList.remove("asc","desc");
-    if (th.dataset.s === SORT.key) th.classList.add(SORT.dir);
-  });
   let rows = isAll ? ENTRIES.slice() : ENTRIES.filter(e => e.catId === SEL.catId);
   if (SEL.gender) rows = rows.filter(e => gb(e) === SEL.gender);
   if (SEL.age) rows = rows.filter(e => String(e.sub||"").trim() === SEL.age);
-  rows = sortRows(rows);
-  if (!rows.length){ tb.innerHTML = `<tr><td colspan="8" class="empty">No results in this selection.</td></tr>`; return; }
-  // Only ranked entries get a position + medal; unranked (no time) show "—"
-  // and are listed last, never taking a podium spot.
-  const podium = !isAll && SORT.key === "rank" && SORT.dir === "asc";
-  let pos = 0;
-  tb.innerHTML = rows.map(e => {
-    const ranked = e.rank !== "" && e.rank != null;
-    const p = ranked ? ++pos : null;
-    const medal = podium && ranked && p <= 3;
+  // PUBLIC page shows only the TOP 3 (by position) of the selected group; the
+  // full standings stay in the admin dashboard. Unranked runners are excluded.
+  rows = rows.filter(e => e.rank !== "" && e.rank != null).sort(rankCmp).slice(0, 3);
+  if (!rows.length){ tb.innerHTML = `<tr><td colspan="8" class="empty">No results in this selection yet.</td></tr>`; return; }
+  tb.innerHTML = rows.map((e, i) => {
+    const p = i + 1;
     return `
-    <tr class="${medal ? `p${p}` : ""}">
-      <td class="pos">${ranked ? `${p}${medal ? ` ${["🥇","🥈","🥉"][p-1]}` : ""}` : "—"}</td>
+    <tr class="p${p}">
+      <td class="pos">${p} ${["🥇","🥈","🥉"][i]}</td>
       <td class="name">${esc(e.name || "—")}</td>
       <td>${esc(String(e.bib ?? "—"))}</td>
       <td>${esc(gb(e) || "—")}</td>
       <td class="col-cat">${esc(e.catName || "—")}</td>
       <td>${esc(e.sub || "—")}</td>
-      <td>${ranked ? esc(String(e.rank)) : "—"}</td>
+      <td>${esc(String(e.rank))}</td>
       <td><strong>${e.result ? esc(e.result) : "—"}</strong></td>
     </tr>`;
   }).join("");
@@ -287,12 +278,8 @@ $("#ageTabs").addEventListener("click", e => {
   SEL.age = b.dataset.age;
   render();
 });
-document.querySelectorAll("th.s").forEach(th => th.addEventListener("click", () => {
-  const k = th.dataset.s;
-  if (SORT.key === k) SORT.dir = SORT.dir === "asc" ? "desc" : "asc";
-  else { SORT.key = k; SORT.dir = "asc"; }
-  render();
-}));
+// (Column sorting is intentionally omitted here — the public page shows only
+// each group's top 3 in finishing order.)
 
 // Show the Batroun Race logo (theme.logoImage) top-left, like the admin
 // dashboard. Cached in localStorage for a day so most views cost no read.
