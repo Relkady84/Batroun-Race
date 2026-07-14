@@ -144,7 +144,10 @@ function genderBucket(g){
   return String(g).trim();
 }
 function catIsRelay(id){ return !!(CATS.find(c => c.id === id)?.isRelay); }
-function gb(e){ return catIsRelay(e.catId) ? "" : genderBucket(e.gender); }
+// The snapshot's gender is already the computed bucket (Men / Women / Mixed for
+// relay teams); genderBucket() is idempotent and still handles raw values from
+// older snapshots.
+function gb(e){ return genderBucket(e.gender); }
 
 // Unranked entries (no rank AND no time) sort to the BOTTOM. Number("") === 0,
 // so an empty rank must be forced to Infinity or it would sort to the top.
@@ -179,19 +182,19 @@ function renderTabs(){
     `<button class="subtab ${SEL.catId===c.id?"active":""}" data-cat="${esc(c.id)}">${esc(c.name)}</button>`).join("");
 
   const isAll = SEL.catId === "__all__";
-  const isRelay = !isAll && catIsRelay(SEL.catId);
   const scope = isAll ? ENTRIES : ENTRIES.filter(e => e.catId === SEL.catId);
 
+  // Gender tabs — Men / Women (and Mixed for cross-gender relay teams), shown
+  // for every category including relay. Hidden only when there's no gender data.
   const genderRow = $("#genderRow");
-  if (isRelay){
+  const buckets = [...new Set(scope.map(gb).filter(Boolean))];
+  const ord = g => g==="Men"?0 : g==="Women"?1 : g==="Mixed"?2 : 3;
+  buckets.sort((a,b) => ord(a)-ord(b) || a.localeCompare(b));
+  if (!buckets.includes(SEL.gender)) SEL.gender = "";
+  if (!buckets.length){
     genderRow.style.display = "none";
-    SEL.gender = "";
   } else {
     genderRow.style.display = "";
-    const buckets = [...new Set(scope.map(gb).filter(Boolean))];
-    const ord = g => g==="Men"?0 : g==="Women"?1 : 2;
-    buckets.sort((a,b) => ord(a)-ord(b) || a.localeCompare(b));
-    if (!buckets.includes(SEL.gender)) SEL.gender = "";
     const tabs = [{v:"",label:"Overall"}, ...buckets.map(g=>({v:g,label:g}))];
     $("#genderTabs").innerHTML = tabs.map(t =>
       `<button class="subtab ${SEL.gender===t.v?"active":""}" data-gender="${esc(t.v)}">${esc(t.label)}</button>`).join("");
