@@ -16,9 +16,11 @@
             color:var(--ink);font:15px/1.55 'Inter',system-ui,-apple-system,Segoe UI,Roboto;
             -webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%}
   .wrap{max-width:960px;margin:0 auto;padding:max(16px,env(safe-area-inset-top)) 14px 40px}
-  header{text-align:center;margin:8px 0 18px}
+  header{display:flex;align-items:center;gap:14px;margin:8px 0 18px}
+  #brandLogo{height:56px;width:auto;display:none;flex:0 0 auto}
+  .head-text{display:flex;flex-direction:column;gap:2px;min-width:0}
   .brand{font-weight:900;font-size:clamp(22px,6vw,34px);letter-spacing:.02em;text-transform:uppercase;color:var(--accent);margin:0;line-height:1.05}
-  h1{margin:6px 0 0;font-size:clamp(13px,3.2vw,17px);font-weight:700;color:var(--muted);letter-spacing:.18em;text-transform:uppercase}
+  h1{margin:4px 0 0;font-size:clamp(13px,3.2vw,17px);font-weight:700;color:var(--muted);letter-spacing:.18em;text-transform:uppercase}
   .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px}
 
   /* Pill sub-tabs (category / gender / age category) */
@@ -44,6 +46,7 @@
      smaller text, and let the headers + names wrap instead of forcing width. */
   @media (max-width:640px){
     .wrap{padding-left:8px;padding-right:8px}
+    #brandLogo{height:44px}
     table{font-size:.8rem}
     th,td{padding:7px 5px}
     th{font-size:.62rem;letter-spacing:0;white-space:normal}
@@ -66,8 +69,11 @@
 <body>
 <main class="wrap">
   <header>
-    <p class="brand">Batroun Race 2026</p>
-    <h1>Results</h1>
+    <img id="brandLogo" alt="Batroun Race">
+    <div class="head-text">
+      <p class="brand">Batroun Race 2026</p>
+      <h1>Results</h1>
+    </div>
   </header>
 
   <div class="card">
@@ -285,6 +291,27 @@ document.querySelectorAll("th.s").forEach(th => th.addEventListener("click", () 
   else { SORT.key = k; SORT.dir = "asc"; }
   render();
 }));
+
+// Show the Batroun Race logo (theme.logoImage) top-left, like the admin
+// dashboard. Cached in localStorage for a day so most views cost no read.
+const LOGO_CACHE_KEY = "br-results-logo-" + COMPETITION_ID + "-v1";
+const LOGO_TTL_MS = 24 * 60 * 60 * 1000;
+(async () => {
+  const img = $("#brandLogo");
+  if (!img) return;
+  let logo = null;
+  try {
+    const o = JSON.parse(localStorage.getItem(LOGO_CACHE_KEY) || "null");
+    if (o && (Date.now() - o.t) < LOGO_TTL_MS) {
+      logo = o.logo;
+    } else {
+      const snap = await getDoc(doc(db, "competitions", COMPETITION_ID, "config", "theme"));
+      logo = snap.exists() ? (snap.data().logoImage || null) : null;
+      try { localStorage.setItem(LOGO_CACHE_KEY, JSON.stringify({ t: Date.now(), logo })); } catch (_) {}
+    }
+  } catch (_) {}
+  if (logo) { img.src = logo; img.style.display = "inline-block"; }
+})();
 
 (async () => {
   try {
