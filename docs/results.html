@@ -116,20 +116,45 @@ let ENTRIES = [], CATS = [];
 let SEL = { catId: "", gender: "", age: "" };  // gender "" = overall; age "" = all ages
 let SORT = { key:"rank", dir:"asc" };
 
+// Reduce a bracket label to just its age range, e.g.
+// "Seniors Men-Women 20-34 (1992-2006)" -> "20-34"  ·  "Masters 70+ (…)" -> "70+"
+const RACE_YEAR = Number((COMPETITION_ID.match(/(\d{4})/) || [])[1]) || 0;
+function cleanAgeLabel(s){
+  const str = String(s || "").trim();
+  if (!str) return "";
+  let m = str.match(/(?<!\d)(\d{1,2})\s*\+/);
+  if (m) return `${m[1]}+`;
+  m = str.match(/(?<!\d)(\d{1,2})\s*(?:[-–—]|to)\s*(\d{1,2})(?!\d)/i);
+  if (m) return `${m[1]}-${m[2]}`;
+  m = str.match(/(\d{4})\s*(?:[-–—]|to|\s)\s*(\d{4})/i);
+  if (m && RACE_YEAR) return `${RACE_YEAR - Math.max(+m[1],+m[2])}-${RACE_YEAR - Math.min(+m[1],+m[2])}`;
+  return str;
+}
+
 // Same gender buckets as the admin standings.
 function genderBucket(g){
   const s = String(g||"").trim().toLowerCase();
   if (!s) return "";
-  if (["m","male","man","men","homme","boy"].includes(s)) return "Men";
-  if (["f","w","female","woman","women","femme","girl"].includes(s)) return "Women";
+  const MEN = ["m","male","man","men","homme","boy",
+    "ذكر","ذكور","رجل","رجال","ولد","صبي"];
+  const WOMEN = ["f","w","female","woman","women","femme","girl",
+    "أنثى","أنثي","انثى","انثي","إناث","اناث","امرأة","امراة","بنت","فتاة","نساء","سيدة"];
+  if (MEN.includes(s)) return "Men";
+  if (WOMEN.includes(s)) return "Women";
   return String(g).trim();
 }
 function catIsRelay(id){ return !!(CATS.find(c => c.id === id)?.isRelay); }
 function gb(e){ return catIsRelay(e.catId) ? "" : genderBucket(e.gender); }
 
+// Unranked entries (no rank AND no time) sort to the BOTTOM. Number("") === 0,
+// so an empty rank must be forced to Infinity or it would sort to the top.
+function rankKey(v){
+  if (v === "" || v == null) return Infinity;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : Infinity;
+}
 function rankCmp(a,b){
-  const ra = Number(a.rank), rb = Number(b.rank);
-  const ka = Number.isFinite(ra)?ra:Infinity, kb = Number.isFinite(rb)?rb:Infinity;
+  const ka = rankKey(a.rank), kb = rankKey(b.rank);
   if (ka !== kb) return ka - kb;
   const sa = String(a.result||""), sb = String(b.result||"");
   if (sa && sb) return sa.localeCompare(sb, undefined, { numeric:true });
@@ -202,17 +227,25 @@ function render(){
   if (SEL.age) rows = rows.filter(e => String(e.sub||"").trim() === SEL.age);
   rows = sortRows(rows);
   if (!rows.length){ tb.innerHTML = `<tr><td colspan="7" class="empty">No results in this selection.</td></tr>`; return; }
+  // Only ranked entries get a position + medal; unranked (no time) show "—"
+  // and are listed last, never taking a podium spot.
   const podium = !isAll && SORT.key === "rank" && SORT.dir === "asc";
-  tb.innerHTML = rows.map((e,i) => `
-    <tr class="${podium && i<3?`p${i+1}`:""}">
-      <td class="pos">${i+1}${podium && i<3?` ${["🥇","🥈","🥉"][i]}`:""}</td>
+  let pos = 0;
+  tb.innerHTML = rows.map(e => {
+    const ranked = e.rank !== "" && e.rank != null;
+    const p = ranked ? ++pos : null;
+    const medal = podium && ranked && p <= 3;
+    return `
+    <tr class="${medal ? `p${p}` : ""}">
+      <td class="pos">${ranked ? `${p}${medal ? ` ${["🥇","🥈","🥉"][p-1]}` : ""}` : "—"}</td>
       <td class="name">${esc(e.name || "—")}</td>
       <td>${esc(String(e.bib ?? "—"))}</td>
       <td class="col-cat">${esc(e.catName || "—")}</td>
       <td>${esc(e.sub || "—")}</td>
-      <td>${e.rank !== "" && e.rank != null ? esc(String(e.rank)) : "—"}</td>
+      <td>${ranked ? esc(String(e.rank)) : "—"}</td>
       <td><strong>${e.result ? esc(e.result) : "—"}</strong></td>
-    </tr>`).join("");
+    </tr>`;
+  }).join("");
 }
 
 // Pill-tab clicks (delegated). Category resets gender+age; gender resets age.
@@ -247,7 +280,7 @@ document.querySelectorAll("th.s").forEach(th => th.addEventListener("click", () 
       $("#rows").innerHTML = `<tr><td colspan="7" class="empty">Results aren't published yet. Please check back later.</td></tr>`;
       return;
     }
-    ENTRIES = data.entries;
+    ENTRIES = data.entries.map(e => ({ ...e, sub: cleanAgeLabel(e.sub) }));
     CATS = Array.isArray(data.categories) ? data.categories : [];
     $("#subtabs").style.display = "";
     render();
