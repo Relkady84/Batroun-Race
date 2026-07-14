@@ -247,6 +247,9 @@ function render(){
   if (SEL.gender) rows = rows.filter(e => gb(e) === SEL.gender);
   if (SEL.age) rows = rows.filter(e => String(e.sub||"").trim() === SEL.age);
   rows = sortRows(rows);
+  // Public page: an age group shows only its PODIUM (top 3 by time). The admin
+  // dashboard still lists everyone. Overall / Men / Women views are unaffected.
+  if (SEL.age) rows = rows.filter(e => e.rank !== "" && e.rank != null).sort(rankCmp).slice(0, 3);
   if (!rows.length){ tb.innerHTML = `<tr><td colspan="8" class="empty">No results in this selection.</td></tr>`; return; }
   // Only ranked entries get a position + medal; unranked (no time) show "—"
   // and are listed last, never taking a podium spot.
