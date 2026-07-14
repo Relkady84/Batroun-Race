@@ -2965,14 +2965,11 @@ function genderBucket(g) {
   return String(g).trim(); // unknown value: keep it as its own bucket
 }
 
-// A relay team's gender group from its two members: both male -> Men, both
-// female -> Women, one of each -> Mixed. Falls back to whichever is known.
+// A relay team's gender group is the registrant's (Person 1) gender — teams
+// are classified Men or Women only, there is NO "Mixed" group. Falls back to
+// the teammate's gender if Person 1's is missing.
 function relayGenderBucket(r) {
-  const g1 = genderBucket(r.gender);
-  const g2 = genderBucket(r.teammate?.gender);
-  const canon = g => g === "Men" || g === "Women";
-  if (canon(g1) && canon(g2)) return g1 === g2 ? g1 : "Mixed";
-  return canon(g1) ? g1 : canon(g2) ? g2 : "";
+  return genderBucket(r.gender) || genderBucket(r.teammate?.gender);
 }
 
 // Reduce a full bracket label to just its AGE range for the Results tab, e.g.
@@ -3045,7 +3042,8 @@ function resultParticipants() {
       catId: r.categoryId,
       catName: r.categoryName || c?.name || r.categoryId || "—",
       isRelay,
-      sub: cleanAgeLabel(r.subQuestionAnswer),
+      // Relay teams have NO age groups — only Men / Women, ranked by time.
+      sub: isRelay ? "" : cleanAgeLabel(r.subQuestionAnswer),
       rank,
       result: r.result || "",
       hasResult: !!(rank || (r.result && String(r.result).trim()))
@@ -3081,11 +3079,11 @@ function renderResultTabs() {
   const isAll = resultSel.catId === "__all__";
   const scope = isAll ? resultParticipants() : resultParticipants().filter(p => p.catId === resultSel.catId);
 
-  // Gender row — Men / Women (and Mixed for cross-gender relay teams), shown for
-  // EVERY category including relay. Hidden only when there's no gender data.
+  // Gender row — Men / Women, shown for EVERY category including relay (relay
+  // teams use the registrant's gender). Hidden only when there's no gender data.
   const genderRow = $("#resultGenderRow");
   const buckets = [...new Set(scope.map(p => p.gbucket).filter(Boolean))];
-  const ord = g => g === "Men" ? 0 : g === "Women" ? 1 : g === "Mixed" ? 2 : 3;
+  const ord = g => g === "Men" ? 0 : g === "Women" ? 1 : 2;
   buckets.sort((a, b) => ord(a) - ord(b) || a.localeCompare(b));
   if (!buckets.includes(resultSel.gender)) resultSel.gender = "";
   if (genderRow) {
@@ -3266,7 +3264,7 @@ function buildResultsSnapshot() {
       isRelay: p.isRelay,
       name: p.name,
       bib: p.bib === "—" ? "" : p.bib,
-      gender: p.gbucket,  // computed bucket: Men / Women / Mixed (relay teams)
+      gender: p.gbucket,  // computed bucket: Men / Women (relay = registrant's)
       sub: p.sub,
       rank: p.rank,
       result: p.result
