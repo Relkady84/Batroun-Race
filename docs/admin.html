@@ -2909,9 +2909,16 @@ function resultCategoriesWithPeople() {
 // Sorting for the Result tab. Default = rank (the standings order). Clicking a
 // column header re-sorts (used mainly by the "All categories" view).
 let resultSort = { key: "rank", dir: "asc" };
+// Runners with no rank AND no time (empty string / "DNF" / etc.) sort to the
+// BOTTOM. Note Number("") === 0, so an empty rank must be forced to Infinity or
+// unranked runners would sort to the top and steal the podium.
+function rankKey(v) {
+  if (v === "" || v == null) return Infinity;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : Infinity;
+}
 function compareRowRank(a, b) {
-  const ra = Number(a.rank), rb = Number(b.rank);
-  const ka = Number.isFinite(ra) ? ra : Infinity, kb = Number.isFinite(rb) ? rb : Infinity;
+  const ka = rankKey(a.rank), kb = rankKey(b.rank);
   if (ka !== kb) return ka - kb;
   const sa = String(a.result || ""), sb = String(b.result || "");
   if (sa && sb) return sa.localeCompare(sb, undefined, { numeric: true });
@@ -3131,17 +3138,25 @@ function renderResultTab() {
   }
   // Podium highlight only for a single-category slice in its natural (computed)
   // rank order — not the sortable "All categories" view or a re-sorted column.
+  // Only RANKED runners (with a rank/time) get a position + medal; unranked
+  // runners are listed last with a "—" and never take a podium spot.
   const podium = !isAll && resultSort.key === "rank" && resultSort.dir === "asc";
-  tbody.innerHTML = rows.map((row, i) => `
-    <tr class="${podium && i < 3 ? `podium-${i + 1}` : ""}">
-      <td><strong>${i + 1}</strong>${podium && i < 3 ? ` ${["🥇","🥈","🥉"][i]}` : ""}</td>
+  let pos = 0;
+  tbody.innerHTML = rows.map(row => {
+    const ranked = row.rank !== "" && row.rank != null;
+    const p = ranked ? ++pos : null;
+    const medal = podium && ranked && p <= 3;
+    return `
+    <tr class="${medal ? `podium-${p}` : ""}">
+      <td>${ranked ? `<strong>${p}</strong>${medal ? ` ${["🥇","🥈","🥉"][p - 1]}` : ""}` : `<span class="muted">—</span>`}</td>
       <td>${escapeHtml(row.name)}</td>
       <td>${escapeHtml(String(row.bib))}</td>
       <td class="col-cat">${escapeHtml(row.catName)}</td>
       <td>${escapeHtml(row.sub || "—")}</td>
       <td>${row.rank ? escapeHtml(row.rank) : `<span class="muted">—</span>`}</td>
       <td>${row.result ? `<strong>${escapeHtml(row.result)}</strong>` : `<span class="muted">—</span>`}</td>
-    </tr>`).join("");
+    </tr>`;
+  }).join("");
 }
 
 document.getElementById("resultSyncBtn")?.addEventListener("click", syncResults);

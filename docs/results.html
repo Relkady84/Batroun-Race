@@ -127,9 +127,15 @@ function genderBucket(g){
 function catIsRelay(id){ return !!(CATS.find(c => c.id === id)?.isRelay); }
 function gb(e){ return catIsRelay(e.catId) ? "" : genderBucket(e.gender); }
 
+// Unranked entries (no rank AND no time) sort to the BOTTOM. Number("") === 0,
+// so an empty rank must be forced to Infinity or it would sort to the top.
+function rankKey(v){
+  if (v === "" || v == null) return Infinity;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : Infinity;
+}
 function rankCmp(a,b){
-  const ra = Number(a.rank), rb = Number(b.rank);
-  const ka = Number.isFinite(ra)?ra:Infinity, kb = Number.isFinite(rb)?rb:Infinity;
+  const ka = rankKey(a.rank), kb = rankKey(b.rank);
   if (ka !== kb) return ka - kb;
   const sa = String(a.result||""), sb = String(b.result||"");
   if (sa && sb) return sa.localeCompare(sb, undefined, { numeric:true });
@@ -202,17 +208,25 @@ function render(){
   if (SEL.age) rows = rows.filter(e => String(e.sub||"").trim() === SEL.age);
   rows = sortRows(rows);
   if (!rows.length){ tb.innerHTML = `<tr><td colspan="7" class="empty">No results in this selection.</td></tr>`; return; }
+  // Only ranked entries get a position + medal; unranked (no time) show "—"
+  // and are listed last, never taking a podium spot.
   const podium = !isAll && SORT.key === "rank" && SORT.dir === "asc";
-  tb.innerHTML = rows.map((e,i) => `
-    <tr class="${podium && i<3?`p${i+1}`:""}">
-      <td class="pos">${i+1}${podium && i<3?` ${["🥇","🥈","🥉"][i]}`:""}</td>
+  let pos = 0;
+  tb.innerHTML = rows.map(e => {
+    const ranked = e.rank !== "" && e.rank != null;
+    const p = ranked ? ++pos : null;
+    const medal = podium && ranked && p <= 3;
+    return `
+    <tr class="${medal ? `p${p}` : ""}">
+      <td class="pos">${ranked ? `${p}${medal ? ` ${["🥇","🥈","🥉"][p-1]}` : ""}` : "—"}</td>
       <td class="name">${esc(e.name || "—")}</td>
       <td>${esc(String(e.bib ?? "—"))}</td>
       <td class="col-cat">${esc(e.catName || "—")}</td>
       <td>${esc(e.sub || "—")}</td>
-      <td>${e.rank !== "" && e.rank != null ? esc(String(e.rank)) : "—"}</td>
+      <td>${ranked ? esc(String(e.rank)) : "—"}</td>
       <td><strong>${e.result ? esc(e.result) : "—"}</strong></td>
-    </tr>`).join("");
+    </tr>`;
+  }).join("");
 }
 
 // Pill-tab clicks (delegated). Category resets gender+age; gender resets age.
