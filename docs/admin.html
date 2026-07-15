@@ -3194,13 +3194,13 @@ function renderResultTab() {
     tbody.innerHTML = `<tr><td colspan="8" class="empty">No runners in this selection.</td></tr>`;
     return;
   }
-  // Podium highlight only for a single-category slice in its natural (computed)
-  // Medals show on the award podiums (natural rank order): a specific age
-  // category, OR — for relay (no age groups) — the Men / Women view. Never on an
-  // overall / all-ages view. Unranked runners never get a medal (listed last).
-  const isRelayCat = resultSel.catId !== "__all__" && !!cats.find(c => c.id === resultSel.catId)?.isRelay;
-  const podium = (isRelayCat ? !!resultSel.gender : !!resultSel.age)
-                 && resultSort.key === "rank" && resultSort.dir === "asc";
+  // Medals show on a Men / Women podium (rank order). Which podiums are awards:
+  // every age group; the OVERALL Men / Women only if the category has a separate
+  // overall award (e.g. 10 KM, via the toggle); and relay Men / Women. Never on
+  // the combined "Overall" mix. Unranked runners never get a medal (listed last).
+  const _cat = cats.find(c => c.id === resultSel.catId);
+  const _isAward = !!resultSel.age || !!_cat?.excludeOverallFromAge || !!_cat?.isRelay;
+  const podium = !!resultSel.gender && _isAward && resultSort.key === "rank" && resultSort.dir === "asc";
   let pos = 0;
   tbody.innerHTML = rows.map(row => {
     const ranked = row.rank !== "" && row.rank != null;
@@ -6103,7 +6103,7 @@ function openEditCategory(c) {
     <label class="inline" style="margin-top:6px;display:flex;align-items:center;gap:8px">
       <input type="checkbox" id="ec_excludeOverall" ${c.excludeOverallFromAge ? "checked" : ""}
         style="width:auto;min-height:auto;accent-color:var(--accent)">
-      <span>Age-category podiums exclude the overall top 3 (Men / Women) — an overall winner can't also take an age-category medal. Turn on where this category has a separate overall award (e.g. 10 KM).</span>
+      <span>Separate overall Men / Women award (e.g. 10 KM) — medals the overall top 3, and keeps them out of the age-category podiums. Leave OFF for age-only races (e.g. 5 KM), where medals show on the age groups only.</span>
     </label>
 
     <details style="margin-top:14px;padding:10px 12px;background:rgba(0,0,0,.18);border-radius:8px" ${c.subQuestion?.label ? "open" : ""}>
