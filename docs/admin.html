@@ -3118,11 +3118,28 @@ function renderResultTabs() {
 
 // Rows for the currently selected slice, sorted (default = rank → the computed
 // standings order). "All categories" adds a sortable Category column.
+// Keys (reg ids) of the OVERALL podium — top 3 per gender by rank/time within
+// a pool. Age-category awards skip these so others get a chance at top 3.
+function overallPodiumIds(pool) {
+  const ids = new Set();
+  ["Men", "Women"].forEach(g => {
+    pool.filter(p => p.gbucket === g && p.rank !== "" && p.rank != null)
+        .slice().sort(compareRowRank).slice(0, 3)
+        .forEach(p => ids.add(p.id));
+  });
+  return ids;
+}
+
 function resultSliceRows() {
   const isAll = resultSel.catId === "__all__";
-  let src = isAll ? resultParticipants() : resultParticipants().filter(p => p.catId === resultSel.catId);
-  if (resultSel.gender) src = src.filter(p => p.gbucket === resultSel.gender);
-  if (resultSel.age) src = src.filter(p => p.sub === resultSel.age);
+  let pool = isAll ? resultParticipants() : resultParticipants().filter(p => p.catId === resultSel.catId);
+  if (resultSel.gender) pool = pool.filter(p => p.gbucket === resultSel.gender);
+  let src = pool;
+  if (resultSel.age) {
+    // Age category: skip the overall (per-gender) top 3, then rank the rest.
+    const skip = isAll ? new Set() : overallPodiumIds(pool);
+    src = pool.filter(p => p.sub === resultSel.age && !skip.has(p.id));
+  }
   return sortResultObjs(src);
 }
 

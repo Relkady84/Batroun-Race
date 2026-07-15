@@ -191,6 +191,18 @@ function sortRows(rows){
   else arr.sort((a,b) => sign * String(a[k] ?? "").localeCompare(String(b[k] ?? ""), undefined, { numeric:true, sensitivity:"base" }));
   return arr;
 }
+const rowKey = e => String(e.bib ?? "") + "|" + String(e.name ?? "");
+// Keys of the OVERALL podium (top 3 per gender, by time) within a pool of
+// runners. Age-category awards skip these so others get a chance at top 3.
+function overallPodiumKeys(pool){
+  const keys = new Set();
+  for (const g of ["Men","Women"]){
+    pool.filter(e => gb(e) === g && e.rank !== "" && e.rank != null)
+        .slice().sort(rankCmp).slice(0,3)
+        .forEach(e => keys.add(rowKey(e)));
+  }
+  return keys;
+}
 
 function renderTabs(){
   const catIds = [...new Set(ENTRIES.map(e => e.catId))];
@@ -246,17 +258,24 @@ function render(){
     th.classList.remove("asc","desc");
     if (th.dataset.s === SORT.key) th.classList.add(SORT.dir);
   });
-  let rows = isAll ? ENTRIES.slice() : ENTRIES.filter(e => e.catId === SEL.catId);
-  if (SEL.gender) rows = rows.filter(e => gb(e) === SEL.gender);
-  if (SEL.age) rows = rows.filter(e => String(e.sub||"").trim() === SEL.age);
-  rows = sortRows(rows);
-  // Public page: an age group shows only its PODIUM (top 3 by time). The admin
-  // dashboard still lists everyone. Overall / Men / Women views are unaffected.
-  if (SEL.age) rows = rows.filter(e => e.rank !== "" && e.rank != null).sort(rankCmp).slice(0, 3);
+  let pool = isAll ? ENTRIES.slice() : ENTRIES.filter(e => e.catId === SEL.catId);
+  if (SEL.gender) pool = pool.filter(e => gb(e) === SEL.gender);
+  let rows;
+  if (SEL.age){
+    // Age-category podium: the OVERALL top 3 (per gender) are skipped so other
+    // runners get a chance at top 3. Then show the 3 fastest of the rest.
+    const skip = isAll ? new Set() : overallPodiumKeys(pool);
+    rows = pool.filter(e => String(e.sub||"").trim() === SEL.age
+                            && !skip.has(rowKey(e))
+                            && e.rank !== "" && e.rank != null)
+               .sort(rankCmp).slice(0, 3);
+  } else {
+    rows = sortRows(pool);
+  }
   if (!rows.length){ tb.innerHTML = `<tr><td colspan="8" class="empty">No results in this selection.</td></tr>`; return; }
   // Only ranked entries get a position + medal; unranked (no time) show "—"
-  // and are listed last, never taking a podium spot.
-  const podium = !isAll && SORT.key === "rank" && SORT.dir === "asc";
+  // and are listed last, never taking a podium spot. Age views are always a podium.
+  const podium = SEL.age ? true : (!isAll && SORT.key === "rank" && SORT.dir === "asc");
   let pos = 0;
   tb.innerHTML = rows.map(e => {
     const ranked = e.rank !== "" && e.rank != null;
