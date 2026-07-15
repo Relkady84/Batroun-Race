@@ -195,10 +195,9 @@ function sortRows(rows){
 function renderTabs(){
   const catIds = [...new Set(ENTRIES.map(e => e.catId))];
   const catOpts = CATS.filter(c => catIds.includes(c.id));
-  const catBtns = [{ id:"__all__", name:"All categories" },
-                   ...catOpts.map(c => ({ id:c.id, name:c.name }))];
+  const catBtns = catOpts.map(c => ({ id:c.id, name:c.name }));
   const valid = catBtns.map(c => c.id);
-  if (!valid.includes(SEL.catId)) SEL.catId = catBtns[0]?.id || "__all__";
+  if (!valid.includes(SEL.catId)) SEL.catId = catBtns[0]?.id || "";
   $("#catTabs").innerHTML = catBtns.map(c =>
     `<button class="subtab ${SEL.catId===c.id?"active":""}" data-cat="${esc(c.id)}">${esc(c.name)}</button>`).join("");
 
