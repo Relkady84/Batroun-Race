@@ -328,7 +328,7 @@
           <input type="number" data-filter-id="ageMin"      id="filterAgeMin"    placeholder="Age ≥">
           <input type="number" data-filter-id="ageMax"      id="filterAgeMax"    placeholder="Age ≤">
           <select data-filter-id="category"     id="filterCategory"><option value="">All categories</option></select>
-          <select data-filter-id="subCategory"  id="filterSubCategory"><option value="">All sub-categories</option></select>
+          <select data-filter-id="subCategory"  id="filterSubCategory"><option value="">All age categories</option></select>
           <select data-filter-id="gender"       id="filterGender">
             <option value="">Any gender</option>
             <option>Female</option><option>Male</option>
@@ -370,7 +370,7 @@
               <th class="sortable col-email"             data-sort="email">Email</th>
               <th class="sortable col-phone"             data-sort="phone">Phone</th>
               <th class="sortable col-categoryName"      data-sort="categoryName">Category</th>
-              <th class="sortable col-subQuestionAnswer" data-sort="subQuestionAnswer">Sub-category</th>
+              <th class="sortable col-subQuestionAnswer" data-sort="subQuestionAnswer">Age category</th>
               <th class="sortable col-ageOnRaceDay"      data-sort="ageOnRaceDay">Age</th>
               <th class="sortable col-gender"            data-sort="gender">Gender</th>
               <th class="sortable col-tshirtSize"        data-sort="tshirtSize">T-shirt</th>
@@ -403,7 +403,7 @@
         <div class="filters-grid">
           <input type="search" id="confirmedSearch" placeholder="Search name, ref, phone, email…">
           <select id="confirmedCategoryFilter"><option value="">All categories</option></select>
-          <select id="confirmedSubCatFilter"><option value="">All sub-categories</option></select>
+          <select id="confirmedSubCatFilter"><option value="">All age categories</option></select>
           <select id="confirmedGenderFilter"><option value="">All genders</option></select>
           <select id="confirmedTshirtFilter"><option value="">All T-shirt sizes</option></select>
           <select id="confirmedPayType">
@@ -429,7 +429,7 @@
               <th class="sortable" data-csort="whishReference">Ref</th>
               <th class="sortable" data-csort="firstName">Name</th>
               <th class="sortable" data-csort="categoryName">Category</th>
-              <th class="sortable" data-csort="subQuestionAnswer">Sub-category</th>
+              <th class="sortable" data-csort="subQuestionAnswer">Age category</th>
               <th class="sortable" data-csort="bibNumber">Bib</th>
               <th class="sortable" data-csort="paidAt">Confirmed at</th>
               <th class="sortable" data-csort="scannedAt">Scanned</th>
@@ -494,7 +494,7 @@
               <th class="rsort" data-rsort="bib">Bib</th>
               <th class="rsort" data-rsort="gbucket">Gender</th>
               <th class="col-cat rsort" data-rsort="catName">Category</th>
-              <th class="rsort" data-rsort="sub">Sub-category</th>
+              <th class="rsort" data-rsort="sub">Age category</th>
               <th class="rsort" data-rsort="rank">Rank</th>
               <th class="rsort" data-rsort="result">Result</th>
             </tr></thead>
@@ -1272,7 +1272,7 @@ See you at the start line!"></textarea>
           on rows where it differs.
         </p>
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-          <button id="normalizeSubCatsBtn" class="btn">Normalize sub-categories</button>
+          <button id="normalizeSubCatsBtn" class="btn">Normalize age categories</button>
           <span class="muted" id="normalizeSubCatsStatus"></span>
         </div>
       </div>
@@ -1909,7 +1909,7 @@ const DASHBOARD_FILTERS = [
   { id:"ageMin",        label:"Age min (≥)" },
   { id:"ageMax",        label:"Age max (≤)" },
   { id:"category",      label:"Category dropdown" },
-  { id:"subCategory",   label:"Sub-category dropdown" },
+  { id:"subCategory",   label:"Age category" },
   { id:"gender",        label:"Gender" },
   { id:"tshirt",        label:"T-shirt size" },
   { id:"status",        label:"Status" },
@@ -1923,7 +1923,7 @@ const DASHBOARD_COLUMNS = [
   { key:"email",             label:"Email" },
   { key:"phone",             label:"Phone" },
   { key:"categoryName",      label:"Category" },
-  { key:"subQuestionAnswer", label:"Sub-category" },
+  { key:"subQuestionAnswer", label:"Age category" },
   { key:"ageOnRaceDay",      label:"Age" },
   { key:"gender",            label:"Gender" },
   { key:"tshirtSize",        label:"T-shirt" },
@@ -1942,7 +1942,7 @@ const SCANNER_FIELDS = [
   { key: "name",              label: "Name" },
   { key: "bibNumber",         label: "Bib number" },
   { key: "categoryName",      label: "Category" },
-  { key: "subQuestionAnswer", label: "Sub-category" },
+  { key: "subQuestionAnswer", label: "Age category" },
   { key: "whishReference",    label: "Reference" },
   { key: "paymentStatus",     label: "Payment status" },
   { key: "ageOnRaceDay",      label: "Age" },
@@ -2223,7 +2223,7 @@ function renderSubCategoryFilter() {
   const sel = $("#filterSubCategory");
   const current = sel.value;
   const unique = [...new Set(regs.map(r => r.subQuestionAnswer).filter(Boolean))].sort();
-  sel.innerHTML = '<option value="">All sub-categories</option>' +
+  sel.innerHTML = '<option value="">All age categories</option>' +
     unique.map(o => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join("");
   sel.value = current;
 }
@@ -2465,7 +2465,7 @@ function openRegDetails(r) {
       ${k("Country", r.country)}
       ${k("City", r.city)}
       ${k("Category", r.categoryName)}
-      ${r.subQuestionAnswer ? k(cats.find(c => c.id === r.categoryId)?.subQuestion?.label || "Sub-category", r.subQuestionAnswer) : ""}
+      ${r.subQuestionAnswer ? k(cats.find(c => c.id === r.categoryId)?.subQuestion?.label || "Age category", r.subQuestionAnswer) : ""}
       ${k("Price", fmtMoney(r.priceUSD || 0))}
       ${k("Status", r.paymentStatus)}
       ${kHtml("Bib", bibCell(r.bibNumber, r.categoryId))}
@@ -2599,7 +2599,7 @@ function renderConfirmedFilters() {
   }
   const src = confirmedSourceRegs();
   const distinct = key => [...new Set(src.map(r => String(r[key] || "").trim()).filter(Boolean))];
-  fillConfirmedSelect("confirmedSubCatFilter", "All sub-categories", distinct("subQuestionAnswer").sort((a,b)=>a.localeCompare(b)));
+  fillConfirmedSelect("confirmedSubCatFilter", "All age categories", distinct("subQuestionAnswer").sort((a,b)=>a.localeCompare(b)));
   fillConfirmedSelect("confirmedGenderFilter", "All genders",        distinct("gender").sort((a,b)=>a.localeCompare(b)));
   fillConfirmedSelect("confirmedTshirtFilter", "All T-shirt sizes",  sortSizes(distinct("tshirtSize")));
 }
@@ -5689,7 +5689,7 @@ function openParticipantEditor(r) {
     const c = cats.find(x => x.id === $("#pe_cat").value);
     const dob = $("#pe_dob").value;
     if (!c?.subQuestion?.options?.length) { wrap.innerHTML = ""; return; }
-    const labelHtml = `<label>${escapeHtml(c.subQuestion.label || "Sub-category")}</label>`;
+    const labelHtml = `<label>${escapeHtml(c.subQuestion.label || "Age category")}</label>`;
     if (!dob) {
       wrap.innerHTML = `${labelHtml}<input id="pe_subq" readonly placeholder="Auto-fills from date of birth above">`;
       return;
