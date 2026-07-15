@@ -3057,8 +3057,8 @@ function syncResults() {
   const withResult = parts.filter(p => p.hasResult).length;
   const catList = resultCategoriesWithPeople();
   resultSynced = true;
-  const valid = ["__all__", ...catList.map(c => c.id)];
-  if (!valid.includes(resultSel.catId)) resultSel.catId = catList[0]?.id || "__all__";
+  const valid = catList.map(c => c.id);
+  if (!valid.includes(resultSel.catId)) resultSel.catId = catList[0]?.id || "";
   resultSel.gender = ""; resultSel.age = "";
   resultSort = { key: "rank", dir: "asc" };
   renderResultTab();
@@ -3068,10 +3068,9 @@ function syncResults() {
 // Build the three pill-tab rows from the current selection + data in scope.
 function renderResultTabs() {
   const catList = resultCategoriesWithPeople();
-  const catBtns = [{ id: "__all__", name: "All categories" },
-                   ...catList.map(c => ({ id: c.id, name: c.name || c.id }))];
+  const catBtns = catList.map(c => ({ id: c.id, name: c.name || c.id }));
   const valid = catBtns.map(c => c.id);
-  if (!valid.includes(resultSel.catId)) resultSel.catId = catBtns[0]?.id || "__all__";
+  if (!valid.includes(resultSel.catId)) resultSel.catId = catBtns[0]?.id || "";
   const catTabs = $("#resultCatTabs");
   if (catTabs) catTabs.innerHTML = catBtns.map(c =>
     `<button class="subtab ${resultSel.catId === c.id ? "active" : ""}" data-rcat="${escapeHtml(c.id)}">${escapeHtml(c.name)}</button>`).join("");
