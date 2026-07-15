@@ -1982,7 +1982,7 @@ function renderParticipantSubQ(n) {
   const dob   = document.getElementById(`p${n}_dob`)?.value;
   const c = CATEGORIES[catId];
   if (!c?.subQuestion?.options?.length) { wrap.innerHTML = ""; return; }
-  const labelHtml = escHtml(c.subQuestion.label || "Sub-category") + " *";
+  const labelHtml = escHtml(c.subQuestion.label || "Age category") + " *";
   if (!dob) {
     wrap.innerHTML = `
       <label>${labelHtml}</label>
@@ -3398,7 +3398,7 @@ cartAddBtn?.addEventListener("click", () => {
     const c = CATEGORIES[document.getElementById("ca_cat").value];
     const dob = document.getElementById("ca_dob").value;
     if (!c?.subQuestion?.options?.length) { wrap.innerHTML = ""; return; }
-    const labelHtml = escHtml(c.subQuestion.label || "Sub-category") + " *";
+    const labelHtml = escHtml(c.subQuestion.label || "Age category") + " *";
     if (!dob) {
       wrap.innerHTML = `<label>${labelHtml}</label>
         <input type="text" id="ca_sq" readonly placeholder="Auto-fills once you enter the date of birth above">`;
