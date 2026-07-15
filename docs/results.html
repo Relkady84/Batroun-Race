@@ -257,9 +257,9 @@ function render(){
     rows = sortRows(pool);
   }
   if (!rows.length){ tb.innerHTML = `<tr><td colspan="8" class="empty">No results in this selection.</td></tr>`; return; }
-  // Only ranked entries get a position + medal; unranked (no time) show "—"
-  // and are listed last, never taking a podium spot. Age views are always a podium.
-  const podium = SEL.age ? true : (!isAll && SORT.key === "rank" && SORT.dir === "asc");
+  // Medals (🥇🥈🥉) show ONLY on a specific age-category podium — not on the
+  // overall / all-ages Men-Women views. Positions still number every row.
+  const podium = !!SEL.age;
   let pos = 0;
   tb.innerHTML = rows.map(e => {
     const ranked = e.rank !== "" && e.rank != null;

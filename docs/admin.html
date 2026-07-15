@@ -3179,10 +3179,10 @@ function renderResultTab() {
     return;
   }
   // Podium highlight only for a single-category slice in its natural (computed)
-  // rank order — not the sortable "All categories" view or a re-sorted column.
-  // Only RANKED runners (with a rank/time) get a position + medal; unranked
-  // runners are listed last with a "—" and never take a podium spot.
-  const podium = !isAll && resultSort.key === "rank" && resultSort.dir === "asc";
+  // Medals show ONLY on a specific age-category podium (in natural rank order) —
+  // not on the overall / all-ages Men-Women views. Unranked runners never get a
+  // medal and are listed last with a "—".
+  const podium = !!resultSel.age && resultSort.key === "rank" && resultSort.dir === "asc";
   let pos = 0;
   tbody.innerHTML = rows.map(row => {
     const ranked = row.rank !== "" && row.rank != null;
