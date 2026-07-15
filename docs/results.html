@@ -191,6 +191,17 @@ function sortRows(rows){
   else arr.sort((a,b) => sign * String(a[k] ?? "").localeCompare(String(b[k] ?? ""), undefined, { numeric:true, sensitivity:"base" }));
   return arr;
 }
+const rowKey = e => String(e.bib ?? "") + "|" + String(e.name ?? "");
+// Keys of the overall podium (top 3 per gender, by time) within a pool.
+function overallPodiumKeys(pool){
+  const keys = new Set();
+  for (const g of ["Men","Women"]){
+    pool.filter(e => gb(e) === g && e.rank !== "" && e.rank != null)
+        .slice().sort(rankCmp).slice(0,3).forEach(e => keys.add(rowKey(e)));
+  }
+  return keys;
+}
+function catExcludesOverall(id){ return !!(CATS.find(c => c.id === id)?.excludeOverallFromAge); }
 function renderTabs(){
   const catIds = [...new Set(ENTRIES.map(e => e.catId))];
   const catOpts = CATS.filter(c => catIds.includes(c.id));
@@ -248,9 +259,12 @@ function render(){
   if (SEL.gender) pool = pool.filter(e => gb(e) === SEL.gender);
   let rows;
   if (SEL.age){
-    // Age-category podium: the 3 fastest in the age group. Everyone is eligible
-    // (no exclusion) — a Men/Women overall winner can also win their age group.
+    // Age-category podium: 3 fastest in the age group. If this category has a
+    // separate overall award, its overall top 3 (per gender) are skipped so
+    // others place; otherwise everyone is eligible.
+    const skip = (!isAll && catExcludesOverall(SEL.catId)) ? overallPodiumKeys(pool) : new Set();
     rows = pool.filter(e => String(e.sub||"").trim() === SEL.age
+                            && !skip.has(rowKey(e))
                             && e.rank !== "" && e.rank != null)
                .sort(rankCmp).slice(0, 3);
   } else {

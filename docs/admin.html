@@ -3117,13 +3117,29 @@ function renderResultTabs() {
 
 // Rows for the currently selected slice, sorted (default = rank → the computed
 // standings order). "All categories" adds a sortable Category column.
+// Reg ids of the overall podium (top 3 per gender by rank/time) within a pool.
+function overallPodiumIds(pool) {
+  const ids = new Set();
+  ["Men", "Women"].forEach(g => {
+    pool.filter(p => p.gbucket === g && p.rank !== "" && p.rank != null)
+        .slice().sort(compareRowRank).slice(0, 3)
+        .forEach(p => ids.add(p.id));
+  });
+  return ids;
+}
+
 function resultSliceRows() {
   const isAll = resultSel.catId === "__all__";
-  let src = isAll ? resultParticipants() : resultParticipants().filter(p => p.catId === resultSel.catId);
-  if (resultSel.gender) src = src.filter(p => p.gbucket === resultSel.gender);
-  // Age categories include everyone — no exclusion (an overall Men/Women top 3
-  // runner can also place in their age group).
-  if (resultSel.age) src = src.filter(p => p.sub === resultSel.age);
+  let pool = isAll ? resultParticipants() : resultParticipants().filter(p => p.catId === resultSel.catId);
+  if (resultSel.gender) pool = pool.filter(p => p.gbucket === resultSel.gender);
+  let src = pool;
+  if (resultSel.age) {
+    // If this category has a separate overall award, its age podiums exclude the
+    // overall top 3 (per gender). Categories without it include everyone.
+    const cat = cats.find(c => c.id === resultSel.catId);
+    const skip = (!isAll && cat?.excludeOverallFromAge) ? overallPodiumIds(pool) : new Set();
+    src = pool.filter(p => p.sub === resultSel.age && !skip.has(p.id));
+  }
   return sortResultObjs(src);
 }
 
@@ -3254,7 +3270,7 @@ document.getElementById("resultExportBtn")?.addEventListener("click", () => {
 // result — no contact info or DOB) of everyone who has a result/rank, and
 // writes it to a public-readable config doc that results.html renders.
 function buildResultsSnapshot() {
-  const catList = resultCategoriesWithPeople().map(c => ({ id: c.id, name: c.name || c.id, isRelay: !!c.isRelay }));
+  const catList = resultCategoriesWithPeople().map(c => ({ id: c.id, name: c.name || c.id, isRelay: !!c.isRelay, excludeOverallFromAge: !!c.excludeOverallFromAge }));
   // Reuse the standings rows so the public snapshot carries the SAME overall
   // rank the admin sees — including ranks calculated from times-only imports.
   const entries = resultParticipants()
@@ -6082,6 +6098,12 @@ function openEditCategory(c) {
       <span>Allow multiple participants in one submission (typically 5 KM &amp; 10 KM family entries)</span>
     </label>
 
+    <label class="inline" style="margin-top:6px;display:flex;align-items:center;gap:8px">
+      <input type="checkbox" id="ec_excludeOverall" ${c.excludeOverallFromAge ? "checked" : ""}
+        style="width:auto;min-height:auto;accent-color:var(--accent)">
+      <span>Age-category podiums exclude the overall top 3 (Men / Women) — an overall winner can't also take an age-category medal. Turn on where this category has a separate overall award (e.g. 10 KM).</span>
+    </label>
+
     <details style="margin-top:14px;padding:10px 12px;background:rgba(0,0,0,.18);border-radius:8px" ${c.subQuestion?.label ? "open" : ""}>
       <summary style="cursor:pointer;font-weight:700;color:var(--muted)">Optional extra dropdown (e.g. age bracket)</summary>
       <p class="muted" style="margin:8px 0;font-size:.85rem">Shown to the runner when they pick this category. Leave label blank to remove.</p>
@@ -6146,6 +6168,7 @@ Masters Men-Women 35-39 (1987-1991)
         startTime: $("#ec_startTime").value || null,
         isRelay: $("#ec_isRelay").checked,
         allowMultiParticipant: $("#ec_multi").checked,
+        excludeOverallFromAge: $("#ec_excludeOverall").checked,
         subQuestion
       });
       closeModal();
