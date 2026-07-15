@@ -3194,13 +3194,10 @@ function renderResultTab() {
     tbody.innerHTML = `<tr><td colspan="8" class="empty">No runners in this selection.</td></tr>`;
     return;
   }
-  // Podium highlight only for a single-category slice in its natural (computed)
-  // Medals show on the award podiums (natural rank order): a specific age
-  // category, OR — for relay (no age groups) — the Men / Women view. Never on an
-  // overall / all-ages view. Unranked runners never get a medal (listed last).
-  const isRelayCat = resultSel.catId !== "__all__" && !!cats.find(c => c.id === resultSel.catId)?.isRelay;
-  const podium = (isRelayCat ? !!resultSel.gender : !!resultSel.age)
-                 && resultSort.key === "rank" && resultSort.dir === "asc";
+  // Medals show on any Men / Women podium (natural rank order): the overall
+  // Men / Women, an age group, and relay Men / Women — but NOT the combined
+  // "Overall" (Men+Women) view. Unranked runners never get a medal (listed last).
+  const podium = !!resultSel.gender && resultSort.key === "rank" && resultSort.dir === "asc";
   let pos = 0;
   tbody.innerHTML = rows.map(row => {
     const ranked = row.rank !== "" && row.rank != null;
