@@ -191,19 +191,6 @@ function sortRows(rows){
   else arr.sort((a,b) => sign * String(a[k] ?? "").localeCompare(String(b[k] ?? ""), undefined, { numeric:true, sensitivity:"base" }));
   return arr;
 }
-const rowKey = e => String(e.bib ?? "") + "|" + String(e.name ?? "");
-// Keys of the OVERALL podium (top 3 per gender, by time) within a pool of
-// runners. Age-category awards skip these so others get a chance at top 3.
-function overallPodiumKeys(pool){
-  const keys = new Set();
-  for (const g of ["Men","Women"]){
-    pool.filter(e => gb(e) === g && e.rank !== "" && e.rank != null)
-        .slice().sort(rankCmp).slice(0,3)
-        .forEach(e => keys.add(rowKey(e)));
-  }
-  return keys;
-}
-
 function renderTabs(){
   const catIds = [...new Set(ENTRIES.map(e => e.catId))];
   const catOpts = CATS.filter(c => catIds.includes(c.id));
@@ -261,11 +248,9 @@ function render(){
   if (SEL.gender) pool = pool.filter(e => gb(e) === SEL.gender);
   let rows;
   if (SEL.age){
-    // Age-category podium: the OVERALL top 3 (per gender) are skipped so other
-    // runners get a chance at top 3. Then show the 3 fastest of the rest.
-    const skip = isAll ? new Set() : overallPodiumKeys(pool);
+    // Age-category podium: the 3 fastest in the age group. Everyone is eligible
+    // (no exclusion) — a Men/Women overall winner can also win their age group.
     rows = pool.filter(e => String(e.sub||"").trim() === SEL.age
-                            && !skip.has(rowKey(e))
                             && e.rank !== "" && e.rank != null)
                .sort(rankCmp).slice(0, 3);
   } else {
