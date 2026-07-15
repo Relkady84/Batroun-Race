@@ -271,13 +271,10 @@ function render(){
     rows = sortRows(pool);
   }
   if (!rows.length){ tb.innerHTML = `<tr><td colspan="8" class="empty">No results in this selection.</td></tr>`; return; }
-  // Medals (🥇🥈🥉) show on the award podiums: a specific age category, OR — for
-  // relay (which has no age groups) — the Men / Women view. Never on an overall
-  // / all-ages view. Positions still number every row.
-  const isRelayCat = SEL.catId !== "__all__" && catIsRelay(SEL.catId);
-  const podium = isRelayCat
-    ? (!!SEL.gender && SORT.key === "rank" && SORT.dir === "asc")
-    : !!SEL.age;
+  // Medals (🥇🥈🥉) show on any Men / Women podium (in rank order): the overall
+  // Men / Women, an age group, and relay Men / Women — but NOT the combined
+  // "Overall" (Men+Women) view. Positions still number every row.
+  const podium = !!SEL.gender && SORT.key === "rank" && SORT.dir === "asc";
   let pos = 0;
   tb.innerHTML = rows.map(e => {
     const ranked = e.rank !== "" && e.rank != null;
